@@ -1,0 +1,45 @@
+{
+  "_from": "mydog",
+  "_id": "mydog@1.0.0",
+  "_inBundle": false,
+  "_integrity": "sha512-9y4MUHEjq0NJGWmi+aUDDxCNqtK3ovN2sb4xI84WVTzZBa1HweWgvthjGkmiBfs5/OcuJvW0zzTqBMu24YVtng==",
+  "_location": "/mydog",
+  "_phantomChildren": {},
+  "_requested": {
+    "type": "tag",
+    "registry": true,
+    "raw": "mydog",
+    "name": "mydog",
+    "escapedName": "mydog",
+    "rawSpec": "",
+    "saveSpec": null,
+    "fetchSpec": "latest"
+  },
+  "_requiredBy": [
+    "#USER",
+    "/"
+  ],
+  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-1.0.0.tgz",
+  "_shasum": "03e04157d1a55dd1126e237901bc068fbaacc1fa",
+  "_spec": "mydog",
+  "_where": "F:\\myNewServer",
+  "author": {
+    "name": "ahuang"
+  },
+  "homepage": "https://github.com/ahuangege/mydog",
+  "bundleDependencies": false,
+  "deprecated": false,
+  "description": "a framework of nodejs server, thin pomelo",
+  "keywords": [
+    "pomelo",
+    "server",
+    "nodejs"
+  ],
+  "license": "ISC",
+  "main": "index.js",
+  "name": "mydog",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "version": "1.0.1"
+}
