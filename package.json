@@ -1,6 +1,6 @@
 {
   "_from": "mydog",
-  "_id": "mydog@1.0.0",
+  "_id": "mydog@1.0.3",
   "_inBundle": false,
   "_integrity": "sha512-9y4MUHEjq0NJGWmi+aUDDxCNqtK3ovN2sb4xI84WVTzZBa1HweWgvthjGkmiBfs5/OcuJvW0zzTqBMu24YVtng==",
   "_location": "/mydog",
@@ -41,5 +41,5 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "version": "1.0.2"
+  "version": "1.0.3"
 }

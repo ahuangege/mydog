@@ -22,11 +22,11 @@ npm install mydog
 * 后端服务器， 通常处理游戏逻辑。
 * rpc服务器，负责中转服务器之间的rpc调用。
 
-* 启动所有服务器；
-*    node app.js
-* 单独启动master服务器:
-*    node app.js startMode=alone
-* 单独启动其他服务器：
-*    node app.js serverType=connector id=connector-server-1
-* 单独启动其他服务器指定端口：
-*    node app.js serverType=connector id=connector-server-1 port=3001
+* 启动所有服务器；  node app.js
+*
+* 单独启动master服务器:  node app.js startMode=alone
+* 
+* 单独启动其他服务器：node app.js serverType=connector id=connector-server-1
+*    
+* 单独启动其他服务器指定端口：     node app.js serverType=connector id=connector-server-1 port=3001
+*  
