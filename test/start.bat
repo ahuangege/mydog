@@ -1,0 +1,2 @@
+node app.js
+@pause
