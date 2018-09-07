@@ -11,7 +11,7 @@ npm install mydog -g
 ## usage
 
 * nodejs编写，运行需要安装node。
-* mydog init ，选择编码语言（js / ts)
+* mydog init ，选择编码语言（javascript / typescript)。然后mydog start
 * 有一个聊天示例，并附有unity和cocos creator的客户端代码。可用于简单了解。
 * 源代码量极少，可阅读，熟悉相关api。
 
@@ -24,3 +24,7 @@ npm install mydog -g
 * alone选项表示，该服务器是否是独立的。
 * rpc服务器，负责中转服务器之间的rpc调用。
 * 相关概念与使用可参考pomelo
+
+## 架构图
+
+![image](https://github.com/ahuangege/mydog/blob/master/lib/mydog.png)
