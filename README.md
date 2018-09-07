@@ -25,6 +25,10 @@ npm install mydog -g
 * rpc服务器，负责中转服务器之间的rpc调用。
 * 相关概念与使用可参考pomelo
 
+## QQ群
+
+  875459630
+
 ## 架构图
 
 ![image](https://github.com/ahuangege/mydog/blob/master/lib/mydog.png)
