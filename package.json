@@ -1,8 +1,8 @@
 {
   "_from": "mydog",
-  "_id": "mydog@1.0.4",
+  "_id": "mydog@1.3.0",
   "_inBundle": false,
-  "_integrity": "sha512-9y4MUHEjq0NJGWmi+aUDDxCNqtK3ovN2sb4xI84WVTzZBa1HweWgvthjGkmiBfs5/OcuJvW0zzTqBMu24YVtng==",
+  "_integrity": "sha512-O/AcskBO7+D7/NAe+z3Nx9VAufcdeJz4xpJScnWRJDmalEs3RzosasDDo7r4/h0CjAHGwtwNiiXpQroezLfi8g==",
   "_location": "/mydog",
   "_phantomChildren": {},
   "_requested": {
@@ -19,17 +19,24 @@
     "#USER",
     "/"
   ],
-  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-1.0.0.tgz",
-  "_shasum": "03e04157d1a55dd1126e237901bc068fbaacc1fa",
+  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-1.3.0.tgz",
+  "_shasum": "555fd3681fe3c5103b9640583b1cdabbd49a81aa",
   "_spec": "mydog",
-  "_where": "F:\\myNewServer",
+  "_where": "E:\\nodejs",
   "author": {
     "name": "ahuang"
   },
-  "homepage": "https://github.com/ahuangege/mydog",
+  "bin": {
+    "mydog": "./bin/mydog.js"
+  },
   "bundleDependencies": false,
+  "dependencies": {
+    "commander": "^2.17.1",
+    "ws": "^6.0.0"
+  },
   "deprecated": false,
   "description": "a framework of nodejs server, thin pomelo",
+  "homepage": "https://github.com/ahuangege/mydog",
   "keywords": [
     "pomelo",
     "server",
@@ -41,5 +48,6 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "version": "1.0.4"
+  "types": "index.d.ts",
+  "version": "1.3.0"
 }
