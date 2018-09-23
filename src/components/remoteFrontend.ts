@@ -41,7 +41,9 @@ export function addServer(server: { "serverType": string; "serverInfo": ServerIn
  * @param serverInfo 后端服务器信息
  */
 export function removeServer(serverInfo: { "serverType": string; "id": string }) {
-    clients[serverInfo.serverType][serverInfo.id].close();
+    if(clients[serverInfo.serverType] && clients[serverInfo.serverType][serverInfo.id]){
+        clients[serverInfo.serverType][serverInfo.id].close();
+    }
 }
 
 /**
