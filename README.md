@@ -31,4 +31,4 @@ npm install mydog -g
 
 ## 架构图
 
-![image](https://github.com/ahuangege/mydog/blob/master/lib/mydog.png)
+![image](https://github.com/ahuangege/mydog/blob/master/mydog.png)

@@ -10,19 +10,14 @@ export function createApp(): Application;
 export let app: Application;
 
 /**
+ * mydog版本
+ */
+export let version: string;
+
+/**
  * app 类
  */
 export interface Application {
-    /**
-     * 前端服务器，连接的客户端数量
-     */
-    readonly clientNum: number;
-
-    /**
-     * master.json
-     */
-    readonly master: ServerInfo;
-
 
     /**
      * route.json
@@ -30,9 +25,9 @@ export interface Application {
     readonly routeConfig: string[];
 
     /**
-     * servers.json
+     * master.json
      */
-    readonly serversConfig: { [serverType: string]: ServerInfo[] };
+    readonly masterConfig: ServerInfo;
 
     /**
      * rpc.json
@@ -40,12 +35,37 @@ export interface Application {
     readonly rpcServersConfig: ServerInfo[];
 
     /**
-     * 服务器内部认识密钥
+     * servers.json
+     */
+    readonly serversConfig: { readonly [serverType: string]: ServerInfo[] };
+
+    /**
+     * 前端服务器，所有的socket连接数
+     */
+    readonly clientNum: number;
+
+    /**
+     * 服务器信息
+     */
+    readonly servers: { readonly [serverType: string]: ServerInfo[] };
+
+    /**
+     * 服务器信息（id格式）
+     */
+    readonly serversIdMap: { readonly [id: string]: ServerInfo };
+
+    /**
+     * rpc服务器信息
+     */
+    readonly rpcServersIdMap: { readonly [id: string]: ServerInfo };
+
+    /**
+     * 服务器内部认证密钥
      */
     serverToken: string;
 
     /**
-     * master服务器接受cli的密匙
+     * master与cli的认证密匙
      */
     clientToken: string;
 
@@ -53,6 +73,11 @@ export interface Application {
      * 本服务器的配置
      */
     readonly serverInfo: ServerInfo;
+
+    /**
+     * env
+     */
+    readonly env: "production" | "development";
 
     /**
      * ip
@@ -77,12 +102,12 @@ export interface Application {
     /**
      * 是否是前端服务器
      */
-    readonly frontend: string;
+    readonly frontend: boolean;
 
     /**
      * 服务器启动时刻
      */
-    readonly startTime: string;
+    readonly startTime: number;
 
     /**
      * rpc集合
@@ -95,13 +120,20 @@ export interface Application {
     start(): void;
 
     /**
+     * 编码解码回调
+     */
+    set(key: "encodeDecodeConfig", value: { "encode": Function, "decode": Function }): void
+    /**
+     * 前端连接服务器配置
+     */
+    set(key: "connectorConfig", value: { "connector": "net" | "ws", "heartbeat": number, "maxConnectionNum": number }): void
+
+    /**
      * 设置键值对
      * @param key 键
      * @param value 值
      */
     set(key: string | number, value: any): void
-    set(key: "encodeDecodeConfig", value: {"encode": Function, "decode": Function}): void
-    set(key: "connectorConfig", value: {"connector": "net" | "ws", "heartbeat": number}): void
 
     /**
      * 获取键值对
@@ -114,16 +146,6 @@ export interface Application {
      * @param key 键
      */
     delete(key: string | number): void;
-
-    /**
-     * 所有用户服务器配置
-     */
-    getServers(): { readonly [serverType: string]: ServerInfo[] };
-
-    /**
-     * 所有用户服务器配置(id形式)
-     */
-    getServersIdMap(): { readonly [id: string]: ServerInfo };
 
     /**
      * 获取某一类服务器
@@ -152,23 +174,23 @@ export interface Application {
     rpcRoute(serverType: string, rpcRouteFunc: (app: Application, routeParam: any, cb: (err: any, serverId: string) => void) => void): void;
 
     /**
-     * 是否绑定过客户端   《前端专用》
+     * 是否有该客户端   《前端专用》
      * @param uid 标识uid
      */
-    hasClient(uid: number | string): boolean;
+    hasClient(uid: number): boolean;
 
     /**
      * 关闭绑定的客户端     《前端专用》
      * @param uid 标识uid
      */
-    closeClient(uid: number | string): void;
+    closeClient(uid: number): void;
 
     /**
      * 配置部分session   《前端专用》
      * @param uid 标识uid
      * @param settings session里的部分配置
      */
-    applySomeSession(uid: number | string, settings: { [key: string]: any }): void;
+    applySession(uid: number, settings: { [key: string]: any }): void;
 
     /**
      * 向客户端发送消息  《前端专用》
@@ -176,10 +198,10 @@ export interface Application {
      * @param msg 消息
      * @param uids uid数组
      */
-    sendMsgByUid(cmd: string, msg: any, uids: (number | string)[]): void;
+    sendMsgByUid(cmd: string, msg: any, uids: number[]): void;
 
     /**
-     * 向所有的客户端发送消息   《前端专用》
+     * 向所有的客户端发送消息  《前端专用》
      * @param cmd 路由
      * @param msg 消息
      */
@@ -192,7 +214,7 @@ export interface Application {
      * @param uids uid数组
      * @param sids sid数组
      */
-    sendMsgByUidSid(cmd: string, msg: any, uids: (number | string)[], sids: string[]): void;
+    sendMsgByUidSid(cmd: string, msg: any, uids: number[], sids: string[]): void;
 
     /**
      * 配置服务器执行函数
@@ -205,13 +227,18 @@ export interface Application {
      * 内部日志输出
      * @param cb 回调函数
      */
-    onLog(cb: (filename: string, level: string, info: string) => void): void;
+    onLog(cb: (level: string, filename: string, info: string) => void): void;
 
     /**
      * 加载模块
      * @param dir 相对根目录的路径
      */
     loadFile(dir: string): any;
+
+    /**
+     * 获取bind的socket连接数
+     */
+    getBindClientNum(): number;
 }
 
 /**
@@ -221,18 +248,18 @@ export interface Session {
     /**
      * 绑定的uid
      */
-    readonly uid: number | string;
+    readonly uid: number;
 
     /**
-     * 绑定的sid
+     * 前端服务器id
      */
-    readonly sid: number | string;
+    readonly sid: string;
 
     /**
      * 绑定uid   《前端专用》
      * @param uid 标识uid
      */
-    bind(uid: number | string): boolean;
+    bind(uid: number): boolean;
 
     /**
      * 设置键值对
@@ -263,12 +290,17 @@ export interface Session {
      * @param cb 回调
      */
     setCloseCb(cb: (app: Application, session: Session) => void): void;
+
+    /**
+     * 关闭连接   《前端专用》
+     */
+    close(): void;
 }
 
 /**
  * 服务器信息
  */
-interface ServerInfo {
+export interface ServerInfo {
     /**
      * 服务器id
      */

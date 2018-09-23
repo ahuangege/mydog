@@ -1,118 +1,120 @@
-"use strict";
 /**
  * 启动环境检查
  */
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-var path = __importStar(require("path"));
-var fs = __importStar(require("fs"));
-var define_1 = __importDefault(require("./define"));
-var master = __importStar(require("../components/master"));
-var monitor = __importStar(require("../components/monitor"));
-var rpcServer = __importStar(require("../components/rpcServer"));
-var rpcService = __importStar(require("../components/rpcService"));
-var frontendServer = __importStar(require("../components/frontendServer"));
-var backendServer = __importStar(require("../components/backendServer"));
-var remoteFrontend = __importStar(require("../components/remoteFrontend"));
-var remoteBackend = __importStar(require("../components/remoteBackend"));
+
+
+import * as path from "path";
+import * as fs from "fs";
+import Application from "../application";
+import define from "./define";
+import { ServerInfo } from "./interfaceDefine";
+import * as master from "../components/master";
+import * as monitor from "../components/monitor";
+import * as rpcServer from "../components/rpcServer";
+import * as rpcService from "../components/rpcService";
+import * as frontendServer from "../components/frontendServer";
+import * as backendServer from "../components/backendServer";
+import * as remoteFrontend from "../components/remoteFrontend";
+import * as remoteBackend from "../components/remoteBackend";
+
 /**
  * 加载配置
- * @param app
+ * @param app 
  */
-function defaultConfiguration(app) {
-    var args = parseArgs(process.argv);
+export function defaultConfiguration(app: Application) {
+    let args = parseArgs(process.argv);
     app.env = args.env === "production" ? "production" : "development";
     loadBaseConfig(app);
     processArgs(app, args);
 }
-exports.defaultConfiguration = defaultConfiguration;
+
 /**
  * 启动服务器
- * @param app
+ * @param app 
  */
-function startServer(app) {
+export function startServer(app: Application) {
     startPng(app);
     if (app.serverType === "master") {
         master.start(app);
-    }
-    else if (app.serverType === "rpc") {
+    } else if (app.serverType === "rpc") {
+
         rpcServer.start(app, function () {
             monitor.start(app);
         });
-    }
-    else if (app.frontend) {
+
+    } else if (app.frontend) {
+
         frontendServer.start(app, function () {
             rpcService.init(app);
             remoteFrontend.init(app);
             monitor.start(app);
         });
-    }
-    else {
+
+    } else {
+
         backendServer.start(app, function () {
             rpcService.init(app);
             remoteBackend.init(app);
             monitor.start(app);
         });
     }
-}
-exports.startServer = startServer;
-;
-var parseArgs = function (args) {
-    var argsMap = {};
-    var mainPos = 1;
+};
+
+
+
+let parseArgs = function (args: any[]) {
+    let argsMap = {} as any;
+    let mainPos = 1;
+
     while (args[mainPos].indexOf('--') > 0) {
         mainPos++;
     }
     argsMap.main = args[mainPos];
-    for (var i = (mainPos + 1); i < args.length; i++) {
-        var arg = args[i];
-        var sep = arg.indexOf('=');
-        var key = arg.slice(0, sep);
-        var value = arg.slice(sep + 1);
+
+    for (let i = (mainPos + 1); i < args.length; i++) {
+        let arg = args[i];
+        let sep = arg.indexOf('=');
+        let key = arg.slice(0, sep);
+        let value = arg.slice(sep + 1);
         if (!isNaN(Number(value)) && (value.indexOf('.') < 0)) {
             value = Number(value);
-        }
-        else if (value === "true") {
+        } else if (value === "true") {
             value = true;
-        }
-        else if (value === "false") {
+        } else if (value === "false") {
             value = false;
         }
         argsMap[key] = value;
     }
+
     return argsMap;
 };
-var loadBaseConfig = function (app) {
-    loadConfigBaseApp(app, "masterConfig", path.join(define_1.default.File_Dir.Config, 'master.json'));
-    loadConfigBaseApp(app, "rpcServersConfig", path.join(define_1.default.File_Dir.Config, 'rpc.json'));
-    loadConfigBaseApp(app, "serversConfig", path.join(define_1.default.File_Dir.Config, 'servers.json'));
-    loadConfigBaseApp(app, "routeConfig", path.join(define_1.default.File_Dir.Config, 'route.json'));
-    function loadConfigBaseApp(app, key, val) {
-        var env = app.env;
-        var originPath = path.join(app.base, val);
+
+
+let loadBaseConfig = function (app: Application) {
+    loadConfigBaseApp(app, "masterConfig", path.join(define.File_Dir.Config, 'master.json'));
+    loadConfigBaseApp(app, "rpcServersConfig", path.join(define.File_Dir.Config, 'rpc.json'));
+    loadConfigBaseApp(app, "serversConfig", path.join(define.File_Dir.Config, 'servers.json'));
+    loadConfigBaseApp(app, "routeConfig", path.join(define.File_Dir.Config, 'route.json'));
+
+    function loadConfigBaseApp(app: Application, key: "masterConfig" | "rpcServersConfig" | "serversConfig" | "routeConfig", val: string) {
+        let env = app.env;
+        let originPath = path.join(app.base, val);
         if (fs.existsSync(originPath)) {
-            var file = require(originPath);
+            let file = require(originPath);
             if (file[env]) {
                 file = file[env];
             }
             app[key] = file;
-        }
-        else {
+        } else {
             console.error("ERROR-- no such file: " + originPath);
             process.exit();
         }
     }
 };
-var processArgs = function (app, args) {
+
+
+
+let processArgs = function (app: Application, args: any) {
     app.main = args.main;
     app.serverType = args.serverType || "master";
     app.serverId = args.id || app.masterConfig.id;
@@ -120,12 +122,11 @@ var processArgs = function (app, args) {
         app.startMode = args.startMode === "alone" ? "alone" : "all";
         app.host = app.masterConfig.host;
         app.port = app.masterConfig.port;
-    }
-    else if (app.serverType === "rpc") {
+    } else if (app.serverType === "rpc") {
         app.startMode = args.startMode === "all" ? "all" : "alone";
-        var rpcServersConfig = app.rpcServersConfig;
-        var rpcServerConfig = {};
-        for (var i = 0; i < rpcServersConfig.length; i++) {
+        let rpcServersConfig = app.rpcServersConfig;
+        let rpcServerConfig: ServerInfo = {} as any;
+        for (let i = 0; i < rpcServersConfig.length; i++) {
             if (rpcServersConfig[i].id === app.serverId) {
                 rpcServerConfig = rpcServersConfig[i];
                 break;
@@ -133,13 +134,12 @@ var processArgs = function (app, args) {
         }
         app.host = args.host || rpcServerConfig.host;
         app.port = args.port || rpcServerConfig.port;
-    }
-    else {
+    } else {
         app.startMode = args.startMode === "all" ? "all" : "alone";
-        var serversConfig = app.serversConfig[app.serverType];
-        var serverConfig = {};
+        let serversConfig = app.serversConfig[app.serverType];
+        let serverConfig: ServerInfo = {} as any;
         if (serversConfig) {
-            for (var i = 0; i < serversConfig.length; i++) {
+            for (let i = 0; i < serversConfig.length; i++) {
                 if (serversConfig[i].id === app.serverId) {
                     serverConfig = serversConfig[i];
                     break;
@@ -148,29 +148,34 @@ var processArgs = function (app, args) {
         }
         app.host = args.host || serverConfig.host;
         app.port = args.port || serverConfig.port;
-        var server = args;
+
+        let server: ServerInfo = args;
         if (args.hasOwnProperty("frontend")) {
             app.frontend = args.frontend === true;
-        }
-        else {
+        } else {
             app.frontend = serverConfig.frontend === true;
         }
         server.frontend = app.frontend;
+
+
         if (args.hasOwnProperty("alone")) {
             app.alone = args.alone === true;
-        }
-        else {
+        } else {
             app.alone = serverConfig.alone === true;
         }
         server.alone = app.alone;
+
         delete server["main"];
         delete server["env"];
         delete server["serverType"];
         delete server["startMode"];
+
         server["id"] = app.serverId;
         server["host"] = app.host;
         server["port"] = app.port;
-        var servers = {};
+
+
+        let servers: { [serverType: string]: ServerInfo[] } = {};
         servers[app.serverType] = [];
         servers[app.serverType].push(server);
         app.serverInfo = server;
@@ -178,11 +183,12 @@ var processArgs = function (app, args) {
         app.serversIdMap[server.id] = server;
     }
 };
-function startPng(app) {
+
+function startPng(app: Application) {
     if (app.serverType !== "master" && app.startMode === "all") {
         return;
     }
-    var lines = [
+    let lines = [
         "  ※----------------------※",
         "  ※   ----------------   ※",
         "  ※  ( mydog  @ahuang )  ※",
@@ -192,17 +198,17 @@ function startPng(app) {
         "  ※                      ※",
         "  ※----------------------※",
     ];
-    var version = require("../mydog.js").default.version;
+    let version = require("../mydog.js").default.version;
     version = "Ver: " + version;
     console.log("      ");
     console.log("      ");
-    for (var i = 0; i < lines.length; i++) {
+    for (let i = 0; i < lines.length; i++) {
         if (i === 6) {
-            var j = void 0;
-            var chars = lines[i].split('');
-            var len = chars.length - 2 - version.length;
+            let j;
+            let chars = lines[i].split('');
+            let len = chars.length - 2 - version.length;
             len = Math.floor(len / 2);
-            var index = 2 + len;
+            let index = 2 + len;
             for (j = 0; j < version.length; j++) {
                 chars[index + j] = version[j];
             }

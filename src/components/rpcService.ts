@@ -1,38 +1,31 @@
-"use strict";
 /**
  * rpc连接的管理，发送rpc消息
  */
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-var interfaceDefine_1 = require("../util/interfaceDefine");
-var path = __importStar(require("path"));
-var fs = __importStar(require("fs"));
-var define_1 = __importDefault(require("../util/define"));
-var tcpClient_1 = require("./tcpClient");
-var app;
-var rpcRouter;
-var servers;
-var serversIdMap;
-var connectingClients = {};
-var client_index = 1;
-var clients = [];
-var msgHandler = {};
-var rpcId = 1;
-var rpcRequest = {};
+
+
+import Application from "../application";
+import { rpcRouteFunc, ServerInfo, rpcTimeout, SocketProxy, loggerType, componentName } from "../util/interfaceDefine";
+import * as path from "path";
+import * as fs from "fs";
+import define from "../util/define";
+import { TcpClient } from "./tcpClient";
+
+let app: Application;
+let rpcRouter: { [serverType: string]: rpcRouteFunc };
+let servers: { [serverType: string]: ServerInfo[] };
+let serversIdMap: { [id: string]: ServerInfo };
+let connectingClients: { [id: string]: rpc_client_proxy } = {};
+let client_index = 1;
+let clients: rpc_client_proxy[] = [];
+let msgHandler: { [filename: string]: any } = {};
+let rpcId = 1;
+let rpcRequest: { [id: number]: rpcTimeout } = {};
+
 /**
  * 初始化
- * @param _app
+ * @param _app 
  */
-function init(_app) {
+export function init(_app: Application) {
     app = _app;
     rpcRouter = app.rpcRouter;
     servers = app.servers;
@@ -40,32 +33,32 @@ function init(_app) {
     rpc_create.loadRemoteMethod();
     clearRpcTimeOut();
 }
-exports.init = init;
+
 /**
  * 新增rpc server
- * @param server
+ * @param server 
  */
-function addRpcServer(server) {
+export function addRpcServer(server: ServerInfo) {
     if (connectingClients[server.id]) {
         connectingClients[server.id].close();
-    }
-    else {
-        for (var i = 0; i < clients.length; i++) {
+    } else {
+        for (let i = 0; i < clients.length; i++) {
             if (clients[i].id === server.id) {
                 clients[i].close();
                 break;
             }
         }
     }
+
     new rpc_client_proxy(server);
 }
-exports.addRpcServer = addRpcServer;
+
 /**
  * 移除rpc server
- * @param id
+ * @param id 
  */
-function removeRpcServer(id) {
-    for (var i = 0; i < clients.length; i++) {
+export function removeRpcServer(id: string) {
+    for (let i = 0; i < clients.length; i++) {
         if (clients[i].id === id) {
             clients[i].close();
             return;
@@ -74,130 +67,135 @@ function removeRpcServer(id) {
     if (connectingClients[id]) {
         connectingClients[id].close();
     }
-}
-exports.removeRpcServer = removeRpcServer;
-;
+};
+
+
 /**
  * rpc构造
  */
-var rpc_create = /** @class */ (function () {
-    function rpc_create() {
-    }
-    rpc_create.loadRemoteMethod = function () {
-        var rpc = {};
+class rpc_create {
+    public static loadRemoteMethod() {
+        let rpc = {} as any;
         app.rpc = rpc;
-        var dirName = path.join(app.base, define_1.default.File_Dir.Servers);
-        var exists = fs.existsSync(dirName);
+        let dirName = path.join(app.base, define.File_Dir.Servers);
+        let exists = fs.existsSync(dirName);
         if (!exists) {
             return;
         }
         fs.readdirSync(dirName).forEach(function (serverName) {
-            var server = {};
-            var remoteDirName = path.join(dirName, serverName, '/remote');
-            var exists = fs.existsSync(remoteDirName);
+            let server: { [filename: string]: any } = {};
+            let remoteDirName = path.join(dirName, serverName, '/remote');
+            let exists = fs.existsSync(remoteDirName);
             if (exists) {
                 fs.readdirSync(remoteDirName).forEach(function (fileName) {
                     if (!/\.js$/.test(fileName)) {
                         return;
                     }
-                    var name = path.basename(fileName, '.js');
-                    var remote = require(path.join(remoteDirName, fileName));
+                    let name = path.basename(fileName, '.js');
+                    let remote = require(path.join(remoteDirName, fileName));
                     if (remote.default && typeof remote.default === "function") {
                         server[name] = new remote.default(app);
-                    }
-                    else if (typeof remote === "function") {
+                    } else if (typeof remote === "function") {
                         server[name] = new remote(app);
                     }
                 });
             }
             rpc[serverName] = {};
-            for (var name_1 in server) {
-                rpc[serverName][name_1] = rpc_create.initFunc(serverName, name_1, server[name_1]);
+            for (let name in server) {
+                rpc[serverName][name] = rpc_create.initFunc(serverName, name, server[name]);
             }
             if (serverName === app.serverType) {
                 msgHandler = server;
             }
         });
-    };
-    rpc_create.initFunc = function (serverName, fileName, obj) {
-        var res = {};
-        for (var field in obj) {
+    }
+
+    private static initFunc(serverName: string, fileName: string, obj: any) {
+        let res: { [method: string]: Function } = {};
+        for (let field in obj) {
             if (typeof obj[field] === "function") {
                 res[field] = rpc_create.proxyCb(serverName, fileName + "." + field);
             }
         }
         return res;
-    };
-    rpc_create.proxyCb = function (serverName, file_method) {
-        var func = function () {
-            var args = Array.prototype.slice.call(arguments, 0);
+    }
+
+    private static proxyCb(serverName: string, file_method: string) {
+        let func = function () {
+            let args = Array.prototype.slice.call(arguments, 0);
             rpc_create.proxyCbSend(serverName, file_method, args);
         };
-        func.toServer = function () {
-            var args = Array.prototype.slice.call(arguments, 0);
+        (func as any).toServer = function () {
+            let args = Array.prototype.slice.call(arguments, 0);
             rpc_create.proxyCbSendToServer(serverName, file_method, args);
         };
         return func;
-    };
-    rpc_create.proxyCbSend = function (serverType, file_method, args) {
-        var cb = null;
+    }
+
+    private static proxyCbSend(serverType: string, file_method: string, args: any[]) {
+        let cb: Function | null = null;
         if (typeof args[args.length - 1] === "function") {
             cb = args.pop();
         }
-        var cbFunc = function (err, sid) {
+
+        let cbFunc = function (err: any, sid: string) {
             if (err || !serversIdMap[sid]) {
                 cb && cb({ "code": 1, "info": err });
                 return;
             }
-            var rpcInvoke = {};
+            let rpcInvoke = {} as any;
             rpcInvoke["from"] = app.serverId;
             rpcInvoke["to"] = sid;
             rpcInvoke["route"] = file_method;
+
             if (cb) {
                 rpcInvoke["id"] = getRpcId();
-                rpcRequest[rpcInvoke.id] = {
+                rpcRequest[rpcInvoke.id as number] = {
                     "cb": cb,
                     "time": 0
                 };
             }
-            var client = getRpcSocket();
+
+            let client = getRpcSocket();
             if (client) {
                 sendRpcMsg(client, rpcInvoke, args);
-            }
-            else {
+            } else {
                 cb && cb({ "code": 2, "info": "has no rpc server" });
             }
         };
-        var tmpRouter = rpcRouter[serverType];
+
+        let tmpRouter = rpcRouter[serverType];
         if (tmpRouter) {
             tmpRouter(app, args.shift(), cbFunc);
-        }
-        else {
-            var list = servers[serverType];
+        } else {
+            let list = servers[serverType];
             if (!list || !list.length) {
                 cbFunc(app.serverId + " has no such rpc serverType: " + serverType, "");
-            }
-            else {
-                var index = Math.floor(Math.random() * list.length);
+            } else {
+                let index = Math.floor(Math.random() * list.length);
                 cbFunc(null, list[index].id);
             }
         }
-    };
-    rpc_create.proxyCbSendToServer = function (serverType, file_method, args) {
-        var to = args.shift();
+    }
+
+    private static proxyCbSendToServer(serverType: string, file_method: string, args: any[]) {
+        let to = args.shift();
         if (to === "*") {
             rpc_create.proxyCbSendToServerType(serverType, file_method, args);
             return;
         }
-        var cb = null;
+
+        let cb: Function = null as any;
         if (typeof args[args.length - 1] === "function") {
             cb = args.pop();
         }
+
         if (!serversIdMap[to]) {
             cb && cb({ "code": 1, "info": app.serverId + " has no rpc server named " + to });
             return;
         }
-        var rpcInvoke = {};
+
+        let rpcInvoke = {} as any;
         rpcInvoke["from"] = app.serverId;
         if (cb) {
             rpcInvoke["id"] = getRpcId();
@@ -208,34 +206,36 @@ var rpc_create = /** @class */ (function () {
         }
         rpcInvoke['route'] = file_method;
         rpcInvoke["to"] = to;
-        var client = getRpcSocket();
+        let client = getRpcSocket();
         if (client) {
             sendRpcMsg(client, rpcInvoke, args);
-        }
-        else {
+        } else {
             cb && cb({ "code": 2, "info": "has no rpc server" });
         }
-    };
-    rpc_create.proxyCbSendToServerType = function (serverType, file_method, args) {
-        var cb = null;
+    }
+
+    private static proxyCbSendToServerType(serverType: string, file_method: string, args: any[]) {
+        let cb: Function = null as any;
         if (typeof args[args.length - 1] === "function") {
             cb = args.pop();
         }
-        var endTo = [];
-        for (var i = 0; i < servers[serverType].length; i++) {
+
+        let endTo: string[] = [];
+        for (let i = 0; i < servers[serverType].length; i++) {
             endTo.push(servers[serverType][i].id);
         }
         if (endTo.length === 0) {
             cb && cb(undefined, {});
         }
-        var nums = endTo.length;
-        var endCb = null;
-        var bindCb = null;
-        var called = false;
-        var msgObj = {};
-        var timeout = null;
+
+        let nums: number = endTo.length;
+        let endCb: Function = null as any;
+        let bindCb: Function = null as any;
+        let called = false;
+        let msgObj = {} as any;
+        let timeout: NodeJS.Timer = null as any;
         if (cb) {
-            endCb = function (id, err, msg) {
+            endCb = function (id: string, err: any, msg: any) {
                 if (called) {
                     return;
                 }
@@ -253,25 +253,31 @@ var rpc_create = /** @class */ (function () {
                     cb(undefined, msgObj);
                 }
             };
+
             timeout = setTimeout(function () {
                 called = true;
                 cb({ "code": 4, "info": "rpc time out" });
             }, 10000);
-            bindCb = function (id) {
-                return function (err, msg) {
-                    endCb(id, err, msg);
+
+            bindCb = function (id: string) {
+                return function (err: any, msg: any) {
+                    endCb(id, err, msg)
                 };
             };
+
         }
-        var tmpCb = null;
-        for (var i = 0; i < endTo.length; i++) {
+
+
+        let tmpCb: Function = null as any;
+        for (let i = 0; i < endTo.length; i++) {
             if (cb) {
                 tmpCb = bindCb(endTo[i]);
             }
-            send(endTo[i], tmpCb);
+            send(endTo[i], tmpCb)
         }
-        function send(toId, callback) {
-            var rpcInvoke = {};
+
+        function send(toId: string, callback: Function) {
+            let rpcInvoke = {} as any;
             rpcInvoke["from"] = app.serverId;
             if (callback) {
                 rpcInvoke["id"] = getRpcId();
@@ -282,181 +288,203 @@ var rpc_create = /** @class */ (function () {
             }
             rpcInvoke['route'] = file_method;
             rpcInvoke["to"] = toId;
-            var client = getRpcSocket();
+            let client = getRpcSocket();
             if (client) {
                 sendRpcMsg(client, rpcInvoke, args);
-            }
-            else {
+            } else {
                 callback && callback({ "code": 2, "info": "has no rpc server" });
             }
         }
-    };
-    return rpc_create;
-}());
+    }
+}
+
+
 function getRpcId() {
-    var id = rpcId++;
+    let id = rpcId++;
     if (rpcId > 999999) {
         rpcId = 1;
     }
     return id;
 }
+
 function getRpcSocket() {
-    var socket = null;
+    let socket = null;
     if (clients.length) {
         socket = clients[client_index % clients.length];
         client_index = (client_index + 1) % clients.length;
     }
     return socket;
 }
-function sendRpcMsg(client, iMsg, msg) {
-    var iMsgBuf = Buffer.from(JSON.stringify(iMsg));
-    var msgBuf = Buffer.from(JSON.stringify(msg));
-    var buf = Buffer.allocUnsafe(6 + iMsgBuf.length + msgBuf.length);
+
+function sendRpcMsg(client: rpc_client_proxy, iMsg: any, msg: any) {
+    let iMsgBuf = Buffer.from(JSON.stringify(iMsg));
+    let msgBuf = Buffer.from(JSON.stringify(msg));
+    let buf = Buffer.allocUnsafe(6 + iMsgBuf.length + msgBuf.length);
     buf.writeUInt32BE(2 + iMsgBuf.length + msgBuf.length, 0);
-    buf.writeUInt8(define_1.default.Rpc_Msg.msg, 4);
+    buf.writeUInt8(define.Rpc_Msg.msg, 4);
     buf.writeUInt8(iMsgBuf.length, 5);
     iMsgBuf.copy(buf, 6);
     msgBuf.copy(buf, 6 + iMsgBuf.length);
     client.send(buf);
 }
+
 /**
  * 删除rpc计时
  */
-function delRequest(id) {
+function delRequest(id: number) {
     delete rpcRequest[id];
 }
+
 /**
  * rpc 超时判断
  */
 function clearRpcTimeOut() {
     setTimeout(function () {
-        var tmp;
-        for (var id in rpcRequest) {
+        let tmp: rpcTimeout;
+        for (let id in rpcRequest) {
             tmp = rpcRequest[id];
             tmp.time += 3;
             if (tmp.time > 10) {
-                delRequest(id);
+                delRequest(id as any);
                 try {
                     tmp.cb({ "code": 4, "info": "rpc time out" });
-                }
-                catch (err) {
+                } catch (err) {
                 }
             }
         }
         clearRpcTimeOut();
     }, 3000);
 }
+
 /**
  * rpc回调
  */
-function getCallBackFunc(to, id) {
-    return function (data) {
+function getCallBackFunc(to: string, id: number) {
+    return function (data: any) {
         if (data === undefined) {
             data = null;
         }
-        var rpcInvoke = { "to": to, "id": id };
-        var client = getRpcSocket();
+        let rpcInvoke = { "to": to, "id": id };
+        let client = getRpcSocket();
         if (client) {
             sendRpcMsg(client, rpcInvoke, data);
         }
-    };
+    }
 }
+
 function defaultCallBack() {
+
 }
+
 /**
  * rpc socket
  */
-var rpc_client_proxy = /** @class */ (function () {
-    function rpc_client_proxy(server) {
-        this.socket = null;
-        this.connect_timer = null;
-        this.heartbeat_timer = null;
-        this.die = false;
+class rpc_client_proxy {
+    public id: string;
+    private host: string;
+    private port: number;
+    private socket: SocketProxy = null as any;
+    private connect_timer: NodeJS.Timer = null as any;
+    private heartbeat_timer: NodeJS.Timer = null as any;
+    private die: boolean = false;
+
+    constructor(server: ServerInfo) {
         this.id = server.id;
         this.host = server.host;
         this.port = server.port;
         this.doConnect(0);
     }
-    rpc_client_proxy.prototype.doConnect = function (delay) {
+
+    private doConnect(delay: number) {
         if (this.die) {
             return;
         }
-        var self = this;
+        let self = this;
         connectingClients[self.id] = this;
         this.connect_timer = setTimeout(function () {
-            var connectCb = function () {
-                app.logger(interfaceDefine_1.loggerType.info, interfaceDefine_1.componentName.rpcService, " connect to rpc server " + self.id + " success");
+            let connectCb = function () {
+                app.logger(loggerType.info, componentName.rpcService, " connect to rpc server " + self.id + " success");
+
                 delete connectingClients[self.id];
                 clients.push(self);
+
                 // 注册
-                var loginBuf = Buffer.from(JSON.stringify({
+                let loginBuf = Buffer.from(JSON.stringify({
                     sid: app.serverId,
                     serverToken: app.serverToken
                 }));
-                var buf = Buffer.allocUnsafe(loginBuf.length + 5);
+                let buf = Buffer.allocUnsafe(loginBuf.length + 5);
                 buf.writeUInt32BE(loginBuf.length + 1, 0);
-                buf.writeUInt8(define_1.default.Rpc_Msg.register, 4);
+                buf.writeUInt8(define.Rpc_Msg.register, 4);
                 loginBuf.copy(buf, 5);
                 tmpClient.send(buf);
+
                 // 心跳包
                 self.heartbeat();
             };
-            var tmpClient = new tcpClient_1.TcpClient(self.port, self.host, connectCb);
+            let tmpClient = new TcpClient(self.port, self.host, connectCb);
             self.socket = tmpClient;
             tmpClient.on("data", self.dealMsg.bind(self));
             tmpClient.on("close", self.onClose.bind(self));
+
         }, delay);
-    };
-    rpc_client_proxy.prototype.removeFromClients = function () {
-        var index = clients.indexOf(this);
+    }
+
+
+
+    private removeFromClients() {
+        let index = clients.indexOf(this);
         if (index !== -1) {
             clients.splice(index, 1);
         }
-    };
-    rpc_client_proxy.prototype.onClose = function () {
+    }
+
+    private onClose() {
         clearTimeout(this.heartbeat_timer);
         this.removeFromClients();
-        this.socket = null;
-        app.logger(interfaceDefine_1.loggerType.warn, interfaceDefine_1.componentName.rpcService, "rpc connect " + this.id + " fail, reconnect later");
-        this.doConnect(define_1.default.Time.Rpc_Reconnect_Time * 1000);
-    };
-    rpc_client_proxy.prototype.heartbeat = function () {
-        var self = this;
+        this.socket = null as any;
+        app.logger(loggerType.warn, componentName.rpcService, "rpc connect " + this.id + " fail, reconnect later");
+        this.doConnect(define.Time.Rpc_Reconnect_Time * 1000);
+    }
+
+    private heartbeat() {
+        let self = this;
         this.heartbeat_timer = setTimeout(function () {
-            var buf = Buffer.allocUnsafe(5);
+            let buf = Buffer.allocUnsafe(5);
             buf.writeUInt32BE(1, 0);
-            buf.writeUInt8(define_1.default.Rpc_Msg.heartbeat, 4);
+            buf.writeUInt8(define.Rpc_Msg.heartbeat, 4);
             self.send(buf);
             self.heartbeat();
-        }, define_1.default.Time.Rpc_Heart_Beat_Time * 1000);
-    };
-    rpc_client_proxy.prototype.send = function (buf) {
+        }, define.Time.Rpc_Heart_Beat_Time * 1000)
+    }
+
+    send(buf: Buffer) {
         this.socket.send(buf);
-    };
-    rpc_client_proxy.prototype.dealMsg = function (data) {
-        var iMsgLen = data.readUInt8(0);
-        var iMsg = JSON.parse(data.slice(1, 1 + iMsgLen).toString());
-        var msg = JSON.parse(data.slice(1 + iMsgLen).toString());
+    }
+
+    private dealMsg(data: Buffer) {
+        let iMsgLen = data.readUInt8(0);
+        let iMsg = JSON.parse(data.slice(1, 1 + iMsgLen).toString());
+        let msg = JSON.parse(data.slice(1 + iMsgLen).toString());
         if (!iMsg.from) {
-            if (rpcRequest[iMsg.id]) {
-                rpcRequest[iMsg.id].cb(iMsg.err, msg);
-                delRequest(iMsg.id);
+            if (rpcRequest[iMsg.id as number]) {
+                rpcRequest[iMsg.id as number].cb(iMsg.err, msg);
+                delRequest(iMsg.id as number);
             }
-        }
-        else {
-            var cmd = iMsg.route.split('.');
+        } else {
+            let cmd = iMsg.route.split('.');
             if (iMsg.id) {
-                var cb = getCallBackFunc(iMsg.from, iMsg.id);
+                let cb = getCallBackFunc(iMsg.from, iMsg.id);
                 msg.push(cb);
-            }
-            else {
+            } else {
                 msg.push(defaultCallBack);
             }
-            var file = msgHandler[cmd[0]];
+            let file = msgHandler[cmd[0]];
             file[cmd[1]].apply(file, msg);
         }
-    };
-    rpc_client_proxy.prototype.close = function () {
+    }
+
+    close() {
         this.die = true;
         if (this.socket) {
             this.socket.close();
@@ -465,6 +493,6 @@ var rpc_client_proxy = /** @class */ (function () {
             delete connectingClients[this.id];
         }
         clearTimeout(this.connect_timer);
-    };
-    return rpc_client_proxy;
-}());
+    }
+}
+

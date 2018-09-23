@@ -1,1 +1,1 @@
-module.exports = require('./lib/mydog.js');
+module.exports = require('./lib/mydog.js').default;

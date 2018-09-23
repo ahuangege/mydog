@@ -1,11 +1,11 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.default = {
+export default {
     Time: {
         Monitor_Reconnect_Time: 5,
         Monitor_Heart_Beat_Time: 60,
+
         Rpc_Reconnect_Time: 5,
         Rpc_Heart_Beat_Time: 60,
+
         Remote_Reconnect_Time: 5,
         Remote_Heart_Beat_Time: 60
     },
@@ -19,6 +19,7 @@ exports.default = {
     },
     Server_Token: "hi,i am inner server",
     Master_Client_Token: "hi,i am client",
+
     Master_To_Monitor: {
         addServer: 1,
         removeServer: 2,

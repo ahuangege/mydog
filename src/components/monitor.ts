@@ -1,85 +1,89 @@
-"use strict";
 /**
  * 非master服务器启动后，由此连接master服，互相认识，并处理相关逻辑
  */
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-var cliUtil_1 = require("./cliUtil");
-var tcpClient_1 = require("./tcpClient");
-var define_1 = __importDefault(require("../util/define"));
-var interfaceDefine_1 = require("../util/interfaceDefine");
-var msgCoder_1 = require("./msgCoder");
-var app;
-var monitorCli;
-function start(_app) {
+
+
+import Application from "../application";
+import { MonitorCli } from "./cliUtil";
+import { TcpClient } from "./tcpClient";
+import define from "../util/define";
+import { SocketProxy, ServerInfo, monitor_get_new_server, monitor_remove_server, loggerType, componentName, monitor_reg_master } from "../util/interfaceDefine";
+import { encodeInnerData } from "./msgCoder";
+
+let app: Application;
+let monitorCli: MonitorCli;
+export function start(_app: Application) {
     app = _app;
-    monitorCli = new cliUtil_1.MonitorCli(app);
+    monitorCli = new MonitorCli(app);
     connectToMaster(0);
 }
-exports.start = start;
-function connectToMaster(delay) {
+
+
+function connectToMaster(delay: number) {
     setTimeout(function () {
-        var connectCb = function () {
-            app.logger(interfaceDefine_1.loggerType.info, interfaceDefine_1.componentName.monitor, app.serverId + " monitor connected to master success ");
+        let connectCb = function () {
+            app.logger(loggerType.info, componentName.monitor, app.serverId + " monitor connected to master success ");
+
             // 向master注册
-            var curServerInfo = null;
+            let curServerInfo: ServerInfo = null as any;
             if (app.serverType === "rpc") {
                 curServerInfo = {
                     "id": app.serverId,
                     "host": app.host,
                     "port": app.port
-                };
-            }
-            else {
+                }
+            } else {
                 curServerInfo = app.serverInfo;
             }
-            var loginInfo = {
-                T: define_1.default.Monitor_To_Master.register,
+            let loginInfo: monitor_reg_master = {
+                T: define.Monitor_To_Master.register,
                 serverType: app.serverType,
                 serverInfo: curServerInfo,
                 serverToken: app.serverToken
             };
-            var loginInfoBuf = msgCoder_1.encodeInnerData(loginInfo);
+            let loginInfoBuf = encodeInnerData(loginInfo);
             client.send(loginInfoBuf);
+
             // 心跳包
             heartBeat(client);
         };
-        var client = new tcpClient_1.TcpClient(app.masterConfig.port, app.masterConfig.host, connectCb);
-        client.on("data", function (_data) {
-            var data = JSON.parse(_data.toString());
-            if (data.T === define_1.default.Master_To_Monitor.addServer) {
-                addServer(data.serverInfoIdMap);
-            }
-            else if (data.T === define_1.default.Master_To_Monitor.removeServer) {
-                removeServer(data);
-            }
-            else if (data.T === define_1.default.Master_To_Monitor.cliMsg) {
+
+        let client: SocketProxy = new TcpClient(app.masterConfig.port, app.masterConfig.host, connectCb);
+        client.on("data", function (_data: Buffer) {
+            let data: any = JSON.parse(_data.toString());
+
+            if (data.T === define.Master_To_Monitor.addServer) {
+                addServer((data as monitor_get_new_server).serverInfoIdMap);
+            } else if (data.T === define.Master_To_Monitor.removeServer) {
+                removeServer(data as monitor_remove_server);
+            } else if (data.T === define.Master_To_Monitor.cliMsg) {
                 monitorCli.deal_master_msg(client, data);
             }
         });
         client.on("close", function () {
             clearTimeout(client.heartBeatTimer);
-            app.logger(interfaceDefine_1.loggerType.error, interfaceDefine_1.componentName.master, app.serverId + " monitor closed, reconnect later");
-            connectToMaster(define_1.default.Time.Monitor_Reconnect_Time * 1000);
+            app.logger(loggerType.error, componentName.master, app.serverId + " monitor closed, reconnect later");
+            connectToMaster(define.Time.Monitor_Reconnect_Time * 1000);
         });
     }, delay);
 }
-function heartBeat(socket) {
+
+
+function heartBeat(socket: SocketProxy) {
     socket.heartBeatTimer = setTimeout(function () {
-        var heartBeatMsg = { T: define_1.default.Monitor_To_Master.heartbeat };
-        var heartBeatMsgBuf = msgCoder_1.encodeInnerData(heartBeatMsg);
+        let heartBeatMsg = { T: define.Monitor_To_Master.heartbeat };
+        let heartBeatMsgBuf = encodeInnerData(heartBeatMsg);
         socket.send(heartBeatMsgBuf);
         heartBeat(socket);
-    }, define_1.default.Time.Monitor_Heart_Beat_Time * 1000);
+    }, define.Time.Monitor_Heart_Beat_Time * 1000)
 }
-function addServer(servers) {
-    var serversApp = app.servers;
-    var serversIdMap = app.serversIdMap;
-    var server;
-    var serverInfo;
-    for (var sid in servers) {
+
+function addServer(servers: { [id: string]: { "serverType": string, "serverInfo": ServerInfo } }) {
+    let serversApp = app.servers;
+    let serversIdMap = app.serversIdMap;
+    let server: { "serverType": string, "serverInfo": ServerInfo };
+    let serverInfo: ServerInfo;
+    for (let sid in servers) {
         server = servers[sid];
         serverInfo = server.serverInfo;
         if (server.serverType === "rpc") {
@@ -98,21 +102,23 @@ function addServer(servers) {
             serversApp[server.serverType] = [];
         }
         serversApp[server.serverType].push(serverInfo);
+
         if (app.frontend && !app.alone && !serverInfo.frontend && !serverInfo.alone) {
             app.remoteFrontend.addServer(server);
         }
     }
 }
-function removeServer(msg) {
+
+function removeServer(msg: monitor_remove_server) {
     if (msg.serverType === "rpc") {
         delete app.rpcServersIdMap[msg.id];
         app.rpcService.removeRpcServer(msg.id);
         return;
     }
     delete app.serversIdMap[msg.id];
-    var serversApp = app.servers;
+    let serversApp = app.servers;
     if (serversApp[msg.serverType]) {
-        for (var i = 0; i < serversApp[msg.serverType].length; i++) {
+        for (let i = 0; i < serversApp[msg.serverType].length; i++) {
             if (serversApp[msg.serverType][i].id === msg.id) {
                 serversApp[msg.serverType].splice(i, 1);
                 if (app.frontend && !app.alone) {

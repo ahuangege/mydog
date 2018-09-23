@@ -1,8 +1,8 @@
 {
   "_from": "mydog",
-  "_id": "mydog@1.3.0",
+  "_id": "mydog@1.5.1",
   "_inBundle": false,
-  "_integrity": "sha512-O/AcskBO7+D7/NAe+z3Nx9VAufcdeJz4xpJScnWRJDmalEs3RzosasDDo7r4/h0CjAHGwtwNiiXpQroezLfi8g==",
+  "_integrity": "sha512-05oxWV/WQUqkt0V8HhtD7MTnJ9w6ox/2KGB6iOIU87aGhluUMsXMrAtdoToCrrflNMt9+jfQj4ENmo3ZxCWikw==",
   "_location": "/mydog",
   "_phantomChildren": {},
   "_requested": {
@@ -19,17 +19,17 @@
     "#USER",
     "/"
   ],
-  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-1.3.0.tgz",
-  "_shasum": "555fd3681fe3c5103b9640583b1cdabbd49a81aa",
+  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-1.5.1.tgz",
+  "_shasum": "87b8bae63af7186eac305b3282010bd08809b77c",
   "_spec": "mydog",
-  "_where": "E:\\nodejs",
+  "_where": "E:\\mydog\\Test",
   "author": {
     "name": "ahuang"
   },
   "bin": {
     "mydog": "./bin/mydog.js"
   },
-  "bundleDependencies": false,
+  "bundleDependencies": [],
   "dependencies": {
     "commander": "^2.17.1",
     "ws": "^6.0.0"
@@ -49,5 +49,5 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "types": "index.d.ts",
-  "version": "1.3.0"
+  "version": "1.5.2"
 }

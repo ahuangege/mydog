@@ -11,7 +11,7 @@ var program = require('commander');
 var net = require("net");
 var EventEmitter = require('events').EventEmitter;
 
-var define = require("../lib/util/define.js");
+var define = require("../lib/util/define.js").default;
 var msgCoder = require("../lib/components/msgCoder.js");
 var version = require('../package.json').version;
 
