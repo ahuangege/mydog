@@ -12,9 +12,14 @@ import { encodeInnerData } from "./msgCoder";
 
 let app: Application;
 let monitorCli: MonitorCli;
+let removeDiffServers: { [id: string]: string } = {}; // monitor重连后，待对比移除的server集合
+let needDiff: boolean = false; // 是否需要对比
+let diffTimer: NodeJS.Timer = null as any;
+
 export function start(_app: Application) {
     app = _app;
     monitorCli = new MonitorCli(app);
+    needDiff = false;
     connectToMaster(0);
 }
 
@@ -50,6 +55,7 @@ function connectToMaster(delay: number) {
 
         let client: SocketProxy = new TcpClient(app.masterConfig.port, app.masterConfig.host, connectCb);
         client.on("data", function (_data: Buffer) {
+
             let data: any = JSON.parse(_data.toString());
 
             if (data.T === define.Master_To_Monitor.addServer) {
@@ -61,8 +67,11 @@ function connectToMaster(delay: number) {
             }
         });
         client.on("close", function () {
-            clearTimeout(client.heartBeatTimer);
             app.logger(loggerType.error, componentName.master, app.serverId + " monitor closed, reconnect later");
+            needDiff = true;
+            removeDiffServers = {};
+            clearTimeout(diffTimer);
+            clearTimeout(client.heartBeatTimer);
             connectToMaster(define.Time.Monitor_Reconnect_Time * 1000);
         });
     }, delay);
@@ -79,6 +88,9 @@ function heartBeat(socket: SocketProxy) {
 }
 
 function addServer(servers: { [id: string]: { "serverType": string, "serverInfo": ServerInfo } }) {
+    if (needDiff) {
+        diffTimerStart();
+    }
     let serversApp = app.servers;
     let serversIdMap = app.serversIdMap;
     let server: { "serverType": string, "serverInfo": ServerInfo };
@@ -86,22 +98,41 @@ function addServer(servers: { [id: string]: { "serverType": string, "serverInfo"
     for (let sid in servers) {
         server = servers[sid];
         serverInfo = server.serverInfo;
+        if (needDiff) {
+            addOrRemoveDiffServer(serverInfo.id, true, server.serverType);
+        }
+        let tmpServer: ServerInfo;
         if (server.serverType === "rpc") {
-            if (app.rpcServersIdMap[serverInfo.id]) {
+            tmpServer = app.rpcServersIdMap[serverInfo.id]
+            if (tmpServer && tmpServer.host === serverInfo.host && tmpServer.port === serverInfo.port) {    // 如果已经存在且ip配置相同，则忽略
                 continue;
             }
             app.rpcServersIdMap[serverInfo.id] = serverInfo;
             app.rpcService.addRpcServer(serverInfo);
             continue;
         }
-        if (serversIdMap[serverInfo.id]) {
+        tmpServer = serversIdMap[serverInfo.id]
+        if (tmpServer && tmpServer.host === serverInfo.host && tmpServer.port === serverInfo.port) {    // 如果已经存在且ip配置相同，则忽略（不考虑其他配置，请开发者自己保证）
             continue;
         }
-        serversIdMap[serverInfo.id] = serverInfo;
         if (!serversApp[server.serverType]) {
             serversApp[server.serverType] = [];
         }
+        if (!!tmpServer) {
+            for (let i = 0, len = serversApp[server.serverType].length; i < len; i++) {
+                if (serversApp[server.serverType][i].id === tmpServer.id) {
+                    serversApp[server.serverType].splice(i, 1);
+                    if (app.frontend && !app.alone) {
+                        app.remoteFrontend.removeServer({
+                            "serverType": server.serverType,
+                            "id": tmpServer.id
+                        });
+                    }
+                }
+            }
+        }
         serversApp[server.serverType].push(serverInfo);
+        serversIdMap[serverInfo.id] = serverInfo;
 
         if (app.frontend && !app.alone && !serverInfo.frontend && !serverInfo.alone) {
             app.remoteFrontend.addServer(server);
@@ -110,6 +141,10 @@ function addServer(servers: { [id: string]: { "serverType": string, "serverInfo"
 }
 
 function removeServer(msg: monitor_remove_server) {
+    if (needDiff) {
+        diffTimerStart();
+        addOrRemoveDiffServer(msg.id, false);
+    }
     if (msg.serverType === "rpc") {
         delete app.rpcServersIdMap[msg.id];
         app.rpcService.removeRpcServer(msg.id);
@@ -131,4 +166,49 @@ function removeServer(msg: monitor_remove_server) {
             }
         }
     }
+}
+
+
+function addOrRemoveDiffServer(sid: string, add: boolean, serverType?: string) {
+    if (add) {
+        removeDiffServers[sid] = serverType as string;
+    } else {
+        delete removeDiffServers[sid];
+    }
+}
+
+function diffTimerStart() {
+    clearTimeout(diffTimer);
+    diffTimer = setTimeout(diffFunc, 3000);     // 3秒后对比
+}
+
+
+function diffFunc() {
+    needDiff = false;
+    let servers = app.servers;
+
+    for (let serverType in servers) {
+        for (let i = 0, len = servers[serverType].length; i < len; i++) {
+            let id = servers[serverType][i].id;
+            if (id === app.serverId) {
+                continue;
+            }
+            if (!removeDiffServers[id]) {
+                delete app.serversIdMap[id];
+                servers[serverType].splice(i, 1);
+                app.remoteFrontend.removeServer({ "serverType": serverType, "id": id });
+            }
+        }
+    }
+
+    for (let id in app.rpcServersIdMap) {
+        if (id === app.serverId) {
+            continue;
+        }
+        if (!removeDiffServers[id]) {
+            delete app.rpcServersIdMap[id];
+            app.rpcService.removeRpcServer(id);
+        }
+    }
+    removeDiffServers = {};
 }
