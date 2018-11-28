@@ -20,6 +20,7 @@ let clients: rpc_client_proxy[] = [];
 let msgHandler: { [filename: string]: any } = {};
 let rpcId = 1;
 let rpcRequest: { [id: number]: rpcTimeout } = {};
+const rpcTimeMax: number = 10 * 1000;
 
 /**
  * 初始化
@@ -30,7 +31,7 @@ export function init(_app: Application) {
     rpcRouter = app.rpcRouter;
     servers = app.servers;
     serversIdMap = app.serversIdMap;
-    rpc_create.loadRemoteMethod();
+    new rpc_create();
     clearRpcTimeOut();
 }
 
@@ -69,14 +70,28 @@ export function removeRpcServer(id: string) {
     }
 };
 
+const enum rpc_type {
+    route,
+    toServer,
+}
 
 /**
  * rpc构造
  */
 class rpc_create {
-    public static loadRemoteMethod() {
-        let rpc = {} as any;
-        app.rpc = rpc;
+
+    rpcType: rpc_type = rpc_type.route;
+    rpcParam: any = null;
+    rpcObj: Rpc = {};
+
+    constructor() {
+        this.loadRemoteMethod();
+    }
+
+    loadRemoteMethod() {
+        let self = this;
+        app.rpc = { "route": this.route.bind(this), "toServer": this.toServer.bind(this) };
+        let tmp_rpc_obj = this.rpcObj as any;
         let dirName = path.join(app.base, define.File_Dir.Servers);
         let exists = fs.existsSync(dirName);
         if (!exists) {
@@ -100,9 +115,9 @@ class rpc_create {
                     }
                 });
             }
-            rpc[serverName] = {};
+            tmp_rpc_obj[serverName] = {};
             for (let name in server) {
-                rpc[serverName][name] = rpc_create.initFunc(serverName, name, server[name]);
+                tmp_rpc_obj[serverName][name] = self.initFunc(serverName, name, server[name]);
             }
             if (serverName === app.serverType) {
                 msgHandler = server;
@@ -110,37 +125,51 @@ class rpc_create {
         });
     }
 
-    private static initFunc(serverName: string, fileName: string, obj: any) {
+    route(routeParam: any) {
+        this.rpcType = rpc_type.route;
+        this.rpcParam = routeParam;
+        return this.rpcObj;
+    }
+
+    toServer(serverId: string) {
+        this.rpcType = rpc_type.toServer;
+        this.rpcParam = serverId;
+        return this.rpcObj;
+    }
+
+
+    initFunc(serverName: string, fileName: string, obj: any) {
         let res: { [method: string]: Function } = {};
         for (let field in obj) {
             if (typeof obj[field] === "function") {
-                res[field] = rpc_create.proxyCb(serverName, fileName + "." + field);
+                res[field] = this.proxyCb(serverName, fileName + "." + field);
             }
         }
         return res;
     }
 
-    private static proxyCb(serverName: string, file_method: string) {
-        let func = function () {
-            let args = Array.prototype.slice.call(arguments, 0);
-            rpc_create.proxyCbSend(serverName, file_method, args);
-        };
-        (func as any).toServer = function () {
-            let args = Array.prototype.slice.call(arguments, 0);
-            rpc_create.proxyCbSendToServer(serverName, file_method, args);
-        };
+    proxyCb(serverName: string, file_method: string) {
+        let self = this;
+        let func = function (...args: any[]) {
+            if (self.rpcType === rpc_type.route) {
+                self.proxyCbSendByRoute(self.rpcParam, serverName, file_method, args);
+            } else {
+                self.proxyCbSendToServer(self.rpcParam, serverName, file_method, args);
+            }
+            self.rpcParam = null;
+        }
         return func;
     }
 
-    private static proxyCbSend(serverType: string, file_method: string, args: any[]) {
+    proxyCbSendByRoute(routeParam: any, serverType: string, file_method: string, args: any[]) {
         let cb: Function | null = null;
         if (typeof args[args.length - 1] === "function") {
             cb = args.pop();
         }
 
-        let cbFunc = function (err: any, sid: string) {
-            if (err || !serversIdMap[sid]) {
-                cb && cb({ "code": 1, "info": err });
+        let cbFunc = function (sid: string) {
+            if (!serversIdMap[sid]) {
+                cb && cb({ "code": 1, "info": "no such end server " });
                 return;
             }
             let rpcInvoke = {} as any;
@@ -152,7 +181,7 @@ class rpc_create {
                 rpcInvoke["id"] = getRpcId();
                 rpcRequest[rpcInvoke.id as number] = {
                     "cb": cb,
-                    "time": 0
+                    "time": Date.now() + rpcTimeMax
                 };
             }
 
@@ -166,22 +195,21 @@ class rpc_create {
 
         let tmpRouter = rpcRouter[serverType];
         if (tmpRouter) {
-            tmpRouter(app, args.shift(), cbFunc);
+            tmpRouter(app, routeParam, cbFunc);
         } else {
             let list = servers[serverType];
             if (!list || !list.length) {
-                cbFunc(app.serverId + " has no such rpc serverType: " + serverType, "");
+                cbFunc("");
             } else {
                 let index = Math.floor(Math.random() * list.length);
-                cbFunc(null, list[index].id);
+                cbFunc(list[index].id);
             }
         }
     }
 
-    private static proxyCbSendToServer(serverType: string, file_method: string, args: any[]) {
-        let to = args.shift();
-        if (to === "*") {
-            rpc_create.proxyCbSendToServerType(serverType, file_method, args);
+    proxyCbSendToServer(toServerId: string, serverType: string, file_method: string, args: any[]) {
+        if (toServerId === "*") {
+            this.proxyCbSendToServerType(serverType, file_method, args);
             return;
         }
 
@@ -190,8 +218,8 @@ class rpc_create {
             cb = args.pop();
         }
 
-        if (!serversIdMap[to]) {
-            cb && cb({ "code": 1, "info": app.serverId + " has no rpc server named " + to });
+        if (!serversIdMap[toServerId]) {
+            cb && cb({ "code": 1, "info": app.serverId + " has no rpc server named " + toServerId });
             return;
         }
 
@@ -201,11 +229,11 @@ class rpc_create {
             rpcInvoke["id"] = getRpcId();
             rpcRequest[rpcInvoke.id] = {
                 "cb": cb,
-                "time": 0
+                "time": Date.now() + rpcTimeMax
             };
         }
         rpcInvoke['route'] = file_method;
-        rpcInvoke["to"] = to;
+        rpcInvoke["to"] = toServerId;
         let client = getRpcSocket();
         if (client) {
             sendRpcMsg(client, rpcInvoke, args);
@@ -214,7 +242,7 @@ class rpc_create {
         }
     }
 
-    private static proxyCbSendToServerType(serverType: string, file_method: string, args: any[]) {
+    proxyCbSendToServerType(serverType: string, file_method: string, args: any[]) {
         let cb: Function = null as any;
         if (typeof args[args.length - 1] === "function") {
             cb = args.pop();
@@ -283,7 +311,7 @@ class rpc_create {
                 rpcInvoke["id"] = getRpcId();
                 rpcRequest[rpcInvoke.id] = {
                     "cb": callback,
-                    "time": 0
+                    "time": Date.now() + rpcTimeMax
                 };
             }
             rpcInvoke['route'] = file_method;
@@ -340,11 +368,11 @@ function delRequest(id: number) {
  */
 function clearRpcTimeOut() {
     setTimeout(function () {
+        let nowTime = Date.now();
         let tmp: rpcTimeout;
         for (let id in rpcRequest) {
             tmp = rpcRequest[id];
-            tmp.time += 3;
-            if (tmp.time > 10) {
+            if (nowTime > tmp.time) {
                 delRequest(id as any);
                 try {
                     tmp.cb({ "code": 4, "info": "rpc time out" });
@@ -372,9 +400,6 @@ function getCallBackFunc(to: string, id: number) {
     }
 }
 
-function defaultCallBack() {
-
-}
 
 /**
  * rpc socket
@@ -474,10 +499,7 @@ class rpc_client_proxy {
         } else {
             let cmd = iMsg.route.split('.');
             if (iMsg.id) {
-                let cb = getCallBackFunc(iMsg.from, iMsg.id);
-                msg.push(cb);
-            } else {
-                msg.push(defaultCallBack);
+                msg.push(getCallBackFunc(iMsg.from, iMsg.id));
             }
             let file = msgHandler[cmd[0]];
             file[cmd[1]].apply(file, msg);

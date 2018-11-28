@@ -16,7 +16,7 @@ app.configure("chat", function(){
 
 
 app.route("chat", function (app: Application, session: Session, serverType: string, cb: Function) {
-    cb(null, session.get("chatServerId"));
+    cb(session.get("chatServerId"));
 });
 
 app.onLog(function (filename: string, level: string, info: string) {
@@ -24,7 +24,6 @@ app.onLog(function (filename: string, level: string, info: string) {
 });
 
 app.start();
-
 
 process.on("uncaughtException", function (err: any) {
     console.log(err)

@@ -74,14 +74,14 @@ export interface monitor_reg_master {
  * 前端到后端消息的路由函数
  */
 export interface routeFunc {
-    (app: Application, session: Session, serverType: string, cb: (err: any, serverId: string) => void): void;
+    (app: Application, session: Session, serverType: string, cb: (serverId: string) => void): void;
 }
 
 /**
  * rpc路由函数
  */
 export interface rpcRouteFunc {
-    (app: Application, routeParam: any, cb: (err: any, serverId: string) => void): void;
+    (app: Application, routeParam: any, cb: (serverId: string) => void): void;
 }
 
 /**

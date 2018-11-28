@@ -53,7 +53,8 @@ export default class Application {
 
     router: { [serverType: string]: routeFunc } = {};                // 路由消息到后端时的前置选择
     rpcRouter: { [serverType: string]: rpcRouteFunc } = {};          // rpc消息时的前置选择
-    rpc: Rpc = {};                                                   // rpc包装
+    rpc: { route: (routeParam: any) => Rpc, toServer: (serverId: string) => Rpc } = {} as any;           // rpc包装
+
     rpcService: typeof RpcService = RpcService;                      // 用户服务器，rpc调用管理
     remoteBackend: typeof RemoteBackend = RemoteBackend;             // 后端服务器，用来管理前端连接
     remoteFrontend: typeof RemoteFrontend = RemoteFrontend;          // 前端服务器，用来管理连接后端

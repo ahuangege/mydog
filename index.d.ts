@@ -112,7 +112,17 @@ export interface Application {
     /**
      * rpc集合
      */
-    readonly rpc: Rpc;
+    readonly rpc: {
+        /**
+         * 指定服务器id
+         */
+        toServer: (serverId: string) => Rpc
+
+        /**
+         * 通过rpcRoute路由
+         */
+        route: (routeParam: any) => Rpc,
+    };
 
     /**
      * 服务器启动
@@ -164,14 +174,14 @@ export interface Application {
      * @param serverType 服务器类型
      * @param routeFunc 路由函数
      */
-    route(serverType: string, routeFunc: (app: Application, session: Session, serverType: string, cb: (err: any, serverId: string) => void) => void): void;
+    route(serverType: string, routeFunc: (app: Application, session: Session, serverType: string, cb: (serverId: string) => void) => void): void;
 
     /**
      * rpc路由配置
      * @param serverType 服务器类型
      * @param rpcRouteFunc 路由函数
      */
-    rpcRoute(serverType: string, rpcRouteFunc: (app: Application, routeParam: any, cb: (err: any, serverId: string) => void) => void): void;
+    rpcRoute(serverType: string, rpcRouteFunc: (app: Application, routeParam: any, cb: (serverId: string) => void) => void): void;
 
     /**
      * 是否有该客户端   《前端专用》
@@ -334,11 +344,5 @@ declare global {
  * rpc 构造器
  */
 export type RpcClass<T> = {
-    [K in keyof T]: __rpcProxy<T[K]>
-}
-
-interface __rpcProxy<T> {
-    (routeParam: any, ...args: any[]): void
-    toServer(serverId: string, ...args: any[]): void;
-    toServer(serverId: '*', ...args: any[]): void;
+    [K in keyof T]: T[K]
 }

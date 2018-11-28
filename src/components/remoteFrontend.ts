@@ -3,7 +3,7 @@
  */
 
 import Application from "../application";
-import { ServerInfo, SocketProxy, sessionApplyJson, loggerType, componentName } from "../util/interfaceDefine";
+import { ServerInfo, SocketProxy, sessionApplyJson, loggerType, componentName, routeFunc } from "../util/interfaceDefine";
 import { TcpClient } from "./tcpClient";
 import define from "../util/define";
 import { Session } from "./session";
@@ -11,7 +11,7 @@ import { Session } from "./session";
 let app: Application;
 let appClients: { [uid: number]: Session }
 let clients: { [serverType: string]: { [id: string]: remote_frontend_client } } = {};
-let router: any;
+let router: { [serverType: string]: routeFunc };
 
 /**
  * 初始化
@@ -41,7 +41,7 @@ export function addServer(server: { "serverType": string; "serverInfo": ServerIn
  * @param serverInfo 后端服务器信息
  */
 export function removeServer(serverInfo: { "serverType": string; "id": string }) {
-    if(clients[serverInfo.serverType] && clients[serverInfo.serverType][serverInfo.id]){
+    if (clients[serverInfo.serverType] && clients[serverInfo.serverType][serverInfo.id]) {
         clients[serverInfo.serverType][serverInfo.id].close();
     }
 }
@@ -61,11 +61,7 @@ export function doRemote(msgBuf: Buffer, session: Session, serverType: string) {
     if (!tmpRouter) {
         tmpRouter = defaultRoute;
     }
-    tmpRouter(app, session, serverType, function (err: any, sid: string) {
-        if (err) {
-            app.logger(loggerType.debug, componentName.remoteFrontend, err);
-            return;
-        }
+    tmpRouter(app, session, serverType, function (sid: string) {
         let client = clients[serverType][sid];
         if (!client || !client.isLive) {
             app.logger(loggerType.debug, componentName.remoteFrontend, app.serverId + " has no backend server " + sid);
@@ -82,14 +78,14 @@ export function doRemote(msgBuf: Buffer, session: Session, serverType: string) {
     });
 };
 
-function defaultRoute(app: Application, session: Session, serverType: string, cb: Function) {
+function defaultRoute(app: Application, session: Session, serverType: string, cb: (sid: string) => void) {
     let list = app.getServersByType(serverType);
     if (!list || !list.length) {
-        cb(app.serverId + " has no such serverType: " + serverType);
+        cb("");
         return;
     }
     let index = Math.floor(Math.random() * list.length);
-    cb(null, list[index].id);
+    cb(list[index].id);
 };
 
 /**

@@ -16,7 +16,7 @@ class Handler {
             session.bind(uid++);
             session.setCloseCb(onUserLeave);
         }
-        this.app.rpc.chat.chatRemote.getRooms.toServer(msg.id, function (err: any, data: any) {
+        this.app.rpc.toServer(msg.id).chat.chatRemote.getRooms(function (err: any, data: any) {
             if (err) {
                 next({});
                 return;
@@ -29,7 +29,7 @@ class Handler {
         msg.uid = session.uid;
         msg.sid = session.sid;
         var self = this;
-        self.app.rpc.chat.chatRemote.newRoom.toServer(msg.id, msg, function (err: any, data: any) {
+        self.app.rpc.toServer(msg.id).chat.chatRemote.newRoom(msg, function (err: any, data: any) {
             if (err) {
                 next({ "status": -2 });
                 return;
@@ -47,7 +47,7 @@ class Handler {
         msg.uid = session.uid;
         msg.sid = session.sid;
         var self = this;
-        self.app.rpc.chat.chatRemote.joinRoom.toServer(msg.id, msg, function (err: any, data: any) {
+        self.app.rpc.toServer(msg.id).chat.chatRemote.joinRoom(msg, function (err: any, data: any) {
             if (err) {
                 next({ "status": -2 });
                 return;
@@ -65,7 +65,7 @@ class Handler {
 var onUserLeave = function (app: Application, session: Session) {
     console.log("one client out");
     if (session.get("chatServerId")) {
-        app.rpc.chat.chatRemote.leaveRoom.toServer(session.get("chatServerId"), {
+        app.rpc.toServer(session.get("chatServerId")).chat.chatRemote.leaveRoom({
             "roomId": session.get("roomId"),
             "playerId": session.get("playerId")
         });

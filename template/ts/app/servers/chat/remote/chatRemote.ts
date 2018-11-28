@@ -14,8 +14,8 @@ declare global {
 }
 
 class remote {
-    app: Application;
-    roomMgr: roomMgr;
+    private app: Application;
+    private roomMgr: roomMgr;
     constructor(app: Application) {
         this.app = app;
         this.roomMgr = app.get("roomMgr");
