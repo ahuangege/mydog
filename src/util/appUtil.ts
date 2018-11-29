@@ -91,16 +91,16 @@ let parseArgs = function (args: any[]) {
 
 
 let loadBaseConfig = function (app: Application) {
-    loadConfigBaseApp(app, "masterConfig", path.join(define.File_Dir.Config, 'master.json'));
-    loadConfigBaseApp(app, "rpcServersConfig", path.join(define.File_Dir.Config, 'rpc.json'));
-    loadConfigBaseApp(app, "serversConfig", path.join(define.File_Dir.Config, 'servers.json'));
-    loadConfigBaseApp(app, "routeConfig", path.join(define.File_Dir.Config, 'route.json'));
+    loadConfigBaseApp(app, "masterConfig", path.join(define.File_Dir.Config, 'master.js'));
+    loadConfigBaseApp(app, "rpcServersConfig", path.join(define.File_Dir.Config, 'rpc.js'));
+    loadConfigBaseApp(app, "serversConfig", path.join(define.File_Dir.Config, 'servers.js'));
+    loadConfigBaseApp(app, "routeConfig", path.join(define.File_Dir.Config, 'route.js'));
 
     function loadConfigBaseApp(app: Application, key: "masterConfig" | "rpcServersConfig" | "serversConfig" | "routeConfig", val: string) {
         let env = app.env;
         let originPath = path.join(app.base, val);
         if (fs.existsSync(originPath)) {
-            let file = require(originPath);
+            let file = require(originPath).default;
             if (file[env]) {
                 file = file[env];
             }

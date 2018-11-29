@@ -1,4 +1,4 @@
-[
+exports.default = [
   "gate.main.login",
   "connector.connectorMain.getChatInfo",
   "connector.connectorMain.newRoom",

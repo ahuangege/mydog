@@ -1,8 +1,8 @@
 {
   "_from": "mydog",
-  "_id": "mydog@1.5.4",
+  "_id": "mydog@1.7.1",
   "_inBundle": false,
-  "_integrity": "sha512-uXkuqBCcOcbB9bQIPOmIVF7G0f6BiRQmiDkqt2J08Z+y0G4aJewf/5yHgrV5i7uu4R6AQBKSTo6bk26nIlvcDg==",
+  "_integrity": "sha512-A5Dkx1Z5xAw12eZbFbYjFa56ccRwxvLdd36ZtsQx53Sll6I+v6sx3Uk6Gw3Ahe0U8BflbS4IIR6efD/jtDADJw==",
   "_location": "/mydog",
   "_phantomChildren": {},
   "_requested": {
@@ -19,8 +19,8 @@
     "#USER",
     "/"
   ],
-  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-1.5.4.tgz",
-  "_shasum": "5ab07ec9b6a08162319be3140aeb05b5a6343a23",
+  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-1.7.1.tgz",
+  "_shasum": "608e973b2b4bf9055877328bac3c9b36317ab5fa",
   "_spec": "mydog",
   "_where": "E:\\mydogTest",
   "author": {
@@ -49,5 +49,5 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "types": "index.d.ts",
-  "version": "1.6.0"
+  "version": "1.7.1"
 }
