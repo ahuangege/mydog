@@ -7,7 +7,7 @@ export default {
             { "id": "connector-server-1", "host": "127.0.0.1", "port": 4020, "frontend": true }
         ],
         "chat": [
-            { "id": "chat-server-1", "host": "127.0.0.1", "port": 4030, "name": "聊天大厅1" }
+            { "id": "chat-server-1", "host": "127.0.0.1", "port": 4030, "name": "聊天大厅1" },
         ]
     },
     "production": {

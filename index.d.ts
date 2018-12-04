@@ -133,10 +133,16 @@ export interface Application {
      * 编码解码回调
      */
     set(key: "encodeDecodeConfig", value: { "encode": Function, "decode": Function }): void
+
     /**
      * 前端连接服务器配置
      */
     set(key: "connectorConfig", value: { "connector": "net" | "ws", "heartbeat": number, "maxConnectionNum": number }): void
+
+    /**
+     * rpc模块配置
+     */
+    set(key: "rpcConfig", value: { "timeOut": number }): void
 
     /**
      * 设置键值对
@@ -345,4 +351,26 @@ declare global {
  */
 export type RpcClass<T> = {
     [K in keyof T]: T[K]
+}
+
+/**
+ * rpc调用，内部错误码
+ */
+export const enum rpcErr {
+    /**
+     * 源服务器没有目标服务器
+     */
+    src_has_no_end = 1,
+    /**
+     * 源服务器没有rpc服务器
+     */
+    src_has_no_rpc = 2,
+    /**
+     * rpc服务器没有目标服务器
+     */
+    rpc_has_no_end = 3,
+    /**
+     * rpc超时
+     */
+    rpc_time_out = 4
 }

@@ -4,7 +4,7 @@
 
 
 import Application from "../application";
-import { rpcRouteFunc, ServerInfo, rpcTimeout, SocketProxy, loggerType, componentName } from "../util/interfaceDefine";
+import { rpcRouteFunc, ServerInfo, rpcTimeout, SocketProxy, loggerType, componentName, rpcErr } from "../util/interfaceDefine";
 import * as path from "path";
 import * as fs from "fs";
 import define from "../util/define";
@@ -18,9 +18,9 @@ let connectingClients: { [id: string]: rpc_client_proxy } = {};
 let client_index = 1;
 let clients: rpc_client_proxy[] = [];
 let msgHandler: { [filename: string]: any } = {};
-let rpcId = 1;
+let rpcId = 1;  // 必须从1开始，不可为0
 let rpcRequest: { [id: number]: rpcTimeout } = {};
-const rpcTimeMax: number = 10 * 1000;
+let rpcTimeMax: number = 10 * 1000;
 
 /**
  * 初始化
@@ -31,6 +31,12 @@ export function init(_app: Application) {
     rpcRouter = app.rpcRouter;
     servers = app.servers;
     serversIdMap = app.serversIdMap;
+    let rpcConfig = app.get("rpcConfig");
+    if (rpcConfig) {
+        if (rpcConfig.hasOwnProperty("timeOut") && Number(rpcConfig["timeOut"]) > 5) {
+            rpcTimeMax = Number(rpcConfig["timeOut"]) * 1000;
+        }
+    }
     new rpc_create();
     clearRpcTimeOut();
 }
@@ -169,14 +175,34 @@ class rpc_create {
 
         let cbFunc = function (sid: string) {
             if (!serversIdMap[sid]) {
-                cb && cb({ "code": 1, "info": "no such end server " });
+                cb && cb(rpcErr.src_has_no_end);
                 return;
             }
+
+            if (sid === app.serverId) {
+                let rpc_id = 0;
+                if (cb) {
+                    rpc_id = getRpcId();
+                    rpcRequest[rpc_id] = {
+                        "cb": cb,
+                        "time": Date.now() + rpcTimeMax
+                    };
+                    args.push(getCallBackFuncSelf(rpc_id));
+                }
+                sendRpcMsgToSelf(file_method, args);
+                return;
+            }
+
+            let client = getRpcSocket();
+            if (!client) {
+                cb && cb(rpcErr.src_has_no_rpc);
+                return;
+            }
+
             let rpcInvoke = {} as any;
             rpcInvoke["from"] = app.serverId;
             rpcInvoke["to"] = sid;
             rpcInvoke["route"] = file_method;
-
             if (cb) {
                 rpcInvoke["id"] = getRpcId();
                 rpcRequest[rpcInvoke.id as number] = {
@@ -184,13 +210,7 @@ class rpc_create {
                     "time": Date.now() + rpcTimeMax
                 };
             }
-
-            let client = getRpcSocket();
-            if (client) {
-                sendRpcMsg(client, rpcInvoke, args);
-            } else {
-                cb && cb({ "code": 2, "info": "has no rpc server" });
-            }
+            sendRpcMsg(client, rpcInvoke, args);
         };
 
         let tmpRouter = rpcRouter[serverType];
@@ -219,27 +239,42 @@ class rpc_create {
         }
 
         if (!serversIdMap[toServerId]) {
-            cb && cb({ "code": 1, "info": app.serverId + " has no rpc server named " + toServerId });
+            cb && cb(rpcErr.src_has_no_end);
+            return;
+        }
+
+        if (toServerId === app.serverId) {
+            let rpc_id = 0;
+            if (cb) {
+                rpc_id = getRpcId();
+                rpcRequest[rpc_id] = {
+                    "cb": cb,
+                    "time": Date.now() + rpcTimeMax
+                };
+                args.push(getCallBackFuncSelf(rpc_id));
+            }
+            sendRpcMsgToSelf(file_method, args);
+            return;
+        }
+
+        let client = getRpcSocket();
+        if (!client) {
+            cb && cb(rpcErr.src_has_no_rpc);
             return;
         }
 
         let rpcInvoke = {} as any;
         rpcInvoke["from"] = app.serverId;
+        rpcInvoke['route'] = file_method;
+        rpcInvoke["to"] = toServerId;
         if (cb) {
-            rpcInvoke["id"] = getRpcId();
+            rpcInvoke.id = getRpcId();
             rpcRequest[rpcInvoke.id] = {
                 "cb": cb,
                 "time": Date.now() + rpcTimeMax
             };
         }
-        rpcInvoke['route'] = file_method;
-        rpcInvoke["to"] = toServerId;
-        let client = getRpcSocket();
-        if (client) {
-            sendRpcMsg(client, rpcInvoke, args);
-        } else {
-            cb && cb({ "code": 2, "info": "has no rpc server" });
-        }
+        sendRpcMsg(client, rpcInvoke, args);
     }
 
     proxyCbSendToServerType(serverType: string, file_method: string, args: any[]) {
@@ -247,54 +282,35 @@ class rpc_create {
         if (typeof args[args.length - 1] === "function") {
             cb = args.pop();
         }
-
         let endTo: string[] = [];
-        for (let i = 0; i < servers[serverType].length; i++) {
-            endTo.push(servers[serverType][i].id);
+        if (servers[serverType]) {
+            for (let i = 0; i < servers[serverType].length; i++) {
+                endTo.push(servers[serverType][i].id);
+            }
         }
         if (endTo.length === 0) {
-            cb && cb(undefined, {});
+            cb && cb({});
+            return;
         }
 
         let nums: number = endTo.length;
         let endCb: Function = null as any;
         let bindCb: Function = null as any;
-        let called = false;
         let msgObj = {} as any;
-        let timeout: NodeJS.Timer = null as any;
         if (cb) {
-            endCb = function (id: string, err: any, msg: any) {
-                if (called) {
-                    return;
-                }
+            endCb = function (id: string, msg: any) {
                 nums--;
-                if (err) {
-                    clearTimeout(timeout);
-                    called = true;
-                    cb(err);
-                    return;
-                }
                 msgObj[id] = msg;
                 if (nums === 0) {
-                    clearTimeout(timeout);
-                    called = true;
-                    cb(undefined, msgObj);
+                    cb(msgObj);
                 }
             };
-
-            timeout = setTimeout(function () {
-                called = true;
-                cb({ "code": 4, "info": "rpc time out" });
-            }, 10000);
-
             bindCb = function (id: string) {
-                return function (err: any, msg: any) {
-                    endCb(id, err, msg)
+                return function (...msg: any[]) {
+                    endCb(id, msg)
                 };
             };
-
         }
-
 
         let tmpCb: Function = null as any;
         for (let i = 0; i < endTo.length; i++) {
@@ -305,8 +321,30 @@ class rpc_create {
         }
 
         function send(toId: string, callback: Function) {
+            if (toId === app.serverId) {
+                let tmp_args = [...args];
+                let rpc_id = 0;
+                if (callback) {
+                    rpc_id = getRpcId();
+                    rpcRequest[rpc_id] = {
+                        "cb": callback,
+                        "time": Date.now() + rpcTimeMax
+                    };
+                    tmp_args.push(getCallBackFuncSelf(rpc_id));
+                }
+                sendRpcMsgToSelf(file_method, tmp_args);
+                return;
+            }
+
+            let client = getRpcSocket();
+            if (!client) {
+                callback && callback(rpcErr.src_has_no_rpc);
+                return;
+            }
             let rpcInvoke = {} as any;
             rpcInvoke["from"] = app.serverId;
+            rpcInvoke['route'] = file_method;
+            rpcInvoke["to"] = toId;
             if (callback) {
                 rpcInvoke["id"] = getRpcId();
                 rpcRequest[rpcInvoke.id] = {
@@ -314,14 +352,7 @@ class rpc_create {
                     "time": Date.now() + rpcTimeMax
                 };
             }
-            rpcInvoke['route'] = file_method;
-            rpcInvoke["to"] = toId;
-            let client = getRpcSocket();
-            if (client) {
-                sendRpcMsg(client, rpcInvoke, args);
-            } else {
-                callback && callback({ "code": 2, "info": "has no rpc server" });
-            }
+            sendRpcMsg(client, rpcInvoke, args);
         }
     }
 }
@@ -356,6 +387,14 @@ function sendRpcMsg(client: rpc_client_proxy, iMsg: any, msg: any) {
     client.send(buf);
 }
 
+
+function sendRpcMsgToSelf(route: string, msg: any[]) {
+    let cmd = route.split('.');
+    let file = msgHandler[cmd[0]];
+    file[cmd[1]].apply(file, msg);
+}
+
+
 /**
  * 删除rpc计时
  */
@@ -375,7 +414,7 @@ function clearRpcTimeOut() {
             if (nowTime > tmp.time) {
                 delRequest(id as any);
                 try {
-                    tmp.cb({ "code": 4, "info": "rpc time out" });
+                    tmp.cb(rpcErr.rpc_time_out);
                 } catch (err) {
                 }
             }
@@ -388,14 +427,24 @@ function clearRpcTimeOut() {
  * rpc回调
  */
 function getCallBackFunc(to: string, id: number) {
-    return function (data: any) {
-        if (data === undefined) {
-            data = null;
-        }
+    return function (...args: any[]) {
         let rpcInvoke = { "to": to, "id": id };
         let client = getRpcSocket();
         if (client) {
-            sendRpcMsg(client, rpcInvoke, data);
+            sendRpcMsg(client, rpcInvoke, args);
+        }
+    }
+}
+
+/**
+ * rpc本服务器回调
+ */
+function getCallBackFuncSelf(id: number) {
+    return function (...args: any[]) {
+        let timeout = rpcRequest[id];
+        if (timeout) {
+            delRequest(id);
+            timeout.cb.apply(null, args);
         }
     }
 }
@@ -492,9 +541,10 @@ class rpc_client_proxy {
         let iMsg = JSON.parse(data.slice(1, 1 + iMsgLen).toString());
         let msg = JSON.parse(data.slice(1 + iMsgLen).toString());
         if (!iMsg.from) {
-            if (rpcRequest[iMsg.id as number]) {
-                rpcRequest[iMsg.id as number].cb(iMsg.err, msg);
+            let timeout = rpcRequest[iMsg.id as number];
+            if (timeout) {
                 delRequest(iMsg.id as number);
+                timeout.cb.apply(null, msg);
             }
         } else {
             let cmd = iMsg.route.split('.');

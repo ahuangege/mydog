@@ -89,6 +89,7 @@ export default class Application {
      */
     get(key: "encodeDecodeConfig"): { "encode": Function, "decode": Function };
     get(key: "connectorConfig"): { "connector": "net" | "ws", "heartbeat": number, "maxConnectionNum": number };
+    get(key: "rpcConfig"): { "timeOut": number };
     get(key: string | number) {
         return this.settings[key];
     }

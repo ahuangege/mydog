@@ -125,3 +125,25 @@ export interface rpcTimeout {
     time: number;
     cb: Function;
 }
+
+/**
+ * rpc调用，内部错误码
+ */
+export const enum rpcErr {
+    /**
+     * 源服务器没有目标服务器
+     */
+    src_has_no_end = 1,
+    /**
+     * 源服务器没有rpc服务器
+     */
+    src_has_no_rpc = 2,
+    /**
+     * rpc服务器没有目标服务器
+     */
+    rpc_has_no_end = 3,
+    /**
+     * rpc超时
+     */
+    rpc_time_out = 4
+}

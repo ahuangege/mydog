@@ -4,7 +4,7 @@
 
 import Application from "../application";
 import tcpServer from "./tcpServer";
-import { SocketProxy, loggerType, componentName } from "../util/interfaceDefine";
+import { SocketProxy, loggerType, componentName, rpcErr } from "../util/interfaceDefine";
 import define from "../util/define";
 
 let app: Application;
@@ -142,10 +142,9 @@ class rpc_server_proxy {
             server.send(buffer);
         } else if (data.id && data.from) {
             let iMsgBuf = Buffer.from(JSON.stringify({
-                "id": data.id,
-                "err": { "code": 3, "info": "rpc server has no socket named :" + data.to }
+                "id": data.id
             }));
-            msgBuf = Buffer.from(JSON.stringify(null));
+            msgBuf = Buffer.from(JSON.stringify([rpcErr.rpc_has_no_end]));
             buffer = Buffer.allocUnsafe(5 + iMsgBuf.length + msgBuf.length);
             buffer.writeUInt32BE(iMsgBuf.length + msgBuf.length + 1, 0);
             buffer.writeUInt8(iMsgBuf.length, 4);

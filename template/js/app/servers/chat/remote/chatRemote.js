@@ -6,17 +6,17 @@ function remote(app) {
     this.roomMgr = app.get("roomMgr");
 }
 remote.prototype.getRooms = function (cb) {
-    cb(this.roomMgr.getRooms());
+    cb(null, this.roomMgr.getRooms());
 };
 ;
 remote.prototype.newRoom = function (msg, cb) {
     var info = this.roomMgr.newRoom(msg);
-    cb(info);
+    cb(null, info);
 };
 ;
 remote.prototype.joinRoom = function (msg, cb) {
     var info = this.roomMgr.joinRoom(msg);
-    cb(info);
+    cb(null, info);
 };
 ;
 remote.prototype.leaveRoom = function (msg) {

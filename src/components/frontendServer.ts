@@ -2,7 +2,7 @@
  * 前端服务器启动监听端口，接受客户端的连接，并路由消息
  */
 
- 
+
 import Application from "../application";
 import { setEncode, encodeClientData } from "./msgCoder";
 import define from "../util/define";
@@ -29,11 +29,11 @@ export function start(_app: Application, cb: Function) {
     routeConfig = app.routeConfig;
     let connectorConfig = app.get("connectorConfig");
     if (connectorConfig) {
-        if (connectorConfig.hasOwnProperty("heartbeat") && connectorConfig.heartbeat >= 5) {
-            client_heartbeat_time = connectorConfig.heartbeat * 1000;
+        if (connectorConfig.hasOwnProperty("heartbeat") && Number(connectorConfig.heartbeat) >= 5) {
+            client_heartbeat_time = Number(connectorConfig.heartbeat) * 1000;
         }
-        if (connectorConfig.hasOwnProperty("maxConnectionNum") && connectorConfig.maxConnectionNum > 0) {
-            maxConnectionNum = connectorConfig.maxConnectionNum;
+        if (connectorConfig.hasOwnProperty("maxConnectionNum") && Number(connectorConfig.maxConnectionNum) > 0) {
+            maxConnectionNum = Number(connectorConfig.maxConnectionNum);
         }
     }
     let encodeDecodeConfig = app.get("encodeDecodeConfig");
