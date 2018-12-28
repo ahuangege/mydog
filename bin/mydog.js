@@ -78,53 +78,30 @@ program.parse(process.argv);
 
 function init() {
     var path = process.cwd();
-    tsOrJsProject(function (type) {
-        emptyDirectory(path, function (empty) {
-            if (empty) {
+    emptyDirectory(path, function (empty) {
+        if (empty) {
+            process.stdin.destroy();
+            createApplicationAt(path);
+        } else {
+            confirm('Destination is not empty, continue? (y/n) [no] ', function (force) {
                 process.stdin.destroy();
-                createApplicationAt(path, type);
-            } else {
-                confirm('Destination is not empty, continue? (y/n) [no] ', function (force) {
-                    process.stdin.destroy();
-                    if (force) {
-                        createApplicationAt(path, type);
-                    } else {
-                        abort('Fail to init a project');
-                    }
-                });
-            }
-        });
+                if (force) {
+                    createApplicationAt(path);
+                } else {
+                    abort('Fail to init a project');
+                }
+            });
+        }
     });
 }
 
 
-function createApplicationAt(ph, type) {
-    if (type == "1") {
-        copy(path.join(__dirname, '../template/ts'), ph);
-    } else {
-        copy(path.join(__dirname, '../template/js'), ph);
-    }
+function createApplicationAt(ph) {
+    copy(path.join(__dirname, '../template/ts'), ph);
     copy(path.join(__dirname, '../template/client'), ph);
 }
 
 
-function tsOrJsProject(cb) {
-    prompt('Please select coding language, 1 for typescript, 2 for javascript: [1]', function (msg) {
-        switch (msg.trim()) {
-            case '':
-                cb("1");
-                break;
-            case '1':
-            case '2':
-                cb(msg.trim());
-                break;
-            default:
-                console.log('Invalid choice! Please input 1 or 2.\n');
-                tsOrJsProject(cb);
-                break;
-        }
-    });
-}
 
 /**
  * Start application.
@@ -231,7 +208,7 @@ function start(opts) {
     var ls;
     var params = [absScript, 'env=' + opts.env];
     if (opts.env === "production") {
-        ls = spawn(process.execPath, params, {detached: true, stdio: 'ignore'});
+        ls = spawn(process.execPath, params, { detached: true, stdio: 'ignore' });
         ls.unref();
         process.exit(0);
     } else {
@@ -248,7 +225,7 @@ function start(opts) {
 
 function list(opts) {
     connectToMaster(opts.host, opts.port, opts.token, function (client) {
-        client.request({"func": "list"}, function (err, servers) {
+        client.request({ "func": "list" }, function (err, servers) {
             if (err) {
                 return abort(err);
             }
@@ -307,7 +284,7 @@ function list(opts) {
 
 function stop(opts) {
     connectToMaster(opts.host, opts.port, opts.token, function (client) {
-        client.request({"func": "stop"}, function (err) {
+        client.request({ "func": "stop" }, function (err) {
             if (err) {
                 return abort(err);
             }
@@ -321,7 +298,7 @@ function remove(opts) {
         return abort("no server input, please use `mydog remove server-id-1 server-id-2` ")
     }
     connectToMaster(opts.host, opts.port, opts.token, function (client) {
-        client.request({"func": "remove", "args": opts.serverIds}, function (err) {
+        client.request({ "func": "remove", "args": opts.serverIds }, function (err) {
             if (err) {
                 return abort(err);
             }
@@ -379,7 +356,7 @@ function formatPrint(strs) {
 
 
 function connectToMaster(host, port, token, cb) {
-	console.log("try to connect  " + host + ":" + port);
+    console.log("try to connect  " + host + ":" + port);
     var clientProxy = function () {
         var getMasterClient = function () {
             var tcpClient = function () {
@@ -432,7 +409,7 @@ function connectToMaster(host, port, token, cb) {
                 // 心跳
                 function heartbeat() {
                     tcpClientObj.heartBeatTimer = setTimeout(function () {
-                        var heartBeatMsg = {T: define.Cli_To_Master.heartbeat};
+                        var heartBeatMsg = { T: define.Cli_To_Master.heartbeat };
                         heartBeatMsg = msgCoder.encodeInnerData(heartBeatMsg);
                         tcpClientObj.send(heartBeatMsg);
                         heartbeat();
@@ -472,7 +449,7 @@ function connectToMaster(host, port, token, cb) {
 
     clientProxy.prototype.request = function (msg, cb) {
         var reqId = this.reqId++;
-        var data = {"T": define.Cli_To_Master.cliMsg, "reqId": reqId, "msg": msg};
+        var data = { "T": define.Cli_To_Master.cliMsg, "reqId": reqId, "msg": msg };
         data = msgCoder.encodeInnerData(data);
         this.socket.send(data);
 

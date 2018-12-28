@@ -127,12 +127,14 @@ function addServer(servers: { [id: string]: { "serverType": string, "serverInfo"
                             "serverType": server.serverType,
                             "id": tmpServer.id
                         });
+                        app.emit("onRemoveServer", server.serverType, tmpServer.id);
                     }
                 }
             }
         }
         serversApp[server.serverType].push(serverInfo);
         serversIdMap[serverInfo.id] = serverInfo;
+        app.emit("onAddServer", server.serverType, serverInfo.id);
 
         if (app.frontend && !app.alone && !serverInfo.frontend && !serverInfo.alone) {
             app.remoteFrontend.addServer(server);
@@ -161,6 +163,7 @@ function removeServer(msg: monitor_remove_server) {
                         "serverType": msg.serverType,
                         "id": msg.id
                     });
+                    app.emit("onRemoveServer", msg.serverType, msg.id);
                 }
                 break;
             }
@@ -197,6 +200,7 @@ function diffFunc() {
                 delete app.serversIdMap[id];
                 servers[serverType].splice(i, 1);
                 app.remoteFrontend.removeServer({ "serverType": serverType, "id": id });
+                app.emit("onRemoveServer", serverType, id);
             }
         }
     }

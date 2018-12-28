@@ -255,6 +255,13 @@ export interface Application {
      * 获取bind的socket连接数
      */
     getBindClientNum(): number;
+
+    /**
+     * 监听事件（添加服务器，移除服务器）
+     * @param event 事件
+     * @param cb 回调
+     */
+    on(event: "onAddServer" | "onRemoveServer", cb: (serverType: string, id: string) => void): void;
 }
 
 /**

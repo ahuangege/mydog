@@ -12,6 +12,7 @@ import * as RemoteBackend from "./components/remoteBackend";
 import * as RpcService from "./components/rpcService";
 import { encodeClientData } from "./components/msgCoder";
 import * as appUtil from "./util/appUtil";
+import { EventEmitter } from "events";
 let hasStarted = false; // 是否已经启动
 
 declare global {
@@ -19,7 +20,7 @@ declare global {
     }
 }
 
-export default class Application {
+export default class Application extends EventEmitter {
 
     main: string = "";                                               // 启动文件
     base: string = path.dirname((require.main as any).filename);     // 根路径
@@ -61,6 +62,7 @@ export default class Application {
     logger: (level: loggerType, componentName: componentName, msg: any) => void = function () { };           // 内部日志输出口
 
     constructor() {
+        super();
         appUtil.defaultConfiguration(this);
     }
 

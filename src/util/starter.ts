@@ -32,7 +32,14 @@ function run(app: Application, server: ServerInfo, cb?: Function) {
     env = app.env;
     let cmd, key;
     if (isLocal(server.host)) {
-        let options = [];
+        let options: any[] = [];
+        if (!!server.args) {
+            if (typeof server.args === 'string') {
+                options.push(server.args.trim());
+            } else {
+                options = options.concat(server.args);
+            }
+        }
         cmd = app.main;
         options.push(cmd);
         options.push(util.format('env=%s', env));
@@ -43,6 +50,10 @@ function run(app: Application, server: ServerInfo, cb?: Function) {
         localrun(process.execPath, "", options, cb);
     } else {
         cmd = util.format('cd "%s" && "%s"', app.base, process.execPath);
+        var arg = server.args;
+        if (arg !== undefined) {
+            cmd += arg;
+        }
         cmd += util.format(' "%s" env=%s ', app.main, env);
         for (key in server) {
             cmd += util.format(' %s=%s ', key, server[key]);
