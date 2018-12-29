@@ -2,7 +2,7 @@
  * mydog list 等cli命令处理模块
  */
 
- 
+
 import Application from "../application";
 import define from "../util/define";
 import { encodeInnerData } from "./msgCoder";
@@ -61,46 +61,64 @@ export class MasterCli {
     }
 
     private func_list(reqId: number, socket: Master_ClientProxy, args: any) {
-        let nums = 0;
+        let num = 0;
         for (let sid in this.servers) {
-            nums++;
+            num++;
             this.send_to_monitor(this.servers[sid], { "func": "list" }, cb)
         }
         let serverInfoArr: any[] = [];
         serverInfoArr.push(getListInfo(this.app));
-
+        if (num === 0) {
+            cb("no other server", null);
+        }
         function cb(err: any, data: any) {
             if (!err) {
                 serverInfoArr.push(data);
             }
-            nums--;
-            if (nums === 0) {
+            num--;
+            if (num <= 0) {
                 socket.send({ "reqId": reqId, "msg": serverInfoArr });
             }
         }
     }
 
     private func_stop(reqId: number, socket: Master_ClientProxy, args: any) {
+        let num = 0;
         for (let sid in this.servers) {
-            this.send_to_monitor(this.servers[sid], { "func": "stop" });
+            num++;
+            this.send_to_monitor(this.servers[sid], { "func": "stop" }, cb);
         }
-        setTimeout(function () {
-            socket.send({ "reqId": reqId });
-            setTimeout(function () {
+        if (num === 0) {
+            cb("no server", null);
+        }
+        function cb(err: any, data: any) {
+            num--;
+            if (num <= 0) {
+                socket.send({ "reqId": reqId });
                 process.exit();
-            }, 500);
-        }, 2000);
+            }
+        }
     }
 
 
     private func_remove(reqId: number, socket: Master_ClientProxy, args: any) {
+        let num = 0;
         for (let i = 0; i < args.length; i++) {
             if (!this.servers[args[i]]) {
                 continue;
             }
-            this.send_to_monitor(this.servers[args[i]], { "func": "remove" });
+            num++;
+            this.send_to_monitor(this.servers[args[i]], { "func": "remove" }, cb);
         }
-        socket.send({ "reqId": reqId });
+        if (num === 0) {
+            cb("no server", null);
+        }
+        function cb(err: any, data: any) {
+            num--;
+            if (num <= 0) {
+                socket.send({ "reqId": reqId });
+            }
+        }
     }
 
 }
@@ -149,10 +167,20 @@ export class MonitorCli {
     };
 
     private func_stop(reqId: number, socket: SocketProxy, args: any) {
+        let msg = {
+            "T": define.Monitor_To_Master.cliMsg,
+            "reqId": reqId,
+        };
+        this.send_to_master(socket, msg);
         process.exit();
     };
 
     private func_remove(reqId: number, socket: SocketProxy, args: any) {
+        let msg = {
+            "T": define.Monitor_To_Master.cliMsg,
+            "reqId": reqId,
+        };
+        this.send_to_master(socket, msg);
         process.exit();
     };
 }

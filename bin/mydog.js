@@ -242,10 +242,15 @@ function list(opts) {
             }
             var endArr = [];
             endArr.push(["id", "serverType", "pid", "rss(M)", "heapTotal(M)", "heapUsed(M)", "upTime(d/h/m)"]);
-            pushArr(endArr, serverTypes["master"]);
-            delete serverTypes["master"];
-            pushArr(endArr, serverTypes["rpc"]);
-            delete serverTypes["rpc"];
+            if (serverTypes["master"]) {
+                pushArr(endArr, serverTypes["master"]);
+                delete serverTypes["master"];
+            }
+            if (serverTypes["rpc"]) {
+                pushArr(endArr, serverTypes["rpc"]);
+                delete serverTypes["rpc"];
+
+            }
             for (x in serverTypes) {
                 pushArr(endArr, serverTypes[x]);
             }

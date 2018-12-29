@@ -194,7 +194,6 @@ function startPng(app: Application) {
         "  ※  ( mydog  @ahuang )  ※",
         "  ※   ----------------   ※",
         "  ※                      ※",
-        "  ※    QQ群:875459630    ※",
         "  ※                      ※",
         "  ※----------------------※",
     ];
@@ -203,7 +202,7 @@ function startPng(app: Application) {
     console.log("      ");
     console.log("      ");
     for (let i = 0; i < lines.length; i++) {
-        if (i === 6) {
+        if (i === 5) {
             let j;
             let chars = lines[i].split('');
             let len = chars.length - 2 - version.length;
