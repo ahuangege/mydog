@@ -38,7 +38,7 @@
   "description": "a framework of nodejs server, thin pomelo",
   "homepage": "https://github.com/ahuangege/mydog",
   "keywords": [
-    "pomelo",
+    "pomelo" ,
     "server",
     "nodejs"
   ],
