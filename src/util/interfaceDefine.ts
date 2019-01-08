@@ -122,8 +122,9 @@ export enum componentName {
  * rpc请求超时
  */
 export interface rpcTimeout {
-    time: number;
+    id: number;
     cb: Function;
+    timer: NodeJS.Timeout;
 }
 
 /**

@@ -38,7 +38,6 @@ export function init(_app: Application) {
         }
     }
     new rpc_create();
-    clearRpcTimeOut();
 }
 
 /**
@@ -180,14 +179,14 @@ class rpc_create {
             }
 
             if (sid === app.serverId) {
-                let rpc_id = 0;
                 if (cb) {
-                    rpc_id = getRpcId();
-                    rpcRequest[rpc_id] = {
+                    let timeout = {
+                        "id": getRpcId(),
                         "cb": cb,
-                        "time": Date.now() + rpcTimeMax
-                    };
-                    args.push(getCallBackFuncSelf(rpc_id));
+                        "timer": null as any
+                    }
+                    createRpcTimeout(timeout);
+                    args.push(getCallBackFuncSelf(timeout.id));
                 }
                 sendRpcMsgToSelf(file_method, args);
                 return;
@@ -204,11 +203,13 @@ class rpc_create {
             rpcInvoke["to"] = sid;
             rpcInvoke["route"] = file_method;
             if (cb) {
-                rpcInvoke["id"] = getRpcId();
-                rpcRequest[rpcInvoke.id as number] = {
+                let timeout = {
+                    "id": getRpcId(),
                     "cb": cb,
-                    "time": Date.now() + rpcTimeMax
-                };
+                    "timer": null as any
+                }
+                createRpcTimeout(timeout);
+                rpcInvoke["id"] = timeout.id;
             }
             sendRpcMsg(client, rpcInvoke, args);
         };
@@ -244,14 +245,14 @@ class rpc_create {
         }
 
         if (toServerId === app.serverId) {
-            let rpc_id = 0;
             if (cb) {
-                rpc_id = getRpcId();
-                rpcRequest[rpc_id] = {
+                let timeout = {
+                    "id": getRpcId(),
                     "cb": cb,
-                    "time": Date.now() + rpcTimeMax
-                };
-                args.push(getCallBackFuncSelf(rpc_id));
+                    "timer": null as any
+                }
+                createRpcTimeout(timeout);
+                args.push(getCallBackFuncSelf(timeout.id));
             }
             sendRpcMsgToSelf(file_method, args);
             return;
@@ -268,11 +269,13 @@ class rpc_create {
         rpcInvoke['route'] = file_method;
         rpcInvoke["to"] = toServerId;
         if (cb) {
-            rpcInvoke.id = getRpcId();
-            rpcRequest[rpcInvoke.id] = {
+            let timeout = {
+                "id": getRpcId(),
                 "cb": cb,
-                "time": Date.now() + rpcTimeMax
-            };
+                "timer": null as any
+            }
+            createRpcTimeout(timeout);
+            rpcInvoke.id = timeout.id;
         }
         sendRpcMsg(client, rpcInvoke, args);
     }
@@ -323,14 +326,14 @@ class rpc_create {
         function send(toId: string, callback: Function) {
             if (toId === app.serverId) {
                 let tmp_args = [...args];
-                let rpc_id = 0;
                 if (callback) {
-                    rpc_id = getRpcId();
-                    rpcRequest[rpc_id] = {
-                        "cb": callback,
-                        "time": Date.now() + rpcTimeMax
-                    };
-                    tmp_args.push(getCallBackFuncSelf(rpc_id));
+                    let timeout = {
+                        "id": getRpcId(),
+                        "cb": cb,
+                        "timer": null as any
+                    }
+                    createRpcTimeout(timeout);
+                    tmp_args.push(getCallBackFuncSelf(timeout.id));
                 }
                 sendRpcMsgToSelf(file_method, tmp_args);
                 return;
@@ -346,11 +349,13 @@ class rpc_create {
             rpcInvoke['route'] = file_method;
             rpcInvoke["to"] = toId;
             if (callback) {
-                rpcInvoke["id"] = getRpcId();
-                rpcRequest[rpcInvoke.id] = {
-                    "cb": callback,
-                    "time": Date.now() + rpcTimeMax
-                };
+                let timeout = {
+                    "id": getRpcId(),
+                    "cb": cb,
+                    "timer": null as any
+                }
+                createRpcTimeout(timeout);
+                rpcInvoke["id"] = timeout.id;
             }
             sendRpcMsg(client, rpcInvoke, args);
         }
@@ -358,6 +363,21 @@ class rpc_create {
 }
 
 
+/**
+ * rpc超时计时器
+ * @param timeout 
+ */
+function createRpcTimeout(timeout: rpcTimeout) {
+    rpcRequest[timeout.id] = timeout;
+    timeout.timer = setTimeout(function () {
+        delRequest(timeout.id);
+        timeout.cb(rpcErr.rpc_time_out);
+    }, rpcTimeMax);
+}
+
+/**
+ * 获取rpcId
+ */
 function getRpcId() {
     let id = rpcId++;
     if (rpcId > 999999) {
@@ -366,6 +386,9 @@ function getRpcId() {
     return id;
 }
 
+/**
+ * 获取一个rpc socket
+ */
 function getRpcSocket() {
     let socket = null;
     if (clients.length) {
@@ -402,26 +425,7 @@ function delRequest(id: number) {
     delete rpcRequest[id];
 }
 
-/**
- * rpc 超时判断
- */
-function clearRpcTimeOut() {
-    setTimeout(function () {
-        let nowTime = Date.now();
-        let tmp: rpcTimeout;
-        for (let id in rpcRequest) {
-            tmp = rpcRequest[id];
-            if (nowTime > tmp.time) {
-                delRequest(id as any);
-                try {
-                    tmp.cb(rpcErr.rpc_time_out);
-                } catch (err) {
-                }
-            }
-        }
-        clearRpcTimeOut();
-    }, 3000);
-}
+
 
 /**
  * rpc回调
@@ -444,6 +448,7 @@ function getCallBackFuncSelf(id: number) {
         let timeout = rpcRequest[id];
         if (timeout) {
             delRequest(id);
+            clearTimeout(timeout.timer);
             timeout.cb.apply(null, args);
         }
     }
@@ -544,6 +549,7 @@ class rpc_client_proxy {
             let timeout = rpcRequest[iMsg.id as number];
             if (timeout) {
                 delRequest(iMsg.id as number);
+                clearTimeout(timeout.timer);
                 timeout.cb.apply(null, msg);
             }
         } else {
