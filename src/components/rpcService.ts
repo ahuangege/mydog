@@ -297,20 +297,16 @@ class rpc_create {
         }
 
         let nums: number = endTo.length;
-        let endCb: Function = null as any;
         let bindCb: Function = null as any;
         let msgObj = {} as any;
         if (cb) {
-            endCb = function (id: string, msg: any) {
-                nums--;
-                msgObj[id] = msg;
-                if (nums === 0) {
-                    cb(msgObj);
-                }
-            };
             bindCb = function (id: string) {
                 return function (...msg: any[]) {
-                    endCb(id, msg)
+                    nums--;
+                    msgObj[id] = msg;
+                    if (nums === 0) {
+                        cb(msgObj);
+                    }
                 };
             };
         }
@@ -320,7 +316,7 @@ class rpc_create {
             if (cb) {
                 tmpCb = bindCb(endTo[i]);
             }
-            send(endTo[i], tmpCb)
+            send(endTo[i], tmpCb);
         }
 
         function send(toId: string, callback: Function) {
@@ -329,7 +325,7 @@ class rpc_create {
                 if (callback) {
                     let timeout = {
                         "id": getRpcId(),
-                        "cb": cb,
+                        "cb": callback,
                         "timer": null as any
                     }
                     createRpcTimeout(timeout);
@@ -351,7 +347,7 @@ class rpc_create {
             if (callback) {
                 let timeout = {
                     "id": getRpcId(),
-                    "cb": cb,
+                    "cb": callback,
                     "timer": null as any
                 }
                 createRpcTimeout(timeout);

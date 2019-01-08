@@ -101,7 +101,7 @@ class rpc_server_proxy {
             return;
         }
         if (!!servers[data.sid]) {
-            servers[data.sid].close();
+            this.socket.close();
             return;
         }
         clearTimeout(this.register_timer);
