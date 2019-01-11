@@ -4,7 +4,7 @@
 
 
 import Application from "../application";
-import { rpcRouteFunc, ServerInfo, rpcTimeout, SocketProxy, loggerType, componentName, rpcErr } from "../util/interfaceDefine";
+import { rpcRouteFunc, ServerInfo, rpcTimeout, SocketProxy, loggerType, componentName, rpcErr, rpcMsg } from "../util/interfaceDefine";
 import * as path from "path";
 import * as fs from "fs";
 import define = require("../util/define");
@@ -198,10 +198,11 @@ class rpc_create {
                 return;
             }
 
-            let rpcInvoke = {} as any;
-            rpcInvoke["from"] = app.serverId;
-            rpcInvoke["to"] = sid;
-            rpcInvoke["route"] = file_method;
+            let rpcInvoke: rpcMsg = {
+                "from": app.serverId,
+                "to": sid,
+                "route": file_method
+            };
             if (cb) {
                 let timeout = {
                     "id": getRpcId(),
@@ -264,10 +265,11 @@ class rpc_create {
             return;
         }
 
-        let rpcInvoke = {} as any;
-        rpcInvoke["from"] = app.serverId;
-        rpcInvoke['route'] = file_method;
-        rpcInvoke["to"] = toServerId;
+        let rpcInvoke: rpcMsg = {
+            "from": app.serverId,
+            "to": toServerId,
+            "route": file_method
+        };
         if (cb) {
             let timeout = {
                 "id": getRpcId(),
@@ -340,10 +342,11 @@ class rpc_create {
                 callback && callback(rpcErr.src_has_no_rpc);
                 return;
             }
-            let rpcInvoke = {} as any;
-            rpcInvoke["from"] = app.serverId;
-            rpcInvoke['route'] = file_method;
-            rpcInvoke["to"] = toId;
+            let rpcInvoke: rpcMsg = {
+                "from": app.serverId,
+                "to": toId,
+                "route": file_method
+            };
             if (callback) {
                 let timeout = {
                     "id": getRpcId(),
@@ -408,7 +411,7 @@ function getRpcSocket() {
  *  allMsgLen   msgType    rpcMsgLen   iMsgLen    iMsg        msg
  * 
  */
-function sendRpcMsg(client: rpc_client_proxy, iMsg: any, msg: any) {
+function sendRpcMsg(client: rpc_client_proxy, iMsg: rpcMsg, msg: any) {
     let iMsgBuf = Buffer.from(JSON.stringify(iMsg));
     let msgBuf = Buffer.from(JSON.stringify(msg));
     let buf = Buffer.allocUnsafe(10 + iMsgBuf.length + msgBuf.length);
@@ -443,7 +446,10 @@ function delRequest(id: number) {
  */
 function getCallBackFunc(to: string, id: number) {
     return function (...args: any[]) {
-        let rpcInvoke = { "to": to, "id": id };
+        let rpcInvoke: rpcMsg = {
+            "to": to,
+            "id": id
+        };
         let client = getRpcSocket();
         if (client) {
             sendRpcMsg(client, rpcInvoke, args);
@@ -554,7 +560,7 @@ class rpc_client_proxy {
 
     private dealMsg(data: Buffer) {
         let iMsgLen = data.readUInt8(0);
-        let iMsg = JSON.parse(data.slice(1, 1 + iMsgLen).toString());
+        let iMsg: rpcMsg = JSON.parse(data.slice(1, 1 + iMsgLen).toString());
         let msg = JSON.parse(data.slice(1 + iMsgLen).toString());
         if (!iMsg.from) {
             let timeout = rpcRequest[iMsg.id as number];
@@ -564,7 +570,7 @@ class rpc_client_proxy {
                 timeout.cb.apply(null, msg);
             }
         } else {
-            let cmd = iMsg.route.split('.');
+            let cmd = (iMsg.route as string).split('.');
             if (iMsg.id) {
                 msg.push(getCallBackFunc(iMsg.from, iMsg.id));
             }

@@ -173,14 +173,14 @@ function heartbeat_handle(session: Session) {
 /**
  * 自定义消息
  * @param session
- * @param msg
+ * @param msgBuf
  */
-function msg_handle(session: Session, msg: Buffer) {
+function msg_handle(session: Session, msgBuf: Buffer) {
     if (!session.registered) {
         session.socket.close();
         return;
     }
-    let cmdId = msg.readUInt8(1);
+    let cmdId = msgBuf.readUInt8(1);
     let cmd = routeConfig[cmdId];
     if (!cmd) {
         app.logger(loggerType.warn, componentName.frontendServer, "route index out of range: " + cmdId);
@@ -189,14 +189,15 @@ function msg_handle(session: Session, msg: Buffer) {
 
     let cmdArr = cmd.split('.');
     if (serverType === cmdArr[0]) {
+        let msg: any;
         if (decode) {
-            msg = decode(cmdId, msg.slice(2), session);
+            msg = decode(cmdId, msgBuf.slice(2), session);
         } else {
-            msg = JSON.parse(msg.slice(2).toString());
+            msg = JSON.parse(msgBuf.slice(2).toString());
         }
         msgHandler[cmdArr[1]][cmdArr[2]](msg, session, callBack(session.socket, cmdId));
     } else {
-        app.remoteFrontend.doRemote(msg.slice(1), session, cmdArr[0]);
+        app.remoteFrontend.doRemote(msgBuf.slice(1), session, cmdArr[0]);
     }
 }
 

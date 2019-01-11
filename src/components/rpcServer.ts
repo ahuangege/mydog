@@ -4,7 +4,7 @@
 
 import Application from "../application";
 import tcpServer from "./tcpServer";
-import { SocketProxy, loggerType, componentName, rpcErr } from "../util/interfaceDefine";
+import { SocketProxy, loggerType, componentName, rpcErr, rpcMsg } from "../util/interfaceDefine";
 import define = require("../util/define");
 
 let app: Application;
@@ -132,20 +132,20 @@ class rpc_server_proxy {
             return;
         }
         let iMsgLen = msgBuf.readUInt8(5);
-        let data = JSON.parse(msgBuf.slice(6, 6 + iMsgLen).toString());
-        let server = servers[data.to];
+        let iMsg: rpcMsg = JSON.parse(msgBuf.slice(6, 6 + iMsgLen).toString());
+        let server = servers[iMsg.to];
         if (server) {
             server.send(msgBuf.slice(1));
-        } else if (data.id && data.from) {
+        } else if (iMsg.id && iMsg.from) {
             let iMsgBuf = Buffer.from(JSON.stringify({
-                "id": data.id
+                "id": iMsg.id
             }));
-            msgBuf = Buffer.from(JSON.stringify([rpcErr.rpc_has_no_end]));
-            let buffer = Buffer.allocUnsafe(5 + iMsgBuf.length + msgBuf.length);
-            buffer.writeUInt32BE(iMsgBuf.length + msgBuf.length + 1, 0);
+            let msgBuf2 = Buffer.from(JSON.stringify([rpcErr.rpc_has_no_end]));
+            let buffer = Buffer.allocUnsafe(5 + iMsgBuf.length + msgBuf2.length);
+            buffer.writeUInt32BE(iMsgBuf.length + msgBuf2.length + 1, 0);
             buffer.writeUInt8(iMsgBuf.length, 4);
             iMsgBuf.copy(buffer, 5);
-            msgBuf.copy(buffer, 5 + iMsgBuf.length);
+            msgBuf2.copy(buffer, 5 + iMsgBuf.length);
             this.send(buffer);
         }
     }

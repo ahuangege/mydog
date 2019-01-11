@@ -117,6 +117,15 @@ export enum componentName {
     rpcService = "rpcService",
 }
 
+/**
+ * rpc请求消息
+ */
+export interface rpcMsg {
+    from?: string;
+    to: string;
+    route?: string;
+    id?: number;
+}
 
 /**
  * rpc请求超时
