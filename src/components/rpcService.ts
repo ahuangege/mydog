@@ -7,7 +7,7 @@ import Application from "../application";
 import { rpcRouteFunc, ServerInfo, rpcTimeout, SocketProxy, loggerType, componentName, rpcErr } from "../util/interfaceDefine";
 import * as path from "path";
 import * as fs from "fs";
-import define from "../util/define";
+import define = require("../util/define");
 import { TcpClient } from "./tcpClient";
 
 let app: Application;
@@ -97,7 +97,7 @@ class rpc_create {
         let self = this;
         app.rpc = { "route": this.route.bind(this), "toServer": this.toServer.bind(this) };
         let tmp_rpc_obj = this.rpcObj as any;
-        let dirName = path.join(app.base, define.File_Dir.Servers);
+        let dirName = path.join(app.base, define.some_config.File_Dir.Servers);
         let exists = fs.existsSync(dirName);
         if (!exists) {
             return;
@@ -394,15 +394,30 @@ function getRpcSocket() {
     return socket;
 }
 
+
+
+/**
+ * 发送给rpc服务器，进行中转
+ * @param client 
+ * @param iMsg 内部导向消息
+ * @param msg 用户传输消息
+ * 
+ *  消息格式如下:
+ * 
+ *    [4]        [1]         [4]         [1]      [...]      [...]
+ *  allMsgLen   msgType    rpcMsgLen   iMsgLen    iMsg        msg
+ * 
+ */
 function sendRpcMsg(client: rpc_client_proxy, iMsg: any, msg: any) {
     let iMsgBuf = Buffer.from(JSON.stringify(iMsg));
     let msgBuf = Buffer.from(JSON.stringify(msg));
-    let buf = Buffer.allocUnsafe(6 + iMsgBuf.length + msgBuf.length);
-    buf.writeUInt32BE(2 + iMsgBuf.length + msgBuf.length, 0);
+    let buf = Buffer.allocUnsafe(10 + iMsgBuf.length + msgBuf.length);
+    buf.writeUInt32BE(6 + iMsgBuf.length + msgBuf.length, 0);
     buf.writeUInt8(define.Rpc_Msg.msg, 4);
-    buf.writeUInt8(iMsgBuf.length, 5);
-    iMsgBuf.copy(buf, 6);
-    msgBuf.copy(buf, 6 + iMsgBuf.length);
+    buf.writeUInt32BE(1 + iMsgBuf.length + msgBuf.length, 5);
+    buf.writeUInt8(iMsgBuf.length, 9);
+    iMsgBuf.copy(buf, 10);
+    msgBuf.copy(buf, 10 + iMsgBuf.length);
     client.send(buf);
 }
 
@@ -519,7 +534,7 @@ class rpc_client_proxy {
         this.removeFromClients();
         this.socket = null as any;
         app.logger(loggerType.warn, componentName.rpcService, "rpc connect " + this.id + " fail, reconnect later");
-        this.doConnect(define.Time.Rpc_Reconnect_Time * 1000);
+        this.doConnect(define.some_config.Time.Rpc_Reconnect_Time * 1000);
     }
 
     private heartbeat() {
@@ -530,7 +545,7 @@ class rpc_client_proxy {
             buf.writeUInt8(define.Rpc_Msg.heartbeat, 4);
             self.send(buf);
             self.heartbeat();
-        }, define.Time.Rpc_Heart_Beat_Time * 1000)
+        }, define.some_config.Time.Rpc_Heart_Beat_Time * 1000)
     }
 
     send(buf: Buffer) {

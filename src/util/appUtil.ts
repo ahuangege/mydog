@@ -6,7 +6,7 @@
 import * as path from "path";
 import * as fs from "fs";
 import Application from "../application";
-import define from "./define";
+import { some_config } from "./define";
 import { ServerInfo } from "./interfaceDefine";
 import * as master from "../components/master";
 import * as monitor from "../components/monitor";
@@ -91,10 +91,10 @@ let parseArgs = function (args: any[]) {
 
 
 let loadBaseConfig = function (app: Application) {
-    loadConfigBaseApp(app, "masterConfig", path.join(define.File_Dir.Config, 'master.js'));
-    loadConfigBaseApp(app, "rpcServersConfig", path.join(define.File_Dir.Config, 'rpc.js'));
-    loadConfigBaseApp(app, "serversConfig", path.join(define.File_Dir.Config, 'servers.js'));
-    loadConfigBaseApp(app, "routeConfig", path.join(define.File_Dir.Config, 'route.js'));
+    loadConfigBaseApp(app, "masterConfig", path.join(some_config.File_Dir.Config, 'master.js'));
+    loadConfigBaseApp(app, "rpcServersConfig", path.join(some_config.File_Dir.Config, 'rpc.js'));
+    loadConfigBaseApp(app, "serversConfig", path.join(some_config.File_Dir.Config, 'servers.js'));
+    loadConfigBaseApp(app, "routeConfig", path.join(some_config.File_Dir.Config, 'route.js'));
 
     function loadConfigBaseApp(app: Application, key: "masterConfig" | "rpcServersConfig" | "serversConfig" | "routeConfig", val: string) {
         let env = app.env;

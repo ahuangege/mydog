@@ -6,7 +6,7 @@
 import Application from "../application";
 import { MonitorCli } from "./cliUtil";
 import { TcpClient } from "./tcpClient";
-import define from "../util/define";
+import define = require("../util/define");
 import { SocketProxy, ServerInfo, monitor_get_new_server, monitor_remove_server, loggerType, componentName, monitor_reg_master } from "../util/interfaceDefine";
 import { encodeInnerData } from "./msgCoder";
 
@@ -72,7 +72,7 @@ function connectToMaster(delay: number) {
             removeDiffServers = {};
             clearTimeout(diffTimer);
             clearTimeout(client.heartBeatTimer);
-            connectToMaster(define.Time.Monitor_Reconnect_Time * 1000);
+            connectToMaster(define.some_config.Time.Monitor_Reconnect_Time * 1000);
         });
     }, delay);
 }
@@ -84,7 +84,7 @@ function heartBeat(socket: SocketProxy) {
         let heartBeatMsgBuf = encodeInnerData(heartBeatMsg);
         socket.send(heartBeatMsgBuf);
         heartBeat(socket);
-    }, define.Time.Monitor_Heart_Beat_Time * 1000)
+    }, define.some_config.Time.Monitor_Heart_Beat_Time * 1000)
 }
 
 function addServer(servers: { [id: string]: { "serverType": string, "serverInfo": ServerInfo } }) {

@@ -5,7 +5,7 @@
 import Application from "../application";
 import { ServerInfo, SocketProxy, sessionApplyJson, loggerType, componentName, routeFunc } from "../util/interfaceDefine";
 import { TcpClient } from "./tcpClient";
-import define from "../util/define";
+import define = require("../util/define");
 import { Session } from "./session";
 
 let app: Application;
@@ -142,7 +142,7 @@ class remote_frontend_client {
             self.socket.on("close", function () {
                 clearTimeout(self.heartbeat_timer as NodeJS.Timer);
                 app.logger(loggerType.warn, componentName.remoteFrontend, app.serverId + " remote connect " + self.id + " closed, reconnect later");
-                self.doConnect(define.Time.Remote_Reconnect_Time * 1000);
+                self.doConnect(define.some_config.Time.Remote_Reconnect_Time * 1000);
             });
         }, delay);
     }
@@ -158,7 +158,7 @@ class remote_frontend_client {
             buf.writeUInt8(define.Front_To_Back.heartbeat, 4);
             (self.socket as SocketProxy).send(buf);
             self.heartbeat();
-        }, define.Time.Remote_Heart_Beat_Time * 1000)
+        }, define.some_config.Time.Remote_Heart_Beat_Time * 1000)
     }
 
     /**

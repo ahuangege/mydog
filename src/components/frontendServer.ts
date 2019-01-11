@@ -5,7 +5,7 @@
 
 import Application from "../application";
 import { setEncode, encodeClientData } from "./msgCoder";
-import define from "../util/define";
+import define = require("../util/define");
 import * as path from "path";
 import * as fs from "fs";
 import wsServer from "./wsServer";
@@ -58,7 +58,7 @@ export function start(_app: Application, cb: Function) {
  * 前端服务器加载路由处理
  */
 function loadHandler() {
-    let dirName = path.join(app.base, define.File_Dir.Servers, app.serverType, "handler");
+    let dirName = path.join(app.base, define.some_config.File_Dir.Servers, app.serverType, "handler");
     let exists = fs.existsSync(dirName);
     if (exists) {
         fs.readdirSync(dirName).forEach(function (filename) {
@@ -103,9 +103,9 @@ function startServer(cb: Function) {
     if (app.get("connectorConfig")) {
         configType = app.get("connectorConfig").connector;
     }
-    configType = configType === define.Connector.Ws ? define.Connector.Ws : define.Connector.Net;
+    configType = configType === define.some_config.Connector.Ws ? define.some_config.Connector.Ws : define.some_config.Connector.Net;
 
-    if (configType === define.Connector.Ws) {
+    if (configType === define.some_config.Connector.Ws) {
         wsServer(app.port, startCb, newClientCb);
     } else {
         tcpServer(app.port, startCb, newClientCb);
@@ -190,7 +190,7 @@ function msg_handle(session: Session, msg: Buffer) {
     let cmdArr = cmd.split('.');
     if (serverType === cmdArr[0]) {
         if (decode) {
-            msg = decode(cmdId, msg.slice(2));
+            msg = decode(cmdId, msg.slice(2), session);
         } else {
             msg = JSON.parse(msg.slice(2).toString());
         }

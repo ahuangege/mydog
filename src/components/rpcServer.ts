@@ -5,7 +5,7 @@
 import Application from "../application";
 import tcpServer from "./tcpServer";
 import { SocketProxy, loggerType, componentName, rpcErr } from "../util/interfaceDefine";
-import define from "../util/define";
+import define = require("../util/define");
 
 let app: Application;
 let servers: { [id: string]: rpc_server_proxy } = {};
@@ -120,7 +120,7 @@ class rpc_server_proxy {
         this.heartbeat_timer = setTimeout(function () {
             app.logger(loggerType.debug, componentName.rpcServer, " heartBeat time out : " + self.sid);
             self.socket.close();
-        }, define.Time.Rpc_Heart_Beat_Time * 1000 * 2);
+        }, define.some_config.Time.Rpc_Heart_Beat_Time * 1000 * 2);
     }
 
     /**
@@ -131,21 +131,17 @@ class rpc_server_proxy {
         if (!this.registered) {
             return;
         }
-        let iMsgLen = msgBuf.readUInt8(1);
-        let data = JSON.parse(msgBuf.slice(2, 2 + iMsgLen).toString());
+        let iMsgLen = msgBuf.readUInt8(5);
+        let data = JSON.parse(msgBuf.slice(6, 6 + iMsgLen).toString());
         let server = servers[data.to];
-        let buffer: Buffer;
         if (server) {
-            buffer = Buffer.allocUnsafe(msgBuf.length + 3);
-            buffer.writeUInt32BE(msgBuf.length - 1, 0);
-            msgBuf.copy(buffer, 4, 1);
-            server.send(buffer);
+            server.send(msgBuf.slice(1));
         } else if (data.id && data.from) {
             let iMsgBuf = Buffer.from(JSON.stringify({
                 "id": data.id
             }));
             msgBuf = Buffer.from(JSON.stringify([rpcErr.rpc_has_no_end]));
-            buffer = Buffer.allocUnsafe(5 + iMsgBuf.length + msgBuf.length);
+            let buffer = Buffer.allocUnsafe(5 + iMsgBuf.length + msgBuf.length);
             buffer.writeUInt32BE(iMsgBuf.length + msgBuf.length + 1, 0);
             buffer.writeUInt8(iMsgBuf.length, 4);
             iMsgBuf.copy(buffer, 5);

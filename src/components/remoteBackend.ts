@@ -4,7 +4,7 @@
 
 import Application from "../application";
 import { SocketProxy, sessionApplyJson, loggerType, componentName } from "../util/interfaceDefine";
-import define from "../util/define";
+import define = require("../util/define");
 import { encodeRemoteData, encodeData } from "./msgCoder";
 
 
@@ -48,7 +48,7 @@ export function sendMsgByUidSid(cmdIndex: number, msg: any, uids: number[], sids
     let msgBuf: Buffer = null as any;
     for (let sid in group) {
         if (clients[sid]) {
-            if(!msgBuf){
+            if (!msgBuf) {
                 msgBuf = encodeData(cmdIndex, msg);
             }
             let buf = encodeRemoteData(group[sid], cmdIndex, msgBuf);

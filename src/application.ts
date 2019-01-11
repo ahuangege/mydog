@@ -4,7 +4,7 @@
 
 
 import * as path from "path"
-import define from "./util/define";
+import { some_config } from "./util/define";
 import { ServerInfo, routeFunc, rpcRouteFunc, loggerType, componentName } from "./util/interfaceDefine";
 import { Session } from "./components/session";
 import * as RemoteFrontend from "./components/remoteFrontend";
@@ -38,8 +38,8 @@ export default class Application extends EventEmitter {
     serversIdMap: { [id: string]: ServerInfo } = {};                 // 正在运行的所有用户服务器（字典格式）
     rpcServersIdMap: { [id: string]: ServerInfo } = {};              // 正在运行的所有rpc服务器（字典格式）
 
-    serverToken: string = define.Server_Token;                       // 服务器内部认证密钥
-    clientToken: string = define.Master_Client_Token;                // master与cli的认证密匙
+    serverToken: string = some_config.Server_Token;                       // 服务器内部认证密钥
+    clientToken: string = some_config.Master_Client_Token;                // master与cli的认证密匙
 
     serverInfo: ServerInfo = {} as ServerInfo;                       // 本服务器的配置
     env: "production" | "development" = "development";               // 环境

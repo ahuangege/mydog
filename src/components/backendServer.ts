@@ -7,7 +7,7 @@ import Application from "../application";
 import { setEncode, encodeRemoteData, encodeData } from "./msgCoder";
 import * as path from "path";
 import * as fs from "fs";
-import define from "../util/define";
+import define = require("../util/define");
 import tcpServer from "./tcpServer";
 import { SocketProxy, loggerType, componentName } from "../util/interfaceDefine";
 import { Session, initSessionApp } from "./session";
@@ -35,7 +35,7 @@ export function start(_app: Application, cb: Function) {
  * 后端服务器加载路由处理
  */
 function loadHandler() {
-    let dirName = path.join(app.base, define.File_Dir.Servers, app.serverType, "handler");
+    let dirName = path.join(app.base, define.some_config.File_Dir.Servers, app.serverType, "handler");
     let exists = fs.existsSync(dirName);
     if (exists) {
         fs.readdirSync(dirName).forEach(function (filename) {
@@ -146,7 +146,7 @@ class backend_socket {
         this.heartBeatTimer = setTimeout(function () {
             app.logger(loggerType.warn, componentName.backendServer, "heartbeat time out : " + self.sid);
             self.socket.close();
-        }, define.Time.Remote_Heart_Beat_Time * 1000 * 2);
+        }, define.some_config.Time.Remote_Heart_Beat_Time * 1000 * 2);
     }
 
     /**
@@ -164,7 +164,7 @@ class backend_socket {
         let cmdArr = cmd.split('.');
         let msg: any;
         if (decode) {
-            msg = decode(cmdId, msgBuf.slice(4 + sessionLen));
+            msg = decode(cmdId, msgBuf.slice(4 + sessionLen), session);
         } else {
             msg = JSON.parse(msgBuf.slice(4 + sessionLen).toString());
         }

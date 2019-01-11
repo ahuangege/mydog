@@ -8,7 +8,7 @@ import { MasterCli } from "./cliUtil";
 import { SocketProxy, monitor_get_new_server, monitor_remove_server, loggerType, componentName, monitor_reg_master } from "../util/interfaceDefine";
 import tcpServer from "./tcpServer";
 import { runServers } from "../util/starter";
-import define from "../util/define";
+import define = require("../util/define");
 import * as msgCoder from "./msgCoder";
 
 let servers: { [id: string]: Master_ServerProxy } = {};
@@ -58,7 +58,7 @@ function heartBeatTimeOut(socket: SocketProxy) {
     socket.heartBeatTimer = setTimeout(function () {
         app.logger(loggerType.debug, componentName.master, "heartbeat time out, close it");
         socket.close();
-    }, define.Time.Monitor_Heart_Beat_Time * 1000 * 2);
+    }, define.some_config.Time.Monitor_Heart_Beat_Time * 1000 * 2);
 }
 
 
@@ -246,7 +246,7 @@ export class Master_ClientProxy {
         socket.unRegSocketCloseHandle = null;
         socket.on('close', this.onClose.bind(this));
 
-        app.logger(loggerType.info, componentName.master, "master gets a new cli" );
+        app.logger(loggerType.info, componentName.master, "master gets a new cli");
     }
 
     private processMsg(_data: Buffer) {

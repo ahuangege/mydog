@@ -132,7 +132,7 @@ export interface Application {
     /**
      * 编码解码回调
      */
-    set(key: "encodeDecodeConfig", value: { "encode": (cmdId: number, data: any) => Buffer, "decode": (cmdId: number, data: Buffer) => any }): void
+    set(key: "encodeDecodeConfig", value: { "encode": (cmdId: number, data: any) => Buffer, "decode": (cmdId: number, data: Buffer, session: Session) => any }): void
 
     /**
      * 前端连接服务器配置

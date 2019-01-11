@@ -1,7 +1,7 @@
 /**
  * 通用编码解码模块
  */
-import define from "../util/define";
+import define = require("../util/define");
 import { SocketProxy } from "../util/interfaceDefine";
 
 const MAX_lEN = 10 * 1024 * 1024;
