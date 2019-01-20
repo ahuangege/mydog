@@ -4,6 +4,7 @@
 
 
 import Application from "../application";
+import * as remoteBackend from "./remoteBackend";
 import { sessionApplyJson, SocketProxy } from "../util/interfaceDefine";
 
 let app: Application;
@@ -96,7 +97,7 @@ export class Session {
     apply() {
         if (!app.frontend) {
             let tmpSession = this.getAll();
-            app.remoteBackend.sendSession(tmpSession);
+            remoteBackend.sendSession(tmpSession);
         }
     }
 

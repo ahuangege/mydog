@@ -157,3 +157,35 @@ export const enum rpcErr {
      */
     rpc_time_out = 4
 }
+
+/**
+ * 编码函数
+ */
+export interface encode_func {
+    (cmdId: number, data: any): Buffer
+}
+
+/**
+ * 解码函数
+ */
+export interface decode_func {
+    (cmdId: number, data: Buffer, session: Session): any
+}
+
+/**
+ * 前端server配置
+ */
+export interface connector_config {
+    /**
+     * socket类型
+     */
+    "connector": "net" | "ws",
+    /**
+     * 心跳（秒）
+     */
+    "heartbeat": number,
+    /**
+     * 最大连接数
+     */
+    "maxConnectionNum": number
+}

@@ -1,5 +1,6 @@
 import { Application } from "mydog";
 import roomMgr from "./roomMgr";
+import Proto = require("./Proto");
 
 export default class room {
     app: Application;
@@ -7,7 +8,7 @@ export default class room {
     id: number = 1;
     name: string = "";
     password: string = "";
-    players: any = {};
+    players: { [id: string]: Proto.player_info } = {};
     playerId: number = 1;
     userNum: number = 0;
     playerIds: number[] = [];
@@ -18,14 +19,14 @@ export default class room {
         this.roomMgr = _app.get("roomMgr") as roomMgr;
     }
 
-    init(_id: number, msg: any) {
+    init(_id: number, msg: Proto.connector_main_newRoom_req) {
         this.id = _id;
         this.name = msg.roomName;
         this.password = msg.password;
     }
-    addUser(msg: any): any {
+    addUser(msg: Proto.connector_main_newRoom_req): Proto.join_room_rsp {
         if (this.password !== "" && this.password !== msg.password) {
-            return { "status": -1 };
+            return { "status": -1 } as any;
         }
 
         let player = {
@@ -44,29 +45,37 @@ export default class room {
         this.uids.push(player.uid);
         this.sids.push(player.sid);
 
+        let player_arr: Proto.player_info[] = [];
+        for (let x in this.players) {
+            player_arr.push(this.players[x]);
+        }
+
         return {
             "status": 0,
             "roomName": this.name,
             "roomId": this.id,
             "playerId": player.id,
-            "players": this.players
+            "serverId": this.app.serverId,
+            "serverName": this.roomMgr.serverName,
+            "players": player_arr
         };
     }
 
-    send(playerId: number, msg: any) {
+    send(playerId: number, msg: Proto.chat_send_req) {
+        let back_msg: Proto.onChat_info = msg as any;
         let player = this.players[playerId];
         if (player) {
             if (msg.type === 1) {
-                msg.from = player.name;
-                msg.fromId = player.id;
+                back_msg.from = player.name;
+                back_msg.fromId = player.id;
                 this.broadcastMsg("onChat", msg);
             } else {
-                let toPlayer = this.players[msg.to];
+                let toPlayer = this.players[msg.toId];
                 if (toPlayer) {
-                    msg.to = toPlayer.name;
-                    msg.toId = toPlayer.id;
-                    msg.from = player.name;
-                    msg.fromId = player.id;
+                    back_msg.to = toPlayer.name;
+                    back_msg.toId = toPlayer.id;
+                    back_msg.from = player.name;
+                    back_msg.fromId = player.id;
                     let uids = [player.uid];
                     let sids = [player.sid];
                     if (player.id !== toPlayer.id) {

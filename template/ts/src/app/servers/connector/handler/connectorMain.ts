@@ -1,4 +1,5 @@
-import { Application, Session } from "mydog";
+import { Application, Session, rpcErr } from "mydog";
+import Proto = require("../../../domain/Proto");
 
 export default function (app: Application) {
     return new Handler(app);
@@ -11,27 +12,27 @@ class Handler {
     constructor(app: Application) {
         this.app = app;
     }
-    getChatInfo(msg: any, session: Session, next: Function) {
+    getChatInfo(msg: { "id": string }, session: Session, next: (rooms: Proto.connector_main_getChatInfo_rsp) => void) {
         if (!session.uid) {
             session.bind(uid++);
             session.setCloseCb(onUserLeave);
         }
-        this.app.rpc.toServer(msg.id).chat.chatRemote.getRooms(function (err: any, data: any) {
+        this.app.rpc.toServer(msg.id).chat.chatRemote.getRooms(function (err: rpcErr, data) {
             if (err) {
-                next({});
+                next({ "rooms": [] });
                 return;
             }
             next(data);
         });
     };
 
-    newRoom(msg: any, session: Session, next: Function) {
+    newRoom(msg: Proto.connector_main_newRoom_req, session: Session, next: (info: Proto.join_room_rsp) => void) {
         msg.uid = session.uid;
         msg.sid = session.sid;
         var self = this;
-        self.app.rpc.toServer(msg.id).chat.chatRemote.newRoom(msg, function (err: any, data: any) {
+        self.app.rpc.toServer(msg.id).chat.chatRemote.newRoom(msg, function (err: rpcErr, data: Proto.join_room_rsp) {
             if (err) {
-                next({ "status": -2 });
+                next({ "status": -2 } as any);
                 return;
             }
             if (data.status === 0) {
@@ -43,13 +44,13 @@ class Handler {
         });
     };
 
-    joinRoom(msg: any, session: Session, next: Function) {
+    joinRoom(msg: Proto.connector_main_newRoom_req, session: Session, next: (info: Proto.join_room_rsp) => void) {
         msg.uid = session.uid;
         msg.sid = session.sid;
         var self = this;
-        self.app.rpc.toServer(msg.id).chat.chatRemote.joinRoom(msg, function (err: any, data: any) {
+        self.app.rpc.toServer(msg.id).chat.chatRemote.joinRoom(msg, function (err, data) {
             if (err) {
-                next({ "status": -2 });
+                next({ "status": -2 } as any);
                 return;
             }
             if (data.status === 0) {

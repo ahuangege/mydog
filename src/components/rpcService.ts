@@ -31,7 +31,7 @@ export function init(_app: Application) {
     rpcRouter = app.rpcRouter;
     servers = app.servers;
     serversIdMap = app.serversIdMap;
-    let rpcConfig = app.get("rpcConfig");
+    let rpcConfig = app.rpcConfig;
     if (rpcConfig) {
         if (rpcConfig.hasOwnProperty("timeOut") && Number(rpcConfig["timeOut"]) > 5) {
             rpcTimeMax = Number(rpcConfig["timeOut"]) * 1000;

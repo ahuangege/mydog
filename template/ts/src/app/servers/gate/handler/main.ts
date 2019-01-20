@@ -1,22 +1,23 @@
 import { Application, Session } from "mydog";
+import Proto = require("../../../domain/Proto");
 
-export default function(app:Application){
+export default function (app: Application) {
     return new Handler(app);
 }
 
-class Handler{
+class Handler {
     app: Application;
-    constructor(app:Application){
+    constructor(app: Application) {
         this.app = app;
     }
-    login(msg: any, session: Session, next: Function){
+    login(msg: any, session: Session, next: (info: Proto.gate_main_login_rsp) => void) {
         let connectors = this.app.getServersByType("connector");
         let min = 99999;
         let index = 0;
-        for(let i = 0; i < connectors.length; i++){
+        for (let i = 0; i < connectors.length; i++) {
             let num = connectors[i].userNum || 0;
-    
-            if(num < min){
+
+            if (num < min) {
                 min = num;
                 index = i;
             }
@@ -24,7 +25,7 @@ class Handler{
         let data = {
             "host": connectors[index].host,
             "port": connectors[index].port,
-            "chat": this.app.getServersByType("chat")
+            "chat": this.app.getServersByType("chat") as any
         };
         next(data);
     }

@@ -20,22 +20,22 @@ export let version: string;
 export interface Application {
 
     /**
-     * route.json
+     * 配置：route.ts
      */
     readonly routeConfig: string[];
 
     /**
-     * master.json
+     * 配置：master.ts
      */
     readonly masterConfig: ServerInfo;
 
     /**
-     * rpc.json
+     * 配置：rpc.ts
      */
     readonly rpcServersConfig: ServerInfo[];
 
     /**
-     * servers.json
+     * 配置：servers.ts
      */
     readonly serversConfig: { readonly [serverType: string]: ServerInfo[] };
 
@@ -100,11 +100,6 @@ export interface Application {
     readonly serverType: string;
 
     /**
-     * 是否是前端服务器
-     */
-    readonly frontend: boolean;
-
-    /**
      * 服务器启动时刻
      */
     readonly startTime: number;
@@ -116,7 +111,7 @@ export interface Application {
         /**
          * 指定服务器id
          */
-        toServer: (serverId: string) => Rpc
+        toServer: (serverId: string) => Rpc,
 
         /**
          * 通过rpcRoute路由
@@ -132,17 +127,17 @@ export interface Application {
     /**
      * 编码解码回调
      */
-    set(key: "encodeDecodeConfig", value: { "encode": (cmdId: number, data: any) => Buffer, "decode": (cmdId: number, data: Buffer, session: Session) => any }): void
+    set_encodeDecodeConfig(config: { "encode"?: (cmdId: number, data: any) => Buffer, "decode"?: (cmdId: number, data: Buffer, session: Session) => any }): void
 
     /**
      * 前端连接服务器配置
      */
-    set(key: "connectorConfig", value: { "connector": "net" | "ws", "heartbeat": number, "maxConnectionNum": number }): void
+    set_connectorConfig(config: { "connector"?: "net" | "ws", "heartbeat"?: number, "maxConnectionNum"?: number }): void
 
     /**
      * rpc模块配置
      */
-    set(key: "rpcConfig", value: { "timeOut": number }): void
+    set_rpcConfig(config: { "timeOut"?: number }): void
 
     /**
      * 设置键值对

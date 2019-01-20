@@ -9,6 +9,8 @@ import { TcpClient } from "./tcpClient";
 import define = require("../util/define");
 import { SocketProxy, ServerInfo, monitor_get_new_server, monitor_remove_server, loggerType, componentName, monitor_reg_master } from "../util/interfaceDefine";
 import { encodeInnerData } from "./msgCoder";
+import * as remoteFrontend from "./remoteFrontend";
+import * as rpcService from "./rpcService";
 
 let app: Application;
 let monitorCli: MonitorCli;
@@ -108,7 +110,7 @@ function addServer(servers: { [id: string]: { "serverType": string, "serverInfo"
                 continue;
             }
             app.rpcServersIdMap[serverInfo.id] = serverInfo;
-            app.rpcService.addRpcServer(serverInfo);
+            rpcService.addRpcServer(serverInfo);
             continue;
         }
         tmpServer = serversIdMap[serverInfo.id]
@@ -123,7 +125,7 @@ function addServer(servers: { [id: string]: { "serverType": string, "serverInfo"
                 if (serversApp[server.serverType][i].id === tmpServer.id) {
                     serversApp[server.serverType].splice(i, 1);
                     if (app.frontend && !app.alone) {
-                        app.remoteFrontend.removeServer({
+                        remoteFrontend.removeServer({
                             "serverType": server.serverType,
                             "id": tmpServer.id
                         });
@@ -137,7 +139,7 @@ function addServer(servers: { [id: string]: { "serverType": string, "serverInfo"
         app.emit("onAddServer", server.serverType, serverInfo.id);
 
         if (app.frontend && !app.alone && !serverInfo.frontend && !serverInfo.alone) {
-            app.remoteFrontend.addServer(server);
+            remoteFrontend.addServer(server);
         }
     }
 }
@@ -149,7 +151,7 @@ function removeServer(msg: monitor_remove_server) {
     }
     if (msg.serverType === "rpc") {
         delete app.rpcServersIdMap[msg.id];
-        app.rpcService.removeRpcServer(msg.id);
+        rpcService.removeRpcServer(msg.id);
         return;
     }
     delete app.serversIdMap[msg.id];
@@ -159,7 +161,7 @@ function removeServer(msg: monitor_remove_server) {
             if (serversApp[msg.serverType][i].id === msg.id) {
                 serversApp[msg.serverType].splice(i, 1);
                 if (app.frontend && !app.alone) {
-                    app.remoteFrontend.removeServer({
+                    remoteFrontend.removeServer({
                         "serverType": msg.serverType,
                         "id": msg.id
                     });
@@ -199,7 +201,7 @@ function diffFunc() {
             if (!removeDiffServers[id]) {
                 delete app.serversIdMap[id];
                 servers[serverType].splice(i, 1);
-                app.remoteFrontend.removeServer({ "serverType": serverType, "id": id });
+                remoteFrontend.removeServer({ "serverType": serverType, "id": id });
                 app.emit("onRemoveServer", serverType, id);
             }
         }
@@ -211,7 +213,7 @@ function diffFunc() {
         }
         if (!removeDiffServers[id]) {
             delete app.rpcServersIdMap[id];
-            app.rpcService.removeRpcServer(id);
+            rpcService.removeRpcServer(id);
         }
     }
     removeDiffServers = {};

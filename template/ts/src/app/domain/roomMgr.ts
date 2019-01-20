@@ -1,5 +1,6 @@
 import { Application } from "mydog";
 import room from "./room";
+import Proto = require("./Proto");
 
 export default class roomMgr {
     app: Application
@@ -13,37 +14,32 @@ export default class roomMgr {
     }
 
     getRooms() {
-        let result = {} as any;
-        let tmpRoom;
+        let result: Proto.connector_main_getChatInfo_room_info[] = [];
         for (let id in this.rooms) {
-            tmpRoom = this.rooms[id];
-            result[id] = {
-                "id": id,
+            let tmpRoom = this.rooms[id];
+            result.push({
+                "id": tmpRoom.id,
                 "name": tmpRoom.name,
                 "password": tmpRoom.password
-            }
+            });
         }
-        return result;
+        return { "rooms": result };
     }
-    newRoom(msg: any) {
+    newRoom(msg: Proto.connector_main_newRoom_req): Proto.join_room_rsp {
         let tmpRoom = new room(this.app);
         tmpRoom.init(this.id++, msg);
         this.rooms[tmpRoom.id] = tmpRoom;
 
         let info = tmpRoom.addUser(msg);
-        info.serverId = this.app.serverId;
-        info.serverName = this.serverName;
         return info;
     };
 
-    joinRoom(msg: any): any {
+    joinRoom(msg: Proto.connector_main_newRoom_req): Proto.join_room_rsp {
         let tmpRoom = this.rooms[msg.roomId];
         if (!tmpRoom) {
-            return { "status": -3 };
+            return { "status": -3 } as any;
         }
         let info = tmpRoom.addUser(msg);
-        info.serverId = this.app.serverId;
-        info.serverName = this.serverName;
         return info;
     };
 

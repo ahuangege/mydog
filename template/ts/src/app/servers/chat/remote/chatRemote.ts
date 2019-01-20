@@ -1,5 +1,6 @@
 import { Application, RpcClass, rpcErr } from "mydog";
 import roomMgr from "../../../domain/roomMgr";
+import Proto = require("../../../domain/Proto");
 
 export default function (app: Application) {
     return new remote(app);
@@ -21,26 +22,21 @@ class remote {
         this.roomMgr = app.get("roomMgr");
     }
 
-    getRooms(cb: (err: rpcErr, data: any) => void) {
+    getRooms(cb: (err: rpcErr, data: Proto.connector_main_getChatInfo_rsp) => void) {
         cb(null as any, this.roomMgr.getRooms());
     };
 
-    newRoom(msg: any, cb: Function) {
+    newRoom(msg: Proto.connector_main_newRoom_req, cb: (err: rpcErr, info: Proto.join_room_rsp) => void) {
         let info = this.roomMgr.newRoom(msg);
-        cb(null, info);
+        cb(null as any, info);
     };
 
-    joinRoom(msg: any, cb: Function) {
+    joinRoom(msg: Proto.connector_main_newRoom_req, cb: (err: rpcErr, info: Proto.join_room_rsp) => void) {
         let info = this.roomMgr.joinRoom(msg);
-        cb(null, info);
+        cb(null as any, info);
     };
 
-    leaveRoom(msg: any) {
+    leaveRoom(msg: { "roomId": number, "playerId": number }) {
         this.roomMgr.leaveRoom(msg.roomId, msg.playerId);
     };
-
-    test(str1: string, str2: string, cb: (err: rpcErr, num: number, str: string) => void) {
-        console.log("收到", str1, str2);
-        cb(null as any, 2222, "hahahah");
-    }
 }

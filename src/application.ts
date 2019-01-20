@@ -5,10 +5,10 @@
 
 import * as path from "path"
 import { some_config } from "./util/define";
-import { ServerInfo, routeFunc, rpcRouteFunc, loggerType, componentName } from "./util/interfaceDefine";
+import { ServerInfo, routeFunc, rpcRouteFunc, loggerType, componentName, encode_func, decode_func, connector_config } from "./util/interfaceDefine";
 import { Session } from "./components/session";
 import * as RemoteFrontend from "./components/remoteFrontend";
-import * as RemoteBackend from "./components/remoteBackend";
+import * as remoteBackend from "./components/remoteBackend";
 import * as RpcService from "./components/rpcService";
 import { encodeClientData } from "./components/msgCoder";
 import * as appUtil from "./util/appUtil";
@@ -22,44 +22,45 @@ declare global {
 
 export default class Application extends EventEmitter {
 
-    main: string = "";                                               // 启动文件
-    base: string = path.dirname((require.main as any).filename);     // 根路径
+    main: string = "";                                                                                       // 启动文件
+    base: string = path.dirname((require.main as any).filename);                                             // 根路径
 
-    routeConfig: string[] = [];                                      // route.json
-    masterConfig: ServerInfo = {} as ServerInfo;                     // master.json
-    rpcServersConfig: ServerInfo[] = [];                             // rpc.json
-    serversConfig: { [serverType: string]: ServerInfo[] } = {};      // servers.json
+    routeConfig: string[] = [];                                                                              // route.ts
+    masterConfig: ServerInfo = {} as ServerInfo;                                                             // master.ts
+    rpcServersConfig: ServerInfo[] = [];                                                                     // rpc.ts
+    serversConfig: { [serverType: string]: ServerInfo[] } = {};                                              // servers.ts
 
-    clientNum: number = 0;                                           // 所有的socket连接数
-    clients: { [uid: number]: Session } = {};                        // bind了的socket
-    settings: { [key: string]: any } = {};                           // 用户set，get  
+    clientNum: number = 0;                                                                                   // 所有的socket连接数
+    clients: { [uid: number]: Session } = {};                                                                // bind了的socket
+    settings: { [key: string]: any } = {};                                                                   // 用户set，get  
 
-    servers: { [serverType: string]: ServerInfo[] } = {};            // 正在运行的所有用户服务器
-    serversIdMap: { [id: string]: ServerInfo } = {};                 // 正在运行的所有用户服务器（字典格式）
-    rpcServersIdMap: { [id: string]: ServerInfo } = {};              // 正在运行的所有rpc服务器（字典格式）
+    servers: { [serverType: string]: ServerInfo[] } = {};                                                    // 正在运行的所有用户服务器
+    serversIdMap: { [id: string]: ServerInfo } = {};                                                         // 正在运行的所有用户服务器（字典格式）
+    rpcServersIdMap: { [id: string]: ServerInfo } = {};                                                      // 正在运行的所有rpc服务器（字典格式）
 
-    serverToken: string = some_config.Server_Token;                       // 服务器内部认证密钥
-    clientToken: string = some_config.Master_Client_Token;                // master与cli的认证密匙
+    serverToken: string = some_config.Server_Token;                                                          // 服务器内部认证密钥
+    clientToken: string = some_config.Master_Client_Token;                                                   // master与cli的认证密匙
 
-    serverInfo: ServerInfo = {} as ServerInfo;                       // 本服务器的配置
-    env: "production" | "development" = "development";               // 环境
-    host: string = "";                                               // ip
-    port: number = 0;                                                // port
-    serverId: string = "";                                           // 服务器名字id， 服务器唯一标识
-    serverType: string = "";                                         // 服务器类型
-    frontend: boolean = false;                                       // 是否是前端服务器
-    alone: boolean = false;                                          // 是否是单独的
-    startMode: "all" | "alone" = "all";                              // 启动方式  all / alone
-    startTime: number = 0;                                           // 启动时刻
+    serverInfo: ServerInfo = {} as ServerInfo;                                                               // 本服务器的配置
+    env: "production" | "development" = "development";                                                       // 环境
+    host: string = "";                                                                                       // ip
+    port: number = 0;                                                                                        // port
+    serverId: string = "";                                                                                   // 服务器名字id， 服务器唯一标识
+    serverType: string = "";                                                                                 // 服务器类型
+    frontend: boolean = false;                                                                               // 是否是前端服务器
+    alone: boolean = false;                                                                                  // 是否是单独的
+    startMode: "all" | "alone" = "all";                                                                      // 启动方式  all / alone
+    startTime: number = 0;                                                                                   // 启动时刻
 
-    router: { [serverType: string]: routeFunc } = {};                // 路由消息到后端时的前置选择
-    rpcRouter: { [serverType: string]: rpcRouteFunc } = {};          // rpc消息时的前置选择
-    rpc: { route: (routeParam: any) => Rpc, toServer: (serverId: string) => Rpc } = {} as any;           // rpc包装
+    router: { [serverType: string]: routeFunc } = {};                                                        // 路由消息到后端时的前置选择
+    rpcRouter: { [serverType: string]: rpcRouteFunc } = {};                                                  // rpc消息时的前置选择
+    rpc: { route: (routeParam: any) => Rpc, toServer: (serverId: string) => Rpc } = {} as any;               // rpc包装
 
-    rpcService: typeof RpcService = RpcService;                      // 用户服务器，rpc调用管理
-    remoteBackend: typeof RemoteBackend = RemoteBackend;             // 后端服务器，用来管理前端连接
-    remoteFrontend: typeof RemoteFrontend = RemoteFrontend;          // 前端服务器，用来管理连接后端
     logger: (level: loggerType, componentName: componentName, msg: any) => void = function () { };           // 内部日志输出口
+
+    encodeDecodeConfig: { "encode": encode_func, "decode": decode_func } = {} as any;                        // 编码解码函数
+    connectorConfig: connector_config = {} as any;                                                           // 前端server配置
+    rpcConfig: { "timeOut": number } = {} as any;                                                            // rpc配置
 
     constructor() {
         super();
@@ -80,6 +81,30 @@ export default class Application extends EventEmitter {
     }
 
     /**
+     * 配置编码解码函数
+     * @param config 
+     */
+    set_encodeDecodeConfig(config: { "encode": encode_func, "decode": decode_func }): void {
+        this.encodeDecodeConfig = config;
+    }
+
+    /**
+     * 配置前端server参数
+     * @param config 
+     */
+    set_connectorConfig(config: connector_config) {
+        this.connectorConfig = config;
+    }
+
+    /**
+     * 配置rpc参数
+     * @param config 
+     */
+    set_rpcConfig(config: { "timeOut": number }) {
+        this.rpcConfig = config;
+    }
+
+    /**
      * 设置键值对
      */
     set(key: string | number, value: any) {
@@ -89,9 +114,6 @@ export default class Application extends EventEmitter {
     /**
      * 获取键key对应的值
      */
-    get(key: "encodeDecodeConfig"): { "encode": Function, "decode": Function };
-    get(key: "connectorConfig"): { "connector": "net" | "ws", "heartbeat": number, "maxConnectionNum": number };
-    get(key: "rpcConfig"): { "timeOut": number };
     get(key: string | number) {
         return this.settings[key];
     }
@@ -244,7 +266,7 @@ export default class Application extends EventEmitter {
         if (msg === undefined) {
             msg = null;
         }
-        this.remoteBackend.sendMsgByUidSid(cmdIndex, msg, uids, sids);
+        remoteBackend.sendMsgByUidSid(cmdIndex, msg, uids, sids);
     }
 
     /**

@@ -10,15 +10,16 @@ import * as path from "path";
 import * as fs from "fs";
 import wsServer from "./wsServer";
 import tcpServer from "./tcpServer";
-import { SocketProxy, loggerType, componentName } from "../util/interfaceDefine";
+import { SocketProxy, loggerType, componentName, decode_func } from "../util/interfaceDefine";
 import { Session, initSessionApp } from "./session";
+import * as remoteFrontend from "./remoteFrontend";
 
 let app: Application;
 let serverType: string;
 let routeConfig: string[];
 let handshakeBuf: Buffer;
 let msgHandler: { [filename: string]: any } = {};
-let decode: Function = null as any;
+let decode: decode_func | null = null;
 let client_heartbeat_time: number = 0;
 let maxConnectionNum = Number.POSITIVE_INFINITY;
 
@@ -27,7 +28,7 @@ export function start(_app: Application, cb: Function) {
     app = _app;
     serverType = app.serverType;
     routeConfig = app.routeConfig;
-    let connectorConfig = app.get("connectorConfig");
+    let connectorConfig = app.connectorConfig;
     if (connectorConfig) {
         if (connectorConfig.hasOwnProperty("heartbeat") && Number(connectorConfig.heartbeat) >= 5) {
             client_heartbeat_time = Number(connectorConfig.heartbeat) * 1000;
@@ -36,9 +37,9 @@ export function start(_app: Application, cb: Function) {
             maxConnectionNum = Number(connectorConfig.maxConnectionNum);
         }
     }
-    let encodeDecodeConfig = app.get("encodeDecodeConfig");
+    let encodeDecodeConfig = app.encodeDecodeConfig;
     if (encodeDecodeConfig) {
-        decode = encodeDecodeConfig["decode"] || null;
+        decode = encodeDecodeConfig.decode || null;
         setEncode(encodeDecodeConfig.encode);
     }
 
@@ -100,8 +101,8 @@ function startServer(cb: Function) {
     };
 
     let configType = "";
-    if (app.get("connectorConfig")) {
-        configType = app.get("connectorConfig").connector;
+    if (app.connectorConfig) {
+        configType = app.connectorConfig.connector;
     }
     configType = configType === define.some_config.Connector.Ws ? define.some_config.Connector.Ws : define.some_config.Connector.Net;
 
@@ -197,7 +198,7 @@ function msg_handle(session: Session, msgBuf: Buffer) {
         }
         msgHandler[cmdArr[1]][cmdArr[2]](msg, session, callBack(session.socket, cmdId));
     } else {
-        app.remoteFrontend.doRemote(msgBuf.slice(1), session, cmdArr[0]);
+        remoteFrontend.doRemote(msgBuf.slice(1), session, cmdArr[0]);
     }
 }
 

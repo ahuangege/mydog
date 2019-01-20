@@ -2,10 +2,10 @@
  * 通用编码解码模块
  */
 import define = require("../util/define");
-import { SocketProxy } from "../util/interfaceDefine";
+import { SocketProxy, encode_func } from "../util/interfaceDefine";
 
 const MAX_lEN = 10 * 1024 * 1024;
-let encode: Function | null = null;
+let encode: encode_func | null = null;
 
 /**
  * 拆包
@@ -18,7 +18,7 @@ export function decode(socket: SocketProxy, msg: Buffer) {
             socket.buffer = Buffer.concat([socket.buffer, Buffer.from([msg[readLen]])]);
             if (socket.buffer.length === 4) {
                 socket.len = socket.buffer.readUInt32BE(0);
-                if (socket.len > MAX_lEN) {
+                if (socket.len > MAX_lEN || socket.len === 0) {
                     socket.close();
                     return;
                 }
@@ -49,7 +49,7 @@ export function decode(socket: SocketProxy, msg: Buffer) {
 /**
  * 设置编码函数
  */
-export function setEncode(_encode: Function) {
+export function setEncode(_encode: encode_func) {
     encode = _encode;
 };
 
@@ -58,11 +58,10 @@ export function setEncode(_encode: Function) {
  * 部分内部通信消息格式
  */
 export function encodeInnerData(data: any) {
-    data = JSON.stringify(data);
-    data = Buffer.from(data);
-    let buffer = Buffer.allocUnsafe(data.length + 4);
-    buffer.writeUInt32BE(data.length, 0);
-    data.copy(buffer, 4);
+    let dataBuf: Buffer = Buffer.from(JSON.stringify(data));
+    let buffer = Buffer.allocUnsafe(dataBuf.length + 4);
+    buffer.writeUInt32BE(dataBuf.length, 0);
+    dataBuf.copy(buffer, 4);
     return buffer;
 };
 
@@ -74,31 +73,33 @@ export function encodeInnerData(data: any) {
  *    msgLen  msgType  cmdId   msgBuf
  */
 export function encodeClientData(cmdId: number, data: any) {
+    let msgBuf: Buffer;
     if (encode) {
-        data = encode(cmdId, data);
+        msgBuf = encode(cmdId, data);
     } else {
-        data = Buffer.from(JSON.stringify(data));
+        msgBuf = Buffer.from(JSON.stringify(data));
     }
-    let buf = Buffer.allocUnsafe(data.length + 6);
-    buf.writeUInt32BE(data.length + 2, 0);
+    let buf = Buffer.allocUnsafe(msgBuf.length + 6);
+    buf.writeUInt32BE(msgBuf.length + 2, 0);
     buf.writeUInt8(define.Server_To_Client.msg, 4);
     buf.writeUInt8(cmdId, 5);
-    data.copy(buf, 6);
+    msgBuf.copy(buf, 6);
     return buf;
 };
 
 /**
- * 编码
+ * 后端发送给客户端消息，预编码
  */
-export function encodeData(cmdId: number, msg: any) {
+export function encodeRemoteData_1(cmdId: number, data: any) {
     let msgBuf: Buffer;
     if (encode) {
-        msgBuf = encode(cmdId, msg);
+        msgBuf = encode(cmdId, data);
     } else {
-        msgBuf = Buffer.from(JSON.stringify(msg));
+        msgBuf = Buffer.from(JSON.stringify(data));
     }
     return msgBuf;
 }
+
 
 
 /**
@@ -112,17 +113,17 @@ export function encodeData(cmdId: number, msg: any) {
  *    msgLen  msgType  cmdId   msgBuf
  */
 
-export function encodeRemoteData(uids: number[], cmdId: number, msgBuf: Buffer) {
+export function encodeRemoteData_2(uids: number[], cmdId: number, dataBuf: Buffer) {
     let uidsBuf = Buffer.from(JSON.stringify(uids));
-    let buf = Buffer.allocUnsafe(13 + uidsBuf.length + msgBuf.length);
-    buf.writeUInt32BE(9 + uidsBuf.length + msgBuf.length, 0);
+    let buf = Buffer.allocUnsafe(13 + uidsBuf.length + dataBuf.length);
+    buf.writeUInt32BE(9 + uidsBuf.length + dataBuf.length, 0);
     buf.writeUInt8(define.Back_To_Front.msg, 4);
     buf.writeUInt16BE(uidsBuf.length, 5);
     uidsBuf.copy(buf, 7);
-    buf.writeUInt32BE(2 + msgBuf.length, 7 + uidsBuf.length);
+    buf.writeUInt32BE(2 + dataBuf.length, 7 + uidsBuf.length);
     buf.writeUInt8(define.Server_To_Client.msg, 11 + uidsBuf.length);
     buf.writeUInt8(cmdId, 12 + uidsBuf.length);
-    msgBuf.copy(buf, 13 + uidsBuf.length);
+    dataBuf.copy(buf, 13 + uidsBuf.length);
     return buf;
 };
 

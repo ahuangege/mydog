@@ -4,26 +4,27 @@
 
 
 import Application from "../application";
-import { setEncode, encodeRemoteData, encodeData } from "./msgCoder";
+import { setEncode, encodeRemoteData_1, encodeRemoteData_2 } from "./msgCoder";
 import * as path from "path";
 import * as fs from "fs";
 import define = require("../util/define");
 import tcpServer from "./tcpServer";
-import { SocketProxy, loggerType, componentName } from "../util/interfaceDefine";
+import { SocketProxy, loggerType, componentName, decode_func } from "../util/interfaceDefine";
 import { Session, initSessionApp } from "./session";
+import * as remoteBackend from "./remoteBackend";
 
 let app: Application;
 let routeConfig: string[];
 let msgHandler: { [filename: string]: any } = {};
-let decode: Function;
+let decode: decode_func | null = null;
 
 export function start(_app: Application, cb: Function) {
     app = _app;
     routeConfig = app.routeConfig;
-    let encodeDecodeConfig = app.get("encodeDecodeConfig");
+    let encodeDecodeConfig = app.encodeDecodeConfig;
     if (encodeDecodeConfig) {
-        decode = encodeDecodeConfig["decode"] || null;
-        setEncode(encodeDecodeConfig["encode"]);
+        decode = encodeDecodeConfig.decode || null;
+        setEncode(encodeDecodeConfig.encode);
     }
 
     initSessionApp(app);
@@ -111,7 +112,7 @@ class backend_socket {
         clearTimeout(this.registerTimer as NodeJS.Timer);
         clearTimeout(this.heartBeatTimer as NodeJS.Timer);
         if (this.registered) {
-            app.remoteBackend.removeClient(this.sid);
+            remoteBackend.removeClient(this.sid);
         }
     }
 
@@ -134,7 +135,7 @@ class backend_socket {
         this.registered = true;
         this.sid = data.sid;
         clearTimeout(this.registerTimer as NodeJS.Timer);
-        app.remoteBackend.addClient(this.sid, this.socket);
+        remoteBackend.addClient(this.sid, this.socket);
     }
 
     /**
@@ -182,8 +183,8 @@ class backend_socket {
             if (msg === undefined) {
                 msg = null;
             }
-            let msgBuf = encodeData(cmdId, msg);
-            let buf = encodeRemoteData([uid], cmdId, msgBuf);
+            let msgBuf = encodeRemoteData_1(cmdId, msg);
+            let buf = encodeRemoteData_2([uid], cmdId, msgBuf);
             self.socket.send(buf);
         };
     }
