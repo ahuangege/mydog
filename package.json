@@ -4,7 +4,7 @@
   "_inBundle": false,
   "_integrity": "sha512-A5Dkx1Z5xAw12eZbFbYjFa56ccRwxvLdd36ZtsQx53Sll6I+v6sx3Uk6Gw3Ahe0U8BflbS4IIR6efD/jtDADJw==",
   "_location": "/mydog",
-  "_phantomChildren": {},
+  "_phantomChildren": { },
   "_requested": {
     "type": "tag",
     "registry": true,
