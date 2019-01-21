@@ -7,7 +7,7 @@ import Application from "../application";
 import define = require("../util/define");
 import { encodeInnerData } from "./msgCoder";
 import { Master_ServerProxy, Master_ClientProxy } from "./master";
-import { SocketProxy } from "mydog/src/util/interfaceDefine";
+import { SocketProxy } from "../util/interfaceDefine";
 
 
 

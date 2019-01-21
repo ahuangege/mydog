@@ -7,9 +7,7 @@ import * as path from "path"
 import { some_config } from "./util/define";
 import { ServerInfo, routeFunc, rpcRouteFunc, loggerType, componentName, encode_func, decode_func, connector_config } from "./util/interfaceDefine";
 import { Session } from "./components/session";
-import * as RemoteFrontend from "./components/remoteFrontend";
 import * as remoteBackend from "./components/remoteBackend";
-import * as RpcService from "./components/rpcService";
 import { encodeClientData } from "./components/msgCoder";
 import * as appUtil from "./util/appUtil";
 import { EventEmitter } from "events";

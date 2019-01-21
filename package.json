@@ -27,7 +27,7 @@
     "name": "ahuang"
   },
   "bin": {
-    "mydog": "./bin/mydog.js"
+    "mydog": "./lib/cli.js"
   },
   "bundleDependencies": [],
   "dependencies": {

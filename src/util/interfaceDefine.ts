@@ -1,6 +1,7 @@
 import { EventEmitter } from "events";
 import Application from "../application";
 import { Session } from "../components/session";
+import * as net from "net";
 
 /**
  * 服务器配置
@@ -35,7 +36,7 @@ export interface ServerInfo {
  */
 export interface SocketProxy extends EventEmitter {
     [key: string]: any;
-    socket: any;
+    socket: net.Socket;
     die: boolean;
     len: number;
     buffer: Buffer;
