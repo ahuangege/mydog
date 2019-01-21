@@ -4,7 +4,7 @@
   "_inBundle": false,
   "_integrity": "sha512-A5Dkx1Z5xAw12eZbFbYjFa56ccRwxvLdd36ZtsQx53Sll6I+v6sx3Uk6Gw3Ahe0U8BflbS4IIR6efD/jtDADJw==",
   "_location": "/mydog",
-  "_phantomChildren": { },
+  "_phantomChildren": {},
   "_requested": {
     "type": "tag",
     "registry": true,
@@ -49,5 +49,5 @@
     "test": "echo \"Error: no test   specified\" && exit 1"
   },
   "types": "index.d.ts",
-  "version": "1.9.0"
+  "version": "1.9.1"
 }
