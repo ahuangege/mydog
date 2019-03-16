@@ -238,7 +238,7 @@ export interface Application {
      * 内部日志输出
      * @param cb 回调函数
      */
-    onLog(cb: (level: string, filename: string, info: string) => void): void;
+    onLog(cb: (level: string, filename: string, info: any) => void): void;
 
     /**
      * 加载模块

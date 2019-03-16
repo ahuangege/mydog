@@ -407,20 +407,21 @@ function getRpcSocket() {
  * 
  *  消息格式如下:
  * 
- *    [4]        [1]         [4]         [1]      [...]      [...]
- *  allMsgLen   msgType    rpcMsgLen   iMsgLen    iMsg        msg
+ *    [4]        [1]         [4]         [1]         [1]      [...]      [...]
+ *  allMsgLen   msgType    rpcMsgLen  rpcMsgType   iMsgLen    iMsg        msg
  * 
  */
 function sendRpcMsg(client: rpc_client_proxy, iMsg: rpcMsg, msg: any) {
     let iMsgBuf = Buffer.from(JSON.stringify(iMsg));
     let msgBuf = Buffer.from(JSON.stringify(msg));
-    let buf = Buffer.allocUnsafe(10 + iMsgBuf.length + msgBuf.length);
-    buf.writeUInt32BE(6 + iMsgBuf.length + msgBuf.length, 0);
-    buf.writeUInt8(define.Rpc_Msg.msg, 4);
-    buf.writeUInt32BE(1 + iMsgBuf.length + msgBuf.length, 5);
-    buf.writeUInt8(iMsgBuf.length, 9);
-    iMsgBuf.copy(buf, 10);
-    msgBuf.copy(buf, 10 + iMsgBuf.length);
+    let buf = Buffer.allocUnsafe(11 + iMsgBuf.length + msgBuf.length);
+    buf.writeUInt32BE(7 + iMsgBuf.length + msgBuf.length, 0);
+    buf.writeUInt8(define.Rpc_Client_To_Server.msg, 4);
+    buf.writeUInt32BE(2 + iMsgBuf.length + msgBuf.length, 5);
+    buf.writeUInt8(define.Rpc_Server_To_Client.msg, 9);
+    buf.writeUInt8(iMsgBuf.length, 10);
+    iMsgBuf.copy(buf, 11);
+    msgBuf.copy(buf, 11 + iMsgBuf.length);
     client.send(buf);
 }
 
@@ -482,6 +483,7 @@ class rpc_client_proxy {
     private socket: SocketProxy = null as any;
     private connect_timer: NodeJS.Timer = null as any;
     private heartbeat_timer: NodeJS.Timer = null as any;
+    private heartbeat_timeout_timer: NodeJS.Timer = null as any;
     private die: boolean = false;
 
     constructor(server: ServerInfo) {
@@ -511,7 +513,7 @@ class rpc_client_proxy {
                 }));
                 let buf = Buffer.allocUnsafe(loginBuf.length + 5);
                 buf.writeUInt32BE(loginBuf.length + 1, 0);
-                buf.writeUInt8(define.Rpc_Msg.register, 4);
+                buf.writeUInt8(define.Rpc_Client_To_Server.register, 4);
                 loginBuf.copy(buf, 5);
                 tmpClient.send(buf);
 
@@ -520,7 +522,7 @@ class rpc_client_proxy {
             };
             let tmpClient = new TcpClient(self.port, self.host, connectCb);
             self.socket = tmpClient;
-            tmpClient.on("data", self.dealMsg.bind(self));
+            tmpClient.on("data", self.onData.bind(self));
             tmpClient.on("close", self.onClose.bind(self));
 
         }, delay);
@@ -537,6 +539,7 @@ class rpc_client_proxy {
 
     private onClose() {
         clearTimeout(this.heartbeat_timer);
+        clearTimeout(this.heartbeat_timeout_timer);
         this.removeFromClients();
         this.socket = null as any;
         app.logger(loggerType.warn, componentName.rpcService, "rpc connect " + this.id + " fail, reconnect later");
@@ -548,20 +551,42 @@ class rpc_client_proxy {
         this.heartbeat_timer = setTimeout(function () {
             let buf = Buffer.allocUnsafe(5);
             buf.writeUInt32BE(1, 0);
-            buf.writeUInt8(define.Rpc_Msg.heartbeat, 4);
+            buf.writeUInt8(define.Rpc_Client_To_Server.heartbeat, 4);
             self.send(buf);
+            self.heartbeatTimeout();
             self.heartbeat();
         }, define.some_config.Time.Rpc_Heart_Beat_Time * 1000)
+    }
+
+    private heartbeatTimeout() {
+        let self = this;
+        this.heartbeat_timeout_timer = setTimeout(function () {
+            self.socket.close();
+        }, define.some_config.Time.Rpc_Heart_Beat_Timeout_Time * 1000)
+
     }
 
     send(buf: Buffer) {
         this.socket.send(buf);
     }
 
+    private onData(data: Buffer) {
+        let type = data.readUInt8(0);
+        if (type === define.Rpc_Server_To_Client.msg) {
+            try {
+                this.dealMsg(data);
+            } catch (e) {
+                app.logger(loggerType.error, componentName.rpcService, e);
+            }
+        } else if (type === define.Rpc_Server_To_Client.heartbeatResponse) {
+            clearTimeout(this.heartbeat_timeout_timer);
+        }
+    }
+
     private dealMsg(data: Buffer) {
-        let iMsgLen = data.readUInt8(0);
-        let iMsg: rpcMsg = JSON.parse(data.slice(1, 1 + iMsgLen).toString());
-        let msg = JSON.parse(data.slice(1 + iMsgLen).toString());
+        let iMsgLen = data.readUInt8(1);
+        let iMsg: rpcMsg = JSON.parse(data.slice(2, 2 + iMsgLen).toString());
+        let msg = JSON.parse(data.slice(2 + iMsgLen).toString());
         if (!iMsg.from) {
             let timeout = rpcRequest[iMsg.id as number];
             if (timeout) {

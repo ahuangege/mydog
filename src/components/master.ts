@@ -42,7 +42,7 @@ function startServer(cb?: Function) {
         socket.on('close', socket.unRegSocketCloseHandle);
 
         socket.registerTimer = setTimeout(function () {
-            app.logger(loggerType.debug, componentName.master, "register time out, close it");
+            app.logger(loggerType.warn, componentName.master, "register time out, close it");
             socket.close();
         }, 10000);
 
@@ -56,7 +56,7 @@ function startServer(cb?: Function) {
 function heartBeatTimeOut(socket: SocketProxy) {
     clearTimeout(socket.heartBeatTimer);
     socket.heartBeatTimer = setTimeout(function () {
-        app.logger(loggerType.debug, componentName.master, "heartbeat time out, close it");
+        app.logger(loggerType.warn, componentName.master, "heartbeat time out, close it");
         socket.close();
     }, define.some_config.Time.Monitor_Heart_Beat_Time * 1000 * 2);
 }
@@ -78,13 +78,13 @@ function unRegSocketMsgHandle(socket: SocketProxy, _data: Buffer) {
     try {
         data = JSON.parse(_data.toString());
     } catch (err) {
-        app.logger(loggerType.debug, componentName.master, "JSON parse error, close it");
+        app.logger(loggerType.warn, componentName.master, "JSON parse error, close it");
         socket.close();
         return;
     }
 
     if (!data || data.T !== define.Monitor_To_Master.register) {
-        app.logger(loggerType.debug, componentName.master, "illegal data, close it");
+        app.logger(loggerType.warn, componentName.master, "illegal data, close it");
         socket.close();
         return;
     }
@@ -93,7 +93,7 @@ function unRegSocketMsgHandle(socket: SocketProxy, _data: Buffer) {
     if (data.hasOwnProperty("serverToken")) {
         if (data.serverToken !== app.serverToken || !data.serverType || !data.serverInfo
             || !data.serverInfo.id || !data.serverInfo.host || !data.serverInfo.port) {
-            app.logger(loggerType.debug, componentName.master, "illegal monitor, close it");
+            app.logger(loggerType.warn, componentName.master, "illegal monitor, close it");
             socket.close();
             return;
         }
@@ -104,7 +104,7 @@ function unRegSocketMsgHandle(socket: SocketProxy, _data: Buffer) {
     // 是cli？
     if (data.hasOwnProperty("clientToken")) {
         if (data.clientToken !== app.clientToken) {
-            app.logger(loggerType.debug, componentName.master, "illegal cli, close it");
+            app.logger(loggerType.warn, componentName.master, "illegal cli, close it");
             socket.close();
             return;
         }
@@ -112,7 +112,7 @@ function unRegSocketMsgHandle(socket: SocketProxy, _data: Buffer) {
         return;
     }
 
-    app.logger(loggerType.debug, componentName.master, "illegal socket, close it");
+    app.logger(loggerType.warn, componentName.master, "illegal socket, close it");
     socket.close();
 };
 
@@ -188,17 +188,24 @@ export class Master_ServerProxy {
         this.socket.send(msgCoder.encodeInnerData(msg));
     }
 
+    private heartbeatResponse() {
+        let msg = { T: define.Master_To_Monitor.heartbeatResponse };
+        let buf = msgCoder.encodeInnerData(msg);
+        this.socket.send(buf);
+    }
+
     private processMsg(_data: Buffer) {
         let data: any;
         try {
             data = JSON.parse(_data.toString());
         } catch (err) {
-            app.logger(loggerType.debug, componentName.master, "JSON parse error，close the monitor named " + this.sid);
+            app.logger(loggerType.warn, componentName.master, "JSON parse error，close the monitor named " + this.sid);
             this.socket.close();
             return;
         }
         if (data.T === define.Monitor_To_Master.heartbeat) {
             heartBeatTimeOut(this.socket);
+            this.heartbeatResponse();
         } else if (data.T === define.Monitor_To_Master.cliMsg) {
             masterCli.deal_monitor_msg(data);
         }
@@ -254,7 +261,7 @@ export class Master_ClientProxy {
         try {
             data = JSON.parse(_data.toString());
         } catch (err) {
-            app.logger(loggerType.debug, componentName.master, "JSON parse error，close the cli");
+            app.logger(loggerType.warn, componentName.master, "JSON parse error，close the cli");
             this.socket.close();
             return;
         }

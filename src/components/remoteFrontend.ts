@@ -64,7 +64,7 @@ export function doRemote(msgBuf: Buffer, session: Session, serverType: string) {
     tmpRouter(app, session, serverType, function (sid: string) {
         let client = clients[serverType][sid];
         if (!client || !client.isLive) {
-            app.logger(loggerType.debug, componentName.remoteFrontend, app.serverId + " has no backend server " + sid);
+            app.logger(loggerType.warn, componentName.remoteFrontend, app.serverId + " has no backend server " + sid);
             return;
         }
         let sessionBuf = Buffer.from(JSON.stringify(session.getAll()));
@@ -96,8 +96,9 @@ class remote_frontend_client {
     private host: string;
     private port: number;
     private serverType: string;
-    private connect_timer: NodeJS.Timer | null = null;
-    private heartbeat_timer: NodeJS.Timer | null = null;
+    private connect_timer: NodeJS.Timer = null as any;
+    private heartbeat_timer: NodeJS.Timer = null as any;
+    private heartbeat_timeout_timer: NodeJS.Timer = null as any;
     private socket: SocketProxy = null as any;
     public isLive: boolean = false;
 
@@ -140,7 +141,8 @@ class remote_frontend_client {
 
             self.socket.on("data", self.data_switch.bind(self));
             self.socket.on("close", function () {
-                clearTimeout(self.heartbeat_timer as NodeJS.Timer);
+                clearTimeout(self.heartbeat_timer);
+                clearTimeout(self.heartbeat_timeout_timer);
                 app.logger(loggerType.warn, componentName.remoteFrontend, app.serverId + " remote connect " + self.id + " closed, reconnect later");
                 self.doConnect(define.some_config.Time.Remote_Reconnect_Time * 1000);
             });
@@ -156,9 +158,21 @@ class remote_frontend_client {
             let buf = Buffer.allocUnsafe(5);
             buf.writeUInt32BE(1, 0);
             buf.writeUInt8(define.Front_To_Back.heartbeat, 4);
-            (self.socket as SocketProxy).send(buf);
+            self.socket.send(buf);
+            self.heartbeat_timeout();
             self.heartbeat();
         }, define.some_config.Time.Remote_Heart_Beat_Time * 1000)
+    }
+
+    /**
+     * 心跳回应
+     */
+    private heartbeat_timeout() {
+        let self = this;
+        this.heartbeat_timeout_timer = setTimeout(function () {
+            self.socket.close();
+        }, define.some_config.Time.Remote_Heart_Beat_Timeout_Time * 1000)
+
     }
 
     /**
@@ -170,6 +184,8 @@ class remote_frontend_client {
             this.msg_handle(msg);
         } else if (type === define.Back_To_Front.applySession) {
             this.applySession_handle(msg);
+        } else if (type === define.Back_To_Front.heartbeatResponse) {
+            clearTimeout(this.heartbeat_timeout_timer);
         }
     }
 
@@ -217,6 +233,6 @@ class remote_frontend_client {
         if (this.socket) {
             this.socket.close();
         }
-        clearTimeout(this.connect_timer as NodeJS.Timer);
+        clearTimeout(this.connect_timer);
     }
 }

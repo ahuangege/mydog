@@ -66,14 +66,17 @@ function connectToMaster(delay: number) {
                 removeServer(data as monitor_remove_server);
             } else if (data.T === define.Master_To_Monitor.cliMsg) {
                 monitorCli.deal_master_msg(client, data);
+            } else if (data.T === define.Master_To_Monitor.heartbeatResponse) {
+                clearTimeout(client.heartBeatTimeoutTimer);
             }
         });
         client.on("close", function () {
-            app.logger(loggerType.error, componentName.master, app.serverId + " monitor closed, reconnect later");
+            app.logger(loggerType.warn, componentName.master, app.serverId + " monitor closed, reconnect later");
             needDiff = true;
             removeDiffServers = {};
             clearTimeout(diffTimer);
             clearTimeout(client.heartBeatTimer);
+            clearTimeout(client.heartBeatTimeoutTimer);
             connectToMaster(define.some_config.Time.Monitor_Reconnect_Time * 1000);
         });
     }, delay);
@@ -85,8 +88,15 @@ function heartBeat(socket: SocketProxy) {
         let heartBeatMsg = { T: define.Monitor_To_Master.heartbeat };
         let heartBeatMsgBuf = encodeInnerData(heartBeatMsg);
         socket.send(heartBeatMsgBuf);
+        heartbeatTimeout(socket);
         heartBeat(socket);
     }, define.some_config.Time.Monitor_Heart_Beat_Time * 1000)
+}
+
+function heartbeatTimeout(socket: SocketProxy) {
+    socket.heartBeatTimeoutTimer = setTimeout(function () {
+        socket.close();
+    }, define.some_config.Time.Monitor_Heart_Beat_Timeout_Time * 1000)
 }
 
 function addServer(servers: { [id: string]: { "serverType": string, "serverInfo": ServerInfo } }) {

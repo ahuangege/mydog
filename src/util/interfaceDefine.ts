@@ -98,7 +98,6 @@ export interface sessionApplyJson {
  * 内部框架日志级别
  */
 export enum loggerType {
-    debug = "debug",
     info = "info",
     warn = "warn",
     error = "error"

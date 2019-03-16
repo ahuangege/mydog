@@ -58,14 +58,15 @@ class rpc_server_proxy {
      */
     private onData(data: Buffer) {
         let type = data.readUInt8(0);
-        if (type === define.Rpc_Msg.msg) {
+        if (type === define.Rpc_Client_To_Server.msg) {
             this.msg_handle(data);
-        } else if (type === define.Rpc_Msg.register) {
+        } else if (type === define.Rpc_Client_To_Server.register) {
             this.register_handle(data);
-        } else if (type === define.Rpc_Msg.heartbeat) {
+        } else if (type === define.Rpc_Client_To_Server.heartbeat) {
             this.heartBeat_handle();
+            this.heartbeatResponse();
         } else {
-            app.logger(loggerType.debug, componentName.rpcServer, "illegal data, close rpc client named " + this.sid);
+            app.logger(loggerType.warn, componentName.rpcServer, "illegal data, close rpc client named " + this.sid);
             this.socket.close();
         }
     }
@@ -90,13 +91,13 @@ class rpc_server_proxy {
         try {
             data = JSON.parse(_data.slice(1).toString());
         } catch (err) {
-            app.logger(loggerType.debug, componentName.rpcServer, "JSON parse error，close it");
+            app.logger(loggerType.warn, componentName.rpcServer, "JSON parse error，close it");
             this.socket.close();
             return;
         }
 
         if (data.serverToken !== app.serverToken) {
-            app.logger(loggerType.debug, componentName.rpcServer, "illegal token, it");
+            app.logger(loggerType.warn, componentName.rpcServer, "illegal token, it");
             this.socket.close();
             return;
         }
@@ -118,9 +119,19 @@ class rpc_server_proxy {
         let self = this;
         clearTimeout(this.heartbeat_timer);
         this.heartbeat_timer = setTimeout(function () {
-            app.logger(loggerType.debug, componentName.rpcServer, " heartBeat time out : " + self.sid);
+            app.logger(loggerType.warn, componentName.rpcServer, " heartBeat time out : " + self.sid);
             self.socket.close();
         }, define.some_config.Time.Rpc_Heart_Beat_Time * 1000 * 2);
+    }
+
+    /**
+     * 心跳回应
+     */
+    private heartbeatResponse() {
+        let buffer = Buffer.allocUnsafe(5);
+        buffer.writeUInt32BE(1, 0);
+        buffer.writeUInt8(define.Rpc_Server_To_Client.heartbeatResponse, 4);
+        this.send(buffer);
     }
 
     /**
@@ -131,8 +142,8 @@ class rpc_server_proxy {
         if (!this.registered) {
             return;
         }
-        let iMsgLen = msgBuf.readUInt8(5);
-        let iMsg: rpcMsg = JSON.parse(msgBuf.slice(6, 6 + iMsgLen).toString());
+        let iMsgLen = msgBuf.readUInt8(6);
+        let iMsg: rpcMsg = JSON.parse(msgBuf.slice(7, 7 + iMsgLen).toString());
         let server = servers[iMsg.to];
         if (server) {
             server.send(msgBuf.slice(1));
@@ -141,11 +152,12 @@ class rpc_server_proxy {
                 "id": iMsg.id
             }));
             let msgBuf2 = Buffer.from(JSON.stringify([rpcErr.rpc_has_no_end]));
-            let buffer = Buffer.allocUnsafe(5 + iMsgBuf.length + msgBuf2.length);
-            buffer.writeUInt32BE(iMsgBuf.length + msgBuf2.length + 1, 0);
-            buffer.writeUInt8(iMsgBuf.length, 4);
-            iMsgBuf.copy(buffer, 5);
-            msgBuf2.copy(buffer, 5 + iMsgBuf.length);
+            let buffer = Buffer.allocUnsafe(6 + iMsgBuf.length + msgBuf2.length);
+            buffer.writeUInt32BE(iMsgBuf.length + msgBuf2.length + 2, 0);
+            buffer.writeUInt8(define.Rpc_Server_To_Client.msg, 4);
+            buffer.writeUInt8(iMsgBuf.length, 5);
+            iMsgBuf.copy(buffer, 6);
+            msgBuf2.copy(buffer, 6 + iMsgBuf.length);
             this.send(buffer);
         }
     }

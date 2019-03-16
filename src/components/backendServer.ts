@@ -4,7 +4,7 @@
 
 
 import Application from "../application";
-import { setEncode, encodeRemoteData_1, encodeRemoteData_2 } from "./msgCoder";
+import { setEncode, encodeRemoteData_1, encodeRemoteData_2, encodeInnerData } from "./msgCoder";
 import * as path from "path";
 import * as fs from "fs";
 import define = require("../util/define");
@@ -94,13 +94,18 @@ class backend_socket {
     private onData(data: Buffer) {
         let type = data.readUInt8(0);
         if (type === define.Front_To_Back.msg) {
-            this.msg_handle(data);
+            try {
+                this.msg_handle(data);
+            } catch (e) {
+                app.logger(loggerType.error, componentName.backendServer, e);
+            }
         } else if (type === define.Front_To_Back.register) {
             this.register_handle(data);
         } else if (type === define.Front_To_Back.heartbeat) {
             this.heartBeat_handle();
+            this.heartbeat_response();
         } else {
-            app.logger(loggerType.debug, componentName.backendServer, "illegal data : " + this.sid);
+            app.logger(loggerType.warn, componentName.backendServer, "illegal data : " + this.sid);
             this.socket.close();
         }
     }
@@ -128,7 +133,7 @@ class backend_socket {
             return;
         }
         if (data.serverToken !== app.serverToken) {
-            app.logger(loggerType.debug, componentName.backendServer, "illegal register token");
+            app.logger(loggerType.warn, componentName.backendServer, "illegal register token");
             this.socket.close();
             return;
         }
@@ -148,6 +153,16 @@ class backend_socket {
             app.logger(loggerType.warn, componentName.backendServer, "heartbeat time out : " + self.sid);
             self.socket.close();
         }, define.some_config.Time.Remote_Heart_Beat_Time * 1000 * 2);
+    }
+
+    /**
+     * 心跳回应
+     */
+    private heartbeat_response() {
+        let buf = Buffer.allocUnsafe(5);
+        buf.writeUInt32BE(1, 0);
+        buf.writeUInt8(define.Back_To_Front.heartbeatResponse, 4);
+        this.socket.send(buf);
     }
 
     /**

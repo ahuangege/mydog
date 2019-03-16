@@ -18,6 +18,7 @@ let app: Application;
 let serverType: string;
 let routeConfig: string[];
 let handshakeBuf: Buffer;
+let heartbeatBuf: Buffer;
 let msgHandler: { [filename: string]: any } = {};
 let decode: decode_func | null = null;
 let client_heartbeat_time: number = 0;
@@ -49,6 +50,12 @@ export function start(_app: Application, cb: Function) {
     handshakeBuf.writeUInt32BE(routeBuf.length + 1, 0);
     handshakeBuf.writeUInt8(define.Server_To_Client.handshake, 4);
     routeBuf.copy(handshakeBuf, 5);
+
+    // 心跳buffer
+    heartbeatBuf = Buffer.alloc(5);
+    heartbeatBuf.writeUInt32BE(1, 0);
+    heartbeatBuf.writeUInt8(define.Server_To_Client.heartbeatResponse, 4);
+
 
     initSessionApp(app);
     loadHandler();
@@ -132,14 +139,20 @@ function socketClose(session: Session) {
  */
 function data_Switch(session: Session, data: Buffer) {
     let type = data.readUInt8(0);
-    if (type === define.Client_To_Server.msg) {               // 普通的自定义消息
-        msg_handle(session, data);
-    } else if (type === define.Client_To_Server.heartbeat) {        // 心跳
-        heartbeat_handle(session);
-    } else if (type === define.Client_To_Server.handshake) {        // 握手
-        handshake_handle(session);
-    } else {
-        session.socket.close();
+    try {
+        if (type === define.Client_To_Server.msg) {               // 普通的自定义消息
+            msg_handle(session, data);
+        } else if (type === define.Client_To_Server.heartbeat) {        // 心跳
+            heartbeat_handle(session);
+            heartbeatResponse(session);
+        } else if (type === define.Client_To_Server.handshake) {        // 握手
+            handshake_handle(session);
+        } else {
+            session.socket.close();
+        }
+    }
+    catch (e) {
+        app.logger(loggerType.error, componentName.frontendServer, e);
     }
 }
 
@@ -169,6 +182,14 @@ function heartbeat_handle(session: Session) {
     session.heartbeat_timer = setTimeout(function () {
         session.socket.close();
     }, client_heartbeat_time * 2);
+}
+
+/**
+ * 心跳回应
+ * @param session 
+ */
+function heartbeatResponse(session: Session) {
+    session.socket.send(heartbeatBuf);
 }
 
 /**
