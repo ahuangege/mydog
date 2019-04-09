@@ -150,8 +150,8 @@ export interface Application {
      * 获取键值对
      * @param key 键
      */
-    get<T>(key: string | number): T;
     get(key: string | number): any;
+    get<T>(key: string | number): T;
 
     /**
      * 删除键值对
@@ -291,9 +291,9 @@ export interface Session {
      * 获取键值对
      * @param key 键
      */
-    get<T>(key: number | string): T;
     get(key: number | string): any;
-
+    get<T>(key: number | string): T;
+    
     /**
      * 删除键值对
      * @param key 键
