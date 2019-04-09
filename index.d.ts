@@ -150,6 +150,7 @@ export interface Application {
      * 获取键值对
      * @param key 键
      */
+    get<T>(key: string | number): T;
     get(key: string | number): any;
 
     /**
@@ -238,7 +239,7 @@ export interface Application {
      * 内部日志输出
      * @param cb 回调函数
      */
-    onLog(cb: (level: string, filename: string, info: any) => void): void;
+    onLog(cb: (level: "info" | "warn" | "error", filename: string, info: any) => void): void;
 
     /**
      * 加载模块
@@ -290,6 +291,7 @@ export interface Session {
      * 获取键值对
      * @param key 键
      */
+    get<T>(key: number | string): T;
     get(key: number | string): any;
 
     /**

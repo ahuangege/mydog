@@ -23,16 +23,16 @@ class WsSocket extends EventEmitter implements SocketProxy {
     constructor(socket: any) {
         super();
         this.socket = socket;
-        socket.on("close", () => {
+        socket.on("close", (err: any) => {
             if (!this.die) {
                 this.die = true;
-                this.emit("close");
+                this.emit("close", err);
             }
         });
-        socket.on("error", () => {
+        socket.on("error", (err: any) => {
             if (!this.die) {
                 this.die = true;
-                this.emit("close");
+                this.emit("close", err);
             }
         });
         socket.on("data", (data: Buffer) => {

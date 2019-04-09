@@ -59,7 +59,9 @@ function loadHandler() {
  */
 function startServer(cb: Function) {
     let startCb = function () {
-        console.log("server start: " + app.host + ":" + app.port + " / " + app.serverId);
+        let str = "server start: " + app.host + ":" + app.port + " / " + app.serverId;
+        console.log(str);
+        app.logger(loggerType.info, componentName.master, str);
         cb && cb();
     };
     let newClientCb = function (socket: SocketProxy) {
@@ -80,7 +82,7 @@ class backend_socket {
         socket.on('data', this.onData.bind(this));
         socket.on('close', this.onClose.bind(this));
         this.registerTimer = setTimeout(function () {
-            app.logger(loggerType.warn, componentName.backendServer, "register time out");
+            app.logger(loggerType.warn, componentName.backendServer, "register time out, close the socket: " + socket.socket.remoteAddress);
             socket.close();
         }, 10000);
 
@@ -94,6 +96,10 @@ class backend_socket {
     private onData(data: Buffer) {
         let type = data.readUInt8(0);
         if (type === define.Front_To_Back.msg) {
+            if (!this.registered) {
+                app.logger(loggerType.warn, componentName.backendServer, "get data before registerd, close the socket" + this.socket.socket.remoteAddress);
+                this.socket.close();
+            }
             try {
                 this.msg_handle(data);
             } catch (e) {
@@ -105,7 +111,7 @@ class backend_socket {
             this.heartBeat_handle();
             this.heartbeat_response();
         } else {
-            app.logger(loggerType.warn, componentName.backendServer, "illegal data : " + this.sid);
+            app.logger(loggerType.warn, componentName.backendServer, "illegal data, close the socket" + this.socket.socket.remoteAddress + " " + this.sid);
             this.socket.close();
         }
     }
@@ -129,11 +135,12 @@ class backend_socket {
         try {
             data = JSON.parse(_data.slice(1).toString());
         } catch (err) {
+            app.logger(loggerType.warn, componentName.backendServer, "register JSON parse err , close the socket: " + this.socket.socket.remoteAddress);
             this.socket.close();
             return;
         }
         if (data.serverToken !== app.serverToken) {
-            app.logger(loggerType.warn, componentName.backendServer, "illegal register token");
+            app.logger(loggerType.warn, componentName.backendServer, "illegal register token, close the socket: " + this.socket.socket.remoteAddress);
             this.socket.close();
             return;
         }
@@ -141,6 +148,7 @@ class backend_socket {
         this.sid = data.sid;
         clearTimeout(this.registerTimer as NodeJS.Timer);
         remoteBackend.addClient(this.sid, this.socket);
+        app.logger(loggerType.info, componentName.backendServer, "get a new frontend server named " + this.sid);
     }
 
     /**
@@ -150,7 +158,7 @@ class backend_socket {
         let self = this;
         clearTimeout(this.heartBeatTimer as NodeJS.Timer);
         this.heartBeatTimer = setTimeout(function () {
-            app.logger(loggerType.warn, componentName.backendServer, "heartbeat time out : " + self.sid);
+            app.logger(loggerType.warn, componentName.backendServer, "heartbeat timeout, close the frontend server named " + self.sid);
             self.socket.close();
         }, define.some_config.Time.Remote_Heart_Beat_Time * 1000 * 2);
     }

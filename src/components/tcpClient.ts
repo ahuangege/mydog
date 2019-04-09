@@ -14,19 +14,19 @@ export class TcpClient extends EventEmitter implements SocketProxy {
     len: number = 0;
     buffer: Buffer = Buffer.allocUnsafe(0);
 
-    constructor(port: number, host: string, connectCb: Function) {
+    constructor(port: number, host: string, connectCb: () => void) {
         super();
         this.socket = net.connect(port, host, connectCb);
-        this.socket.on("close", () => {
+        this.socket.on("close", (err) => {
             if (!this.die) {
                 this.die = true;
-                this.emit("close");
+                this.emit("close", err);
             }
         });
-        this.socket.on("error", () => {
+        this.socket.on("error", (err) => {
             if (!this.die) {
                 this.die = true;
-                this.emit("close");
+                this.emit("close", err);
             }
         });
         this.socket.on("data", (data) => {

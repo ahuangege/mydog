@@ -29,7 +29,7 @@ export function start(_app: Application) {
 function connectToMaster(delay: number) {
     setTimeout(function () {
         let connectCb = function () {
-            app.logger(loggerType.info, componentName.monitor, app.serverId + " monitor connected to master success ");
+            app.logger(loggerType.info, componentName.monitor, "monitor connected to master success ");
 
             // 向master注册
             let curServerInfo: ServerInfo = null as any;
@@ -54,7 +54,7 @@ function connectToMaster(delay: number) {
             // 心跳包
             heartBeat(client);
         };
-
+        app.logger(loggerType.info, componentName.monitor, "monitor try to connect to master now");
         let client: SocketProxy = new TcpClient(app.masterConfig.port, app.masterConfig.host, connectCb);
         client.on("data", function (_data: Buffer) {
 
@@ -71,7 +71,7 @@ function connectToMaster(delay: number) {
             }
         });
         client.on("close", function () {
-            app.logger(loggerType.warn, componentName.master, app.serverId + " monitor closed, reconnect later");
+            app.logger(loggerType.warn, componentName.monitor, "monitor closed, try to reconnect master later");
             needDiff = true;
             removeDiffServers = {};
             clearTimeout(diffTimer);
@@ -95,6 +95,7 @@ function heartBeat(socket: SocketProxy) {
 
 function heartbeatTimeout(socket: SocketProxy) {
     socket.heartBeatTimeoutTimer = setTimeout(function () {
+        app.logger(loggerType.warn, componentName.monitor, "monitor heartbeat timeout, close the socket");
         socket.close();
     }, define.some_config.Time.Monitor_Heart_Beat_Timeout_Time * 1000)
 }

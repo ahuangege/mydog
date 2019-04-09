@@ -19,6 +19,7 @@ export function decode(socket: SocketProxy, msg: Buffer) {
             if (socket.buffer.length === 4) {
                 socket.len = socket.buffer.readUInt32BE(0);
                 if (socket.len > MAX_lEN || socket.len === 0) {
+                    throw new Error("socket data length is longer then " + MAX_lEN + ", close it!");
                     socket.close();
                     return;
                 }

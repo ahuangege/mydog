@@ -15,7 +15,9 @@ export function start(_app: Application, cb: Function) {
     tcpServer(app.port, startCb, newClientCb);
 
     function startCb() {
-        console.log("server start: " + app.host + ":" + app.port + " / " + app.serverId);
+        let str = "server start: " + app.host + ":" + app.port + " / " + app.serverId;
+        console.log(str);
+        app.logger(loggerType.info, componentName.rpcServer, str);
         cb && cb();
     }
     function newClientCb(socket: SocketProxy) {
@@ -36,7 +38,7 @@ class rpc_server_proxy {
         socket.on("close", this.onClose.bind(this));
 
         this.register_timer = setTimeout(function () {
-            app.logger(loggerType.warn, componentName.rpcServer, "register time out, close it");
+            app.logger(loggerType.warn, componentName.rpcServer, "register time out, close it: " + socket.socket.remoteAddress);
             socket.close();
         }, 10000);
 
@@ -91,17 +93,18 @@ class rpc_server_proxy {
         try {
             data = JSON.parse(_data.slice(1).toString());
         } catch (err) {
-            app.logger(loggerType.warn, componentName.rpcServer, "JSON parse error，close it");
+            app.logger(loggerType.warn, componentName.rpcServer, "register JSON parse error，close it:" + this.socket.socket.remoteAddress);
             this.socket.close();
             return;
         }
 
         if (data.serverToken !== app.serverToken) {
-            app.logger(loggerType.warn, componentName.rpcServer, "illegal token, it");
+            app.logger(loggerType.warn, componentName.rpcServer, "illegal serverToken, close it: " + this.socket.socket.remoteAddress);
             this.socket.close();
             return;
         }
         if (!!servers[data.sid]) {
+            app.logger(loggerType.warn, componentName.rpcServer, "already has a rpc client named " + data.sid + ", close it: " + this.socket.socket.remoteAddress);
             this.socket.close();
             return;
         }

@@ -120,7 +120,7 @@ class remote_frontend_client {
         this.connect_timer = setTimeout(function () {
 
             self.socket = new TcpClient(self.port, self.host, function () {
-                app.logger(loggerType.info, componentName.remoteFrontend, app.serverId + " remote connect " + self.id + " success");
+                app.logger(loggerType.info, componentName.remoteFrontend, "connect to backend server " + self.id + " success");
 
 
                 // 注册
@@ -138,12 +138,12 @@ class remote_frontend_client {
                 //心跳包
                 self.heartbeat();
             });
-
+            app.logger(loggerType.info, componentName.remoteFrontend, "try to connect to backend server named " + self.id);
             self.socket.on("data", self.data_switch.bind(self));
             self.socket.on("close", function () {
                 clearTimeout(self.heartbeat_timer);
                 clearTimeout(self.heartbeat_timeout_timer);
-                app.logger(loggerType.warn, componentName.remoteFrontend, app.serverId + " remote connect " + self.id + " closed, reconnect later");
+                app.logger(loggerType.warn, componentName.remoteFrontend, " socket closed, reconnect the backend server " + self.id + " later");
                 self.doConnect(define.some_config.Time.Remote_Reconnect_Time * 1000);
             });
         }, delay);
@@ -170,6 +170,7 @@ class remote_frontend_client {
     private heartbeat_timeout() {
         let self = this;
         this.heartbeat_timeout_timer = setTimeout(function () {
+            app.logger(loggerType.warn, componentName.remoteFrontend, "the heartbeat with backendserver " + self.id + " timeout, close it");
             self.socket.close();
         }, define.some_config.Time.Remote_Heart_Beat_Timeout_Time * 1000)
 

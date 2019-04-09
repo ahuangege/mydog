@@ -8,7 +8,7 @@ import { EventEmitter } from "events";
 import { SocketProxy } from "../util/interfaceDefine";
 import { decode } from "./msgCoder";
 
-export default function tcpServer(port: number, startCb: Function, newClientCb: Function) {
+export default function tcpServer(port: number, startCb: () => void, newClientCb: Function) {
     net.createServer(function (socket) {
         newClientCb(new NetSocket(socket));
     }).listen(port, startCb);
@@ -22,16 +22,16 @@ class NetSocket extends EventEmitter implements SocketProxy {
     constructor(socket: net.Socket) {
         super();
         this.socket = socket;
-        socket.on("close", () => {
+        socket.on("close", (err) => {
             if (!this.die) {
                 this.die = true;
-                this.emit("close");
+                this.emit("close", err);
             }
         });
-        socket.on("error", () => {
+        socket.on("error", (err) => {
             if (!this.die) {
                 this.die = true;
-                this.emit("close");
+                this.emit("close", err);
             }
         });
         socket.on("data", (data: Buffer) => {

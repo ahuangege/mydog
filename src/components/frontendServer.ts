@@ -89,12 +89,14 @@ function loadHandler() {
  */
 function startServer(cb: Function) {
     let startCb = function () {
-        console.log("server start: " + app.host + ":" + app.port + " / " + app.serverId);
+        let str = "server start: " + app.host + ":" + app.port + " / " + app.serverId;
+        console.log(str);
+        app.logger(loggerType.info, componentName.frontendServer, str);
         cb && cb();
     };
     let newClientCb = function (socket: SocketProxy) {
         if (app.clientNum >= maxConnectionNum) {
-            app.logger(loggerType.warn, componentName.frontendServer, "socket num has reached the Max  " + app.clientNum);
+            app.logger(loggerType.warn, componentName.frontendServer, "socket num has reached the Max  " + app.clientNum + " , close it");
             socket.close();
             return;
         }

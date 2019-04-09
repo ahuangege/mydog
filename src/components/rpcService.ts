@@ -521,6 +521,7 @@ class rpc_client_proxy {
                 self.heartbeat();
             };
             let tmpClient = new TcpClient(self.port, self.host, connectCb);
+            app.logger(loggerType.info, componentName.rpcService, " try to connect to rpc server " + self.id);
             self.socket = tmpClient;
             tmpClient.on("data", self.onData.bind(self));
             tmpClient.on("close", self.onClose.bind(self));
@@ -542,7 +543,7 @@ class rpc_client_proxy {
         clearTimeout(this.heartbeat_timeout_timer);
         this.removeFromClients();
         this.socket = null as any;
-        app.logger(loggerType.warn, componentName.rpcService, "rpc connect " + this.id + " fail, reconnect later");
+        app.logger(loggerType.warn, componentName.rpcService, "socket closed, reconnect the rpc server " + this.id + " later");
         this.doConnect(define.some_config.Time.Rpc_Reconnect_Time * 1000);
     }
 
@@ -561,6 +562,7 @@ class rpc_client_proxy {
     private heartbeatTimeout() {
         let self = this;
         this.heartbeat_timeout_timer = setTimeout(function () {
+            app.logger(loggerType.warn, componentName.rpcService, "heartbeat timeout, close the socket " + self.id);
             self.socket.close();
         }, define.some_config.Time.Rpc_Heart_Beat_Timeout_Time * 1000)
 
