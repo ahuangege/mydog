@@ -29,7 +29,7 @@
   "bin": {
     "mydog": "./lib/cli.js"
   },
-  "bundleDependencies": [],
+  "bundleDependencies": [ ],
   "dependencies": {
     "commander": "^2.17.1",
     "ws": "^6.0.0"
