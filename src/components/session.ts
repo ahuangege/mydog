@@ -19,9 +19,9 @@ export class Session {
     settings: { [key: string]: any } = {};          // 用户set,get
 
     socket: SocketProxy = null as any;              // 玩家的socket连接
-    _onclosed: Function = null as any;              // socket断开回调
+    _onclosed: (app: Application, session: Session) => void = null as any;              // socket断开回调
     registered: boolean = false;                    // 客户端是否注册
-    heartbeat_timer: NodeJS.Timer = null as any;    // 心跳计时
+    heartbeat_timer: NodeJS.Timeout = null as any;    // 心跳计时
 
     /**
      * 绑定session     》前端专用
@@ -105,7 +105,7 @@ export class Session {
     /**
      * 客户端断开连接的回调      》前端调用
      */
-    setCloseCb(cb: Function) {
+    setCloseCb(cb: (app: Application, session: Session) => void) {
         this._onclosed = cb;
     }
 

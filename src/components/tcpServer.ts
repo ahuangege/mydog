@@ -8,7 +8,7 @@ import { EventEmitter } from "events";
 import { SocketProxy } from "../util/interfaceDefine";
 import { decode } from "./msgCoder";
 
-export default function tcpServer(port: number, startCb: () => void, newClientCb: Function) {
+export default function tcpServer(port: number, startCb: () => void, newClientCb: (socket: SocketProxy) => void) {
     net.createServer(function (socket) {
         newClientCb(new NetSocket(socket));
     }).listen(port, startCb);

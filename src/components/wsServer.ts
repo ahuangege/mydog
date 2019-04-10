@@ -8,7 +8,7 @@ import { SocketProxy } from "../util/interfaceDefine";
 import { decode } from "./msgCoder";
 let ws = require("ws");
 
-export default function wsServer(port: number, startCb: Function, newClientCb: Function) {
+export default function wsServer(port: number, startCb: () => void, newClientCb: (socket: SocketProxy) => void) {
     let server = new ws.Server({ "port": port }, startCb);
     server.on("connection", function (socket: any) {
         newClientCb(new WsSocket(socket));

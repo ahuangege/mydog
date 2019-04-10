@@ -293,7 +293,7 @@ export interface Session {
      */
     get(key: number | string): any;
     get<T>(key: number | string): T;
-    
+
     /**
      * 删除键值对
      * @param key 键

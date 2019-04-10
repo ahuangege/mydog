@@ -73,8 +73,8 @@ function startServer(cb: Function) {
 
 class backend_socket {
     private socket: SocketProxy;
-    private heartBeatTimer: NodeJS.Timer | null = null;
-    private registerTimer: NodeJS.Timer | null = null;
+    private heartBeatTimer: NodeJS.Timeout = null as any;
+    private registerTimer: NodeJS.Timeout = null as any;
     private registered: boolean = false;
     private sid: string = "";
     constructor(socket: SocketProxy) {
@@ -95,24 +95,21 @@ class backend_socket {
      */
     private onData(data: Buffer) {
         let type = data.readUInt8(0);
-        if (type === define.Front_To_Back.msg) {
-            if (!this.registered) {
-                app.logger(loggerType.warn, componentName.backendServer, "get data before registerd, close the socket" + this.socket.socket.remoteAddress);
+
+        try {
+            if (type === define.Front_To_Back.msg) {
+                this.msg_handle(data);
+            } else if (type === define.Front_To_Back.register) {
+                this.register_handle(data);
+            } else if (type === define.Front_To_Back.heartbeat) {
+                this.heartBeat_handle();
+                this.heartbeat_response();
+            } else {
+                app.logger(loggerType.warn, componentName.backendServer, "illegal data, close the socket" + this.socket.socket.remoteAddress + " " + this.sid);
                 this.socket.close();
             }
-            try {
-                this.msg_handle(data);
-            } catch (e) {
-                app.logger(loggerType.error, componentName.backendServer, e);
-            }
-        } else if (type === define.Front_To_Back.register) {
-            this.register_handle(data);
-        } else if (type === define.Front_To_Back.heartbeat) {
-            this.heartBeat_handle();
-            this.heartbeat_response();
-        } else {
-            app.logger(loggerType.warn, componentName.backendServer, "illegal data, close the socket" + this.socket.socket.remoteAddress + " " + this.sid);
-            this.socket.close();
+        } catch (e) {
+            app.logger(loggerType.error, componentName.backendServer, e);
         }
     }
 
@@ -120,8 +117,8 @@ class backend_socket {
      * socket连接关闭了
      */
     private onClose() {
-        clearTimeout(this.registerTimer as NodeJS.Timer);
-        clearTimeout(this.heartBeatTimer as NodeJS.Timer);
+        clearTimeout(this.registerTimer);
+        clearTimeout(this.heartBeatTimer);
         if (this.registered) {
             remoteBackend.removeClient(this.sid);
         }
@@ -146,7 +143,7 @@ class backend_socket {
         }
         this.registered = true;
         this.sid = data.sid;
-        clearTimeout(this.registerTimer as NodeJS.Timer);
+        clearTimeout(this.registerTimer);
         remoteBackend.addClient(this.sid, this.socket);
         app.logger(loggerType.info, componentName.backendServer, "get a new frontend server named " + this.sid);
     }
@@ -156,7 +153,7 @@ class backend_socket {
      */
     private heartBeat_handle() {
         let self = this;
-        clearTimeout(this.heartBeatTimer as NodeJS.Timer);
+        clearTimeout(this.heartBeatTimer);
         this.heartBeatTimer = setTimeout(function () {
             app.logger(loggerType.warn, componentName.backendServer, "heartbeat timeout, close the frontend server named " + self.sid);
             self.socket.close();
@@ -178,6 +175,11 @@ class backend_socket {
      * @param msgBuf
      */
     private msg_handle(msgBuf: Buffer) {
+        if (!this.registered) {
+            app.logger(loggerType.warn, componentName.backendServer, "get data before registerd, close the socket" + this.socket.socket.remoteAddress);
+            this.socket.close();
+            return;
+        }
         let sessionLen = msgBuf.readUInt16BE(1);
         let sessionBuf = msgBuf.slice(3, 3 + sessionLen);
         let session = new Session();

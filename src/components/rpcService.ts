@@ -549,6 +549,7 @@ class rpc_client_proxy {
 
     private heartbeat() {
         let self = this;
+        let timeDelay = define.some_config.Time.Rpc_Heart_Beat_Time * 1000 - 5000 + Math.floor(5000 * Math.random());
         this.heartbeat_timer = setTimeout(function () {
             let buf = Buffer.allocUnsafe(5);
             buf.writeUInt32BE(1, 0);
@@ -556,7 +557,7 @@ class rpc_client_proxy {
             self.send(buf);
             self.heartbeatTimeout();
             self.heartbeat();
-        }, define.some_config.Time.Rpc_Heart_Beat_Time * 1000)
+        }, timeDelay)
     }
 
     private heartbeatTimeout() {

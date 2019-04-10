@@ -35,7 +35,6 @@ export interface ServerInfo {
  * socket连接代理
  */
 export interface SocketProxy extends EventEmitter {
-    [key: string]: any;
     socket: net.Socket;
     die: boolean;
     len: number;

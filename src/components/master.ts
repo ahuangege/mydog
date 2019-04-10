@@ -37,77 +37,104 @@ function startServer(cb?: Function) {
     }
 
     function newClientCb(socket: SocketProxy) {
-        socket.unRegSocketMsgHandle = unRegSocketMsgHandle.bind(null, socket);
-        socket.on('data', socket.unRegSocketMsgHandle);
-
-        socket.unRegSocketCloseHandle = unRegSocketCloseHandle.bind(null, socket);
-        socket.on('close', socket.unRegSocketCloseHandle);
-
-        socket.registerTimer = setTimeout(function () {
-            app.logger(loggerType.warn, componentName.master, "the socket connected to master register time out, close the socket: " + socket.socket.remoteAddress);
-            socket.close();
-        }, 10000);
+        new UnregSocket_proxy(socket);
     }
+}
+
+/**
+ * 尚未注册的socket代理
+ */
+class UnregSocket_proxy {
+    private socket: SocketProxy;
+    private registerTimer: NodeJS.Timeout = null as any;
+    private onDataFunc: (data: Buffer) => void;
+    private onCloseFunc: () => void;
+    constructor(socket: SocketProxy) {
+        this.socket = socket;
+
+        this.onDataFunc = this.onData.bind(this);
+        this.onCloseFunc = this.onClose.bind(this);
+        socket.on("data", this.onDataFunc);
+        socket.on("close", this.onCloseFunc);
+        this.registerTimeout();
+    }
+
+    private registerTimeout() {
+        let self = this;
+        this.registerTimer = setTimeout(function () {
+            app.logger(loggerType.warn, componentName.master, "the socket connected to master register time out, close the socket: " + self.socket.socket.remoteAddress);
+            self.socket.close();
+        }, 10000);
+
+    }
+
+    private onData(_data: Buffer) {
+        let socket = this.socket;
+        let data: any;
+        try {
+            data = JSON.parse(_data.toString());
+        } catch (err) {
+            app.logger(loggerType.warn, componentName.master, "unregistered socket, JSON parse error, close it: " + socket.socket.remoteAddress);
+            socket.close();
+            return;
+        }
+
+        // 第一个数据包必须是注册
+        if (!data || data.T !== define.Monitor_To_Master.register) {
+            app.logger(loggerType.warn, componentName.master, "unregistered socket, illegal data, close it: " + socket.socket.remoteAddress);
+            socket.close();
+            return;
+        }
+
+        // 是服务器？
+        if (data.hasOwnProperty("serverToken")) {
+            if (data.serverToken !== app.serverToken) {
+                app.logger(loggerType.warn, componentName.master, "a monitor, illegal serverToken, close it: " + socket.socket.remoteAddress);
+                socket.close();
+                return;
+            }
+            if (!data.serverType || !data.serverInfo || !data.serverInfo.id || !data.serverInfo.host || !data.serverInfo.port) {
+                app.logger(loggerType.warn, componentName.master, "a monitor, illegal serverInfo, close it: " + socket.socket.remoteAddress);
+                socket.close();
+                return;
+            }
+            this.registerOk();
+            new Master_ServerProxy(data, socket);
+            return;
+        }
+
+        // 是cli？
+        if (data.hasOwnProperty("clientToken")) {
+            if (data.clientToken !== app.clientToken) {
+                app.logger(loggerType.warn, componentName.master, "a cli, illegal clientToken, close it: " + socket.socket.remoteAddress);
+                socket.close();
+                return;
+            }
+            this.registerOk();
+            new Master_ClientProxy(socket);
+            return;
+        }
+
+        app.logger(loggerType.warn, componentName.master, "master get a illegal socket, close it");
+        socket.close();
+    }
+
+    private onClose() {
+        clearTimeout(this.registerTimer);
+        app.logger(loggerType.warn, componentName.master, "unregistered socket closed: " + this.socket.socket.remoteAddress);
+    }
+
+    private registerOk() {
+        clearTimeout(this.registerTimer);
+        this.socket.removeListener("data", this.onDataFunc);
+        this.socket.removeListener("close", this.onCloseFunc);
+        this.socket = null as any;
+    }
+
 }
 
 
 
-/**
- * socket尚未注册时，关闭的回调
- */
-function unRegSocketCloseHandle(socket: SocketProxy) {
-    clearTimeout(socket.registerTimer);
-};
-
-/**
- * socket尚未注册时，收到消息的回调
- */
-function unRegSocketMsgHandle(socket: SocketProxy, _data: Buffer) {
-    let data: any;
-    try {
-        data = JSON.parse(_data.toString());
-    } catch (err) {
-        app.logger(loggerType.warn, componentName.master, "unregistered socket, JSON parse error, close it: " + socket.socket.remoteAddress);
-        socket.close();
-        return;
-    }
-
-    if (!data || data.T !== define.Monitor_To_Master.register) {
-        app.logger(loggerType.warn, componentName.master, "unregistered socket, illegal data, close it: " + socket.socket.remoteAddress);
-        socket.close();
-        return;
-    }
-
-    // 判断是服务器，还是cli
-    if (data.hasOwnProperty("serverToken")) {
-        if (data.serverToken !== app.serverToken) {
-            app.logger(loggerType.warn, componentName.master, "a monitor, illegal serverToken, close it: " + socket.socket.remoteAddress);
-            socket.close();
-            return;
-        }
-        if (!data.serverType || !data.serverInfo || !data.serverInfo.id || !data.serverInfo.host || !data.serverInfo.port) {
-            app.logger(loggerType.warn, componentName.master, "a monitor, illegal serverInfo, close it: " + socket.socket.remoteAddress);
-            socket.close();
-            return;
-        }
-        new Master_ServerProxy(data, socket);
-        return;
-    }
-
-    // 是cli？
-    if (data.hasOwnProperty("clientToken")) {
-        if (data.clientToken !== app.clientToken) {
-            app.logger(loggerType.warn, componentName.master, "a cli, illegal clientToken, close it: " + socket.socket.remoteAddress);
-            socket.close();
-            return;
-        }
-        new Master_ClientProxy(socket);
-        return;
-    }
-
-    app.logger(loggerType.warn, componentName.master, "master get a illegal socket, close it");
-    socket.close();
-};
 
 /**
  * master处理服务器代理
@@ -116,6 +143,7 @@ export class Master_ServerProxy {
     private socket: SocketProxy;
     private sid: string = "";
     private serverType: string = "";
+    private heartbeatTimeoutTimer: NodeJS.Timeout = null as any;
     constructor(data: monitor_reg_master, socket: SocketProxy) {
         this.socket = socket;
         this.init(data);
@@ -124,21 +152,14 @@ export class Master_ServerProxy {
     private init(data: monitor_reg_master) {
         let socket = this.socket;
 
-        clearTimeout(socket.registerTimer);
-
         if (!!servers[data.serverInfo.id]) {
             app.logger(loggerType.warn, componentName.master, "master already has a monitor named " + data.serverInfo.id + ", close the socket: " + socket.socket.remoteAddress);
             socket.close();
             return;
         }
-        this.heartBeatTimeOut();
 
-        socket.removeListener("data", socket.unRegSocketMsgHandle);
-        socket.unRegSocketMsgHandle = null;
-        socket.on('data', this.processMsg.bind(this));
-
-        socket.removeListener("close", socket.unRegSocketCloseHandle);
-        socket.unRegSocketCloseHandle = null;
+        this.heartbeatTimeout();
+        socket.on('data', this.onData.bind(this));
         socket.on('close', this.onClose.bind(this));
 
 
@@ -178,10 +199,10 @@ export class Master_ServerProxy {
         app.logger(loggerType.info, componentName.master, "master gets a new monitor named " + this.sid);
     }
 
-    heartBeatTimeOut() {
+    private heartbeatTimeout() {
         let self = this;
-        clearTimeout(this.socket.heartBeatTimer);
-        this.socket.heartBeatTimer = setTimeout(function () {
+        clearTimeout(this.heartbeatTimeoutTimer);
+        this.heartbeatTimeoutTimer = setTimeout(function () {
             app.logger(loggerType.warn, componentName.master, "heartbeat time out, close the monitor named " + self.sid);
             self.socket.close();
         }, define.some_config.Time.Monitor_Heart_Beat_Time * 1000 * 2);
@@ -198,7 +219,7 @@ export class Master_ServerProxy {
         this.socket.send(buf);
     }
 
-    private processMsg(_data: Buffer) {
+    private onData(_data: Buffer) {
         let data: any;
         try {
             data = JSON.parse(_data.toString());
@@ -207,8 +228,9 @@ export class Master_ServerProxy {
             this.socket.close();
             return;
         }
+
         if (data.T === define.Monitor_To_Master.heartbeat) {
-            this.heartBeatTimeOut();
+            this.heartbeatTimeout();
             this.heartbeatResponse();
         } else if (data.T === define.Monitor_To_Master.cliMsg) {
             masterCli.deal_monitor_msg(data);
@@ -216,7 +238,7 @@ export class Master_ServerProxy {
     }
 
     private onClose() {
-        clearTimeout(this.socket.heartBeatTimer);
+        clearTimeout(this.heartbeatTimeoutTimer);
         delete servers[this.sid];
         delete serversDataTmp.serverInfoIdMap[this.sid];
         let serverInfo: monitor_remove_server = {
@@ -239,6 +261,7 @@ export class Master_ServerProxy {
  */
 export class Master_ClientProxy {
     private socket: SocketProxy;
+    private heartbeatTimer: NodeJS.Timeout = null as any;
     constructor(socket: SocketProxy) {
         this.socket = socket;
         this.init();
@@ -246,31 +269,24 @@ export class Master_ClientProxy {
 
     private init() {
         let socket = this.socket;
+        this.heartbeatTimeOut();
 
-        clearTimeout(socket.registerTimer);
-        this.heartBeatTimeOut();
-
-        socket.removeListener("data", socket.unRegSocketMsgHandle);
-        socket.unRegSocketMsgHandle = null;
-        socket.on('data', this.processMsg.bind(this));
-
-        socket.removeListener("close", socket.unRegSocketCloseHandle);
-        socket.unRegSocketCloseHandle = null;
+        socket.on('data', this.onData.bind(this));
         socket.on('close', this.onClose.bind(this));
 
         app.logger(loggerType.info, componentName.master, "master gets a new cli : " + socket.socket.remoteAddress);
     }
 
-    heartBeatTimeOut() {
+    private heartbeatTimeOut() {
         let self = this;
-        clearTimeout(this.socket.heartBeatTimer);
-        this.socket.heartBeatTimer = setTimeout(function () {
+        clearTimeout(this.heartbeatTimer);
+        this.heartbeatTimer = setTimeout(function () {
             app.logger(loggerType.warn, componentName.master, "heartbeat time out, close the cli:" + self.socket.socket.remoteAddress);
             self.socket.close();
         }, define.some_config.Time.Monitor_Heart_Beat_Time * 1000 * 2);
     }
 
-    private processMsg(_data: Buffer) {
+    private onData(_data: Buffer) {
         let data: any;
         try {
             data = JSON.parse(_data.toString());
@@ -279,11 +295,20 @@ export class Master_ClientProxy {
             this.socket.close();
             return;
         }
-        if (data.T === define.Cli_To_Master.heartbeat) {
-            this.heartBeatTimeOut();
-        } else if (data.T === define.Cli_To_Master.cliMsg) {
-            app.logger(loggerType.info, componentName.master, "master get command from the cli : " + this.socket.socket.remoteAddress + " / " + JSON.stringify(data));
-            masterCli.deal_cli_msg(this, data);
+
+        try {
+            if (data.T === define.Cli_To_Master.heartbeat) {
+                this.heartbeatTimeOut();
+            } else if (data.T === define.Cli_To_Master.cliMsg) {
+                app.logger(loggerType.info, componentName.master, "master get command from the cli : " + this.socket.socket.remoteAddress + " / " + JSON.stringify(data));
+                masterCli.deal_cli_msg(this, data);
+            } else {
+                app.logger(loggerType.info, componentName.master, "the cli illegal data type close it:  " + this.socket.socket.remoteAddress);
+                this.socket.close();
+            }
+        } catch (e) {
+            app.logger(loggerType.info, componentName.master, e);
+            this.socket.close();
         }
     }
 
@@ -292,7 +317,7 @@ export class Master_ClientProxy {
     }
 
     private onClose() {
-        clearTimeout(this.socket.heartBeatTimer);
+        clearTimeout(this.heartbeatTimer);
         app.logger(loggerType.info, componentName.master, "a cli disconnected : " + this.socket.socket.remoteAddress);
     }
 }

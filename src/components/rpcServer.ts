@@ -29,9 +29,9 @@ export function start(_app: Application, cb: Function) {
 class rpc_server_proxy {
     private socket: SocketProxy;
     private sid: string = "";
-    private heartbeat_timer: NodeJS.Timer = null as any;
+    private heartbeat_timer: NodeJS.Timeout = null as any;
     private registered: boolean = false;
-    private register_timer: NodeJS.Timer;
+    private register_timer: NodeJS.Timeout;
     constructor(socket: SocketProxy) {
         this.socket = socket;
         socket.on("data", this.onData.bind(this));

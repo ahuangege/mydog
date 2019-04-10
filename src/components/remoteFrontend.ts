@@ -96,9 +96,9 @@ class remote_frontend_client {
     private host: string;
     private port: number;
     private serverType: string;
-    private connect_timer: NodeJS.Timer = null as any;
-    private heartbeat_timer: NodeJS.Timer = null as any;
-    private heartbeat_timeout_timer: NodeJS.Timer = null as any;
+    private connect_timer: NodeJS.Timeout = null as any;
+    private heartbeat_timer: NodeJS.Timeout = null as any;
+    private heartbeat_timeout_timer: NodeJS.Timeout = null as any;
     private socket: SocketProxy = null as any;
     public isLive: boolean = false;
 
@@ -154,6 +154,7 @@ class remote_frontend_client {
      */
     private heartbeat() {
         let self = this;
+        let timeDelay = define.some_config.Time.Remote_Heart_Beat_Time * 1000 - 5000 + Math.floor(5000 * Math.random());
         this.heartbeat_timer = setTimeout(function () {
             let buf = Buffer.allocUnsafe(5);
             buf.writeUInt32BE(1, 0);
@@ -161,7 +162,7 @@ class remote_frontend_client {
             self.socket.send(buf);
             self.heartbeat_timeout();
             self.heartbeat();
-        }, define.some_config.Time.Remote_Heart_Beat_Time * 1000)
+        }, timeDelay)
     }
 
     /**

@@ -11,7 +11,6 @@ import * as remoteBackend from "./components/remoteBackend";
 import { encodeClientData } from "./components/msgCoder";
 import * as appUtil from "./util/appUtil";
 import { EventEmitter } from "events";
-let hasStarted = false; // 是否已经启动
 
 declare global {
     interface Rpc {
@@ -19,7 +18,7 @@ declare global {
 }
 
 export default class Application extends EventEmitter {
-
+    hasStarted: boolean = false;                                                                             // 是否已经启动
     main: string = "";                                                                                       // 启动文件
     base: string = path.dirname((require.main as any).filename);                                             // 根路径
 
@@ -69,11 +68,11 @@ export default class Application extends EventEmitter {
      * 启动
      */
     start() {
-        if (hasStarted) {
+        if (this.hasStarted) {
             console.error("the app has already started");
             return;
         }
-        hasStarted = true;
+        this.hasStarted = true;
         this.startTime = new Date().getTime();
         appUtil.startServer(this);
     }

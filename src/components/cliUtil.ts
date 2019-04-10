@@ -5,15 +5,14 @@
 
 import Application from "../application";
 import define = require("../util/define");
-import { encodeInnerData } from "./msgCoder";
 import { Master_ServerProxy, Master_ClientProxy } from "./master";
-import { SocketProxy } from "../util/interfaceDefine";
+import { monitor_client_proxy } from "./monitor";
 
 
 
 interface requset {
     cb: Function;
-    timeOut: NodeJS.Timer;
+    timeOut: NodeJS.Timeout;
 }
 
 export class MasterCli {
@@ -144,7 +143,7 @@ export class MonitorCli {
         this.app = app;
     }
 
-    deal_master_msg(socket: SocketProxy, data: any) {
+    deal_master_msg(socket: monitor_client_proxy, data: any) {
         let reqId = data.reqId;
         data = data.msg;
         if ((this as any)["func_" + data.func]) {
@@ -152,12 +151,12 @@ export class MonitorCli {
         }
     };
 
-    private send_to_master(socket: SocketProxy, msg: any) {
-        socket.send(encodeInnerData(msg));
+    private send_to_master(socket: monitor_client_proxy, msg: any) {
+        socket.send(msg);
     };
 
 
-    private func_list(reqId: number, socket: SocketProxy, args: any) {
+    private func_list(reqId: number, socket: monitor_client_proxy, args: any) {
         let msg = {
             "T": define.Monitor_To_Master.cliMsg,
             "reqId": reqId,
@@ -166,7 +165,7 @@ export class MonitorCli {
         this.send_to_master(socket, msg);
     };
 
-    private func_stop(reqId: number, socket: SocketProxy, args: any) {
+    private func_stop(reqId: number, socket: monitor_client_proxy, args: any) {
         let msg = {
             "T": define.Monitor_To_Master.cliMsg,
             "reqId": reqId,
@@ -175,7 +174,7 @@ export class MonitorCli {
         process.exit();
     };
 
-    private func_remove(reqId: number, socket: SocketProxy, args: any) {
+    private func_remove(reqId: number, socket: monitor_client_proxy, args: any) {
         let msg = {
             "T": define.Monitor_To_Master.cliMsg,
             "reqId": reqId,

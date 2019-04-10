@@ -13,219 +13,295 @@ import * as remoteFrontend from "./remoteFrontend";
 import * as rpcService from "./rpcService";
 
 let app: Application;
-let monitorCli: MonitorCli;
-let removeDiffServers: { [id: string]: string } = {}; // monitor重连后，待对比移除的server集合
-let needDiff: boolean = false; // 是否需要对比
-let diffTimer: NodeJS.Timer = null as any;
 
 export function start(_app: Application) {
     app = _app;
-    monitorCli = new MonitorCli(app);
-    needDiff = false;
-    connectToMaster(0);
+    new monitor_client_proxy(_app);
 }
 
 
-function connectToMaster(delay: number) {
-    setTimeout(function () {
-        let connectCb = function () {
-            app.logger(loggerType.info, componentName.monitor, "monitor connected to master success ");
+export class monitor_client_proxy {
+    private socket: SocketProxy = null as any;
+    private monitorCli: MonitorCli;
+    private heartbeatTimer: NodeJS.Timeout = null as any;
+    private heartbeatTimeoutTimer: NodeJS.Timeout = null as any;
 
-            // 向master注册
-            let curServerInfo: ServerInfo = null as any;
-            if (app.serverType === "rpc") {
-                curServerInfo = {
-                    "id": app.serverId,
-                    "host": app.host,
-                    "port": app.port
-                }
-            } else {
-                curServerInfo = app.serverInfo;
-            }
-            let loginInfo: monitor_reg_master = {
-                T: define.Monitor_To_Master.register,
-                serverType: app.serverType,
-                serverInfo: curServerInfo,
-                serverToken: app.serverToken
-            };
-            let loginInfoBuf = encodeInnerData(loginInfo);
-            client.send(loginInfoBuf);
+    private removeDiffServers: { [id: string]: string } = {}; // monitor重连后，待对比移除的server集合
+    private needDiff: boolean = false; // 是否需要对比
+    private diffTimer: NodeJS.Timeout = null as any;    // 对比倒计时
 
-            // 心跳包
-            heartBeat(client);
-        };
-        app.logger(loggerType.info, componentName.monitor, "monitor try to connect to master now");
-        let client: SocketProxy = new TcpClient(app.masterConfig.port, app.masterConfig.host, connectCb);
-        client.on("data", function (_data: Buffer) {
-
-            let data: any = JSON.parse(_data.toString());
-
-            if (data.T === define.Master_To_Monitor.addServer) {
-                addServer((data as monitor_get_new_server).serverInfoIdMap);
-            } else if (data.T === define.Master_To_Monitor.removeServer) {
-                removeServer(data as monitor_remove_server);
-            } else if (data.T === define.Master_To_Monitor.cliMsg) {
-                monitorCli.deal_master_msg(client, data);
-            } else if (data.T === define.Master_To_Monitor.heartbeatResponse) {
-                clearTimeout(client.heartBeatTimeoutTimer);
-            }
-        });
-        client.on("close", function () {
-            app.logger(loggerType.warn, componentName.monitor, "monitor closed, try to reconnect master later");
-            needDiff = true;
-            removeDiffServers = {};
-            clearTimeout(diffTimer);
-            clearTimeout(client.heartBeatTimer);
-            clearTimeout(client.heartBeatTimeoutTimer);
-            connectToMaster(define.some_config.Time.Monitor_Reconnect_Time * 1000);
-        });
-    }, delay);
-}
-
-
-function heartBeat(socket: SocketProxy) {
-    socket.heartBeatTimer = setTimeout(function () {
-        let heartBeatMsg = { T: define.Monitor_To_Master.heartbeat };
-        let heartBeatMsgBuf = encodeInnerData(heartBeatMsg);
-        socket.send(heartBeatMsgBuf);
-        heartbeatTimeout(socket);
-        heartBeat(socket);
-    }, define.some_config.Time.Monitor_Heart_Beat_Time * 1000)
-}
-
-function heartbeatTimeout(socket: SocketProxy) {
-    socket.heartBeatTimeoutTimer = setTimeout(function () {
-        app.logger(loggerType.warn, componentName.monitor, "monitor heartbeat timeout, close the socket");
-        socket.close();
-    }, define.some_config.Time.Monitor_Heart_Beat_Timeout_Time * 1000)
-}
-
-function addServer(servers: { [id: string]: { "serverType": string, "serverInfo": ServerInfo } }) {
-    if (needDiff) {
-        diffTimerStart();
+    constructor(app: Application) {
+        this.monitorCli = new MonitorCli(app);
+        this.doConnect(0);
     }
-    let serversApp = app.servers;
-    let serversIdMap = app.serversIdMap;
-    let server: { "serverType": string, "serverInfo": ServerInfo };
-    let serverInfo: ServerInfo;
-    for (let sid in servers) {
-        server = servers[sid];
-        serverInfo = server.serverInfo;
-        if (needDiff) {
-            addOrRemoveDiffServer(serverInfo.id, true, server.serverType);
+
+    /**
+     * 连接master
+     */
+    private doConnect(delay: number) {
+        let self = this;
+        setTimeout(function () {
+            let connectCb = function () {
+                app.logger(loggerType.info, componentName.monitor, "monitor connected to master success ");
+
+                // 向master注册
+                self.register();
+
+                // 心跳包
+                self.heartbeat();;
+            };
+            app.logger(loggerType.info, componentName.monitor, "monitor try to connect to master now");
+            self.socket = new TcpClient(app.masterConfig.port, app.masterConfig.host, connectCb);
+            self.socket.on("data", self.onData.bind(self));
+            self.socket.on("close", self.onClose.bind(self));
+        }, delay);
+    }
+
+    /**
+     * 注册
+     */
+    private register() {
+        let curServerInfo: ServerInfo = null as any;
+        if (app.serverType === "rpc") {
+            curServerInfo = {
+                "id": app.serverId,
+                "host": app.host,
+                "port": app.port
+            }
+        } else {
+            curServerInfo = app.serverInfo;
         }
-        let tmpServer: ServerInfo;
-        if (server.serverType === "rpc") {
-            tmpServer = app.rpcServersIdMap[serverInfo.id]
-            if (tmpServer && tmpServer.host === serverInfo.host && tmpServer.port === serverInfo.port) {    // 如果已经存在且ip配置相同，则忽略
+        let loginInfo: monitor_reg_master = {
+            T: define.Monitor_To_Master.register,
+            serverType: app.serverType,
+            serverInfo: curServerInfo,
+            serverToken: app.serverToken
+        };
+        this.send(loginInfo);
+    }
+
+    /**
+     * 收到消息
+     */
+    private onData(_data: Buffer) {
+        let data: any = JSON.parse(_data.toString());
+
+        if (data.T === define.Master_To_Monitor.addServer) {
+            this.addServer((data as monitor_get_new_server).serverInfoIdMap);
+        } else if (data.T === define.Master_To_Monitor.removeServer) {
+            this.removeServer(data as monitor_remove_server);
+        } else if (data.T === define.Master_To_Monitor.cliMsg) {
+            this.monitorCli.deal_master_msg(this, data);
+        } else if (data.T === define.Master_To_Monitor.heartbeatResponse) {
+            clearTimeout(this.heartbeatTimeoutTimer);
+        }
+    }
+
+    /**
+     * socket关闭了
+     */
+    private onClose() {
+        app.logger(loggerType.warn, componentName.monitor, "monitor closed, try to reconnect master later");
+        this.needDiff = true;
+        this.removeDiffServers = {};
+        clearTimeout(this.diffTimer);
+        clearTimeout(this.heartbeatTimer);
+        clearTimeout(this.heartbeatTimeoutTimer);
+        this.doConnect(define.some_config.Time.Monitor_Reconnect_Time * 1000);
+    }
+
+    /**
+     * 发送心跳
+     */
+    private heartbeat() {
+        let self = this;
+        let timeDelay = define.some_config.Time.Monitor_Heart_Beat_Time * 1000 - 5000 + Math.floor(5000 * Math.random());
+        this.heartbeatTimer = setTimeout(function () {
+            let heartbeatMsg = { "T": define.Monitor_To_Master.heartbeat };
+            self.send(heartbeatMsg);
+            self.heartbeatTimeout();
+            self.heartbeat();
+        }, timeDelay)
+    }
+
+    /**
+     * 心跳超时
+     */
+    private heartbeatTimeout() {
+        let self = this;
+        this.heartbeatTimeoutTimer = setTimeout(function () {
+            app.logger(loggerType.warn, componentName.monitor, "monitor heartbeat timeout, close the socket");
+            self.socket.close();
+        }, define.some_config.Time.Monitor_Heart_Beat_Timeout_Time * 1000)
+    }
+
+    /**
+     * 发送消息（非buffer）
+     */
+    send(msg: any) {
+        this.socket.send(encodeInnerData(msg));
+    }
+
+    /**
+     * 新增服务器
+     */
+    private addServer(servers: { [id: string]: { "serverType": string, "serverInfo": ServerInfo } }) {
+        if (this.needDiff) {
+            this.diffTimerStart();
+        }
+        let serversApp = app.servers;
+        let serversIdMap = app.serversIdMap;
+        let server: { "serverType": string, "serverInfo": ServerInfo };
+        let serverInfo: ServerInfo;
+        for (let sid in servers) {
+            server = servers[sid];
+            serverInfo = server.serverInfo;
+            if (this.needDiff) {
+                this.addOrRemoveDiffServer(serverInfo.id, true, server.serverType);
+            }
+            let tmpServer: ServerInfo;
+            if (server.serverType === "rpc") {
+                tmpServer = app.rpcServersIdMap[serverInfo.id]
+                if (tmpServer && tmpServer.host === serverInfo.host && tmpServer.port === serverInfo.port) {    // 如果已经存在且ip配置相同，则忽略
+                    continue;
+                }
+                app.rpcServersIdMap[serverInfo.id] = serverInfo;
+                rpcService.addRpcServer(serverInfo);
                 continue;
             }
-            app.rpcServersIdMap[serverInfo.id] = serverInfo;
-            rpcService.addRpcServer(serverInfo);
-            continue;
-        }
-        tmpServer = serversIdMap[serverInfo.id]
-        if (tmpServer && tmpServer.host === serverInfo.host && tmpServer.port === serverInfo.port) {    // 如果已经存在且ip配置相同，则忽略（不考虑其他配置，请开发者自己保证）
-            continue;
-        }
-        if (!serversApp[server.serverType]) {
-            serversApp[server.serverType] = [];
-        }
-        if (!!tmpServer) {
-            for (let i = 0, len = serversApp[server.serverType].length; i < len; i++) {
-                if (serversApp[server.serverType][i].id === tmpServer.id) {
-                    serversApp[server.serverType].splice(i, 1);
-                    if (app.frontend && !app.alone) {
-                        remoteFrontend.removeServer({
-                            "serverType": server.serverType,
-                            "id": tmpServer.id
-                        });
-                        app.emit("onRemoveServer", server.serverType, tmpServer.id);
+            tmpServer = serversIdMap[serverInfo.id]
+            if (tmpServer && tmpServer.host === serverInfo.host && tmpServer.port === serverInfo.port) {    // 如果已经存在且ip配置相同，则忽略（不考虑其他配置，请开发者自己保证）
+                continue;
+            }
+            if (!serversApp[server.serverType]) {
+                serversApp[server.serverType] = [];
+            }
+            if (!!tmpServer) {
+                for (let i = 0, len = serversApp[server.serverType].length; i < len; i++) {
+                    if (serversApp[server.serverType][i].id === tmpServer.id) {
+                        serversApp[server.serverType].splice(i, 1);
+                        if (app.frontend && !app.alone) {
+                            remoteFrontend.removeServer({
+                                "serverType": server.serverType,
+                                "id": tmpServer.id
+                            });
+                            this.emitRemoveServer(server.serverType, tmpServer.id);
+                        }
                     }
                 }
             }
-        }
-        serversApp[server.serverType].push(serverInfo);
-        serversIdMap[serverInfo.id] = serverInfo;
-        app.emit("onAddServer", server.serverType, serverInfo.id);
+            serversApp[server.serverType].push(serverInfo);
+            serversIdMap[serverInfo.id] = serverInfo;
+            this.emitAddServer(server.serverType, serverInfo.id);
 
-        if (app.frontend && !app.alone && !serverInfo.frontend && !serverInfo.alone) {
-            remoteFrontend.addServer(server);
-        }
-    }
-}
-
-function removeServer(msg: monitor_remove_server) {
-    if (needDiff) {
-        diffTimerStart();
-        addOrRemoveDiffServer(msg.id, false);
-    }
-    if (msg.serverType === "rpc") {
-        delete app.rpcServersIdMap[msg.id];
-        rpcService.removeRpcServer(msg.id);
-        return;
-    }
-    delete app.serversIdMap[msg.id];
-    let serversApp = app.servers;
-    if (serversApp[msg.serverType]) {
-        for (let i = 0; i < serversApp[msg.serverType].length; i++) {
-            if (serversApp[msg.serverType][i].id === msg.id) {
-                serversApp[msg.serverType].splice(i, 1);
-                if (app.frontend && !app.alone) {
-                    remoteFrontend.removeServer({
-                        "serverType": msg.serverType,
-                        "id": msg.id
-                    });
-                    app.emit("onRemoveServer", msg.serverType, msg.id);
-                }
-                break;
+            if (app.frontend && !app.alone && !serverInfo.frontend && !serverInfo.alone) {
+                remoteFrontend.addServer(server);
             }
         }
     }
-}
 
-
-function addOrRemoveDiffServer(sid: string, add: boolean, serverType?: string) {
-    if (add) {
-        removeDiffServers[sid] = serverType as string;
-    } else {
-        delete removeDiffServers[sid];
+    /**
+     * 移除服务器
+     */
+    private removeServer(msg: monitor_remove_server) {
+        if (this.needDiff) {
+            this.diffTimerStart();
+            this.addOrRemoveDiffServer(msg.id, false);
+        }
+        if (msg.serverType === "rpc") {
+            delete app.rpcServersIdMap[msg.id];
+            rpcService.removeRpcServer(msg.id);
+            return;
+        }
+        delete app.serversIdMap[msg.id];
+        let serversApp = app.servers;
+        if (serversApp[msg.serverType]) {
+            for (let i = 0; i < serversApp[msg.serverType].length; i++) {
+                if (serversApp[msg.serverType][i].id === msg.id) {
+                    serversApp[msg.serverType].splice(i, 1);
+                    if (app.frontend && !app.alone) {
+                        remoteFrontend.removeServer({
+                            "serverType": msg.serverType,
+                            "id": msg.id
+                        });
+                        this.emitRemoveServer(msg.serverType, msg.id);
+                    }
+                    break;
+                }
+            }
+        }
     }
-}
 
-function diffTimerStart() {
-    clearTimeout(diffTimer);
-    diffTimer = setTimeout(diffFunc, 3000);     // 3秒后对比
-}
+    private addOrRemoveDiffServer(sid: string, add: boolean, serverType?: string) {
+        if (add) {
+            this.removeDiffServers[sid] = serverType as string;
+        } else {
+            delete this.removeDiffServers[sid];
+        }
+    }
+
+    private diffTimerStart() {
+        clearTimeout(this.diffTimer);
+        let self = this;
+        this.diffTimer = setTimeout(function () {
+            self.diffFunc();
+        }, 5000);     // 5秒后对比
+    }
 
 
-function diffFunc() {
-    needDiff = false;
-    let servers = app.servers;
+    private diffFunc() {
+        this.needDiff = false;
+        let servers = app.servers;
 
-    for (let serverType in servers) {
-        for (let i = 0, len = servers[serverType].length; i < len; i++) {
-            let id = servers[serverType][i].id;
+        for (let serverType in servers) {
+            for (let i = 0, len = servers[serverType].length; i < len; i++) {
+                let id = servers[serverType][i].id;
+                if (id === app.serverId) {
+                    continue;
+                }
+                if (!this.removeDiffServers[id]) {
+                    delete app.serversIdMap[id];
+                    servers[serverType].splice(i, 1);
+                    remoteFrontend.removeServer({ "serverType": serverType, "id": id });
+                    this.emitRemoveServer(serverType, id);
+
+                }
+            }
+        }
+
+        for (let id in app.rpcServersIdMap) {
             if (id === app.serverId) {
                 continue;
             }
-            if (!removeDiffServers[id]) {
-                delete app.serversIdMap[id];
-                servers[serverType].splice(i, 1);
-                remoteFrontend.removeServer({ "serverType": serverType, "id": id });
-                app.emit("onRemoveServer", serverType, id);
+            if (!this.removeDiffServers[id]) {
+                delete app.rpcServersIdMap[id];
+                rpcService.removeRpcServer(id);
             }
+        }
+        this.removeDiffServers = {};
+    }
+
+    /**
+     * 发射添加服务器事件
+     */
+    private emitAddServer(serverType: string, id: string) {
+        try {
+            app.emit("onAddServer", serverType, id);
+        } catch (e) {
+            app.logger(loggerType.error, componentName.monitor, e);
         }
     }
 
-    for (let id in app.rpcServersIdMap) {
-        if (id === app.serverId) {
-            continue;
-        }
-        if (!removeDiffServers[id]) {
-            delete app.rpcServersIdMap[id];
-            rpcService.removeRpcServer(id);
+    /**
+     * 发射移除服务器事件
+     */
+    private emitRemoveServer(serverType: string, id: string) {
+        try {
+            app.emit("onRemoveServer", serverType, id);
+        } catch (e) {
+            app.logger(loggerType.error, componentName.monitor, e);
         }
     }
-    removeDiffServers = {};
 }
+
+
