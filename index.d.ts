@@ -362,6 +362,10 @@ export type RpcClass<T> = {
  */
 export const enum rpcErr {
     /**
+     * 没有错误
+     */
+    no_err = 0,
+    /**
      * 源服务器没有目标服务器
      */
     src_has_no_end = 1,

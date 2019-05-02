@@ -1,5 +1,5 @@
 import { Application, Session, rpcErr } from "mydog";
-import Proto = require("../../../domain/Proto");
+import Proto = require("../../../app/Proto");
 
 export default function (app: Application) {
     return new Handler(app);

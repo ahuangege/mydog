@@ -1,5 +1,5 @@
 import { createApp, Application, Session } from "mydog";
-import roomMgr from "./app/domain/roomMgr";
+import roomMgr from "./app/roomMgr";
 
 let app = createApp();
 

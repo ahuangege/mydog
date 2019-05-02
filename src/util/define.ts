@@ -16,7 +16,7 @@ export let some_config = {
         Remote_Heart_Beat_Timeout_Time: 10
     },
     File_Dir: {
-        Servers: "app/servers",
+        Servers: "servers",
         Config: "config/sys"
     },
     Connector: {

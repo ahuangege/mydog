@@ -1,6 +1,6 @@
 import { Application, Session } from "mydog";
-import roomMgr from "../../../domain/roomMgr";
-import Proto = require("../../../domain/Proto");
+import roomMgr from "../../../app/roomMgr";
+import Proto = require("../../../app/Proto");
 
 export default class handler {
     app: Application;
@@ -8,14 +8,14 @@ export default class handler {
         this.app = _app;
     }
     send(msg: Proto.chat_send_req, session: Session, next: Function) {
-        let room = (this.app.get("roomMgr") as roomMgr).getRoom(session.get("roomId"));
+        let room = this.app.get<roomMgr>("roomMgr").getRoom(session.get("roomId"));
         if (room) {
             room.send(session.get("playerId"), msg);
         }
     };
 
     leaveRoom(msg: any, session: Session, next: Function) {
-        (this.app.get("roomMgr") as roomMgr).leaveRoom(session.get("roomId"), session.get("playerId"));
+        this.app.get<roomMgr>("roomMgr").leaveRoom(session.get("roomId"), session.get("playerId"));
         session.delete("chatServerId");
         session.delete("roomId");
         session.delete("playerId");
