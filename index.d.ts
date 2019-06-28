@@ -15,6 +15,14 @@ export let app: Application;
 export let version: string;
 
 /**
+ * 自带两类connector
+ */
+export let connector: {
+    connectorTcp: I_connectorConstructor,
+    connectorWs: I_connectorConstructor,
+}
+
+/**
  * app 类
  */
 export interface Application {
@@ -28,11 +36,6 @@ export interface Application {
      * 配置：master.ts
      */
     readonly masterConfig: ServerInfo;
-
-    /**
-     * 配置：rpc.ts
-     */
-    readonly rpcServersConfig: ServerInfo[];
 
     /**
      * 配置：servers.ts
@@ -55,11 +58,6 @@ export interface Application {
     readonly serversIdMap: { readonly [id: string]: ServerInfo };
 
     /**
-     * rpc服务器信息
-     */
-    readonly rpcServersIdMap: { readonly [id: string]: ServerInfo };
-
-    /**
      * 服务器内部认证密钥
      */
     serverToken: string;
@@ -67,7 +65,7 @@ export interface Application {
     /**
      * master与cli的认证密匙
      */
-    clientToken: string;
+    cliToken: string;
 
     /**
      * 本服务器的配置
@@ -95,6 +93,15 @@ export interface Application {
     readonly serverId: string;
 
     /**
+     * 是否是前端服
+     */
+    readonly frontend: boolean;
+
+    /**
+     * 前端服的监听端口
+     */
+    readonly clientPort: number;
+    /**
      * 服务器类型
      */
     readonly serverType: string;
@@ -103,6 +110,16 @@ export interface Application {
      * 服务器启动时刻
      */
     readonly startTime: number;
+
+    /**
+     * 消息编码函数
+     */
+    readonly msgEncode: (cmdId: number, msg: any) => Buffer;
+
+    /**
+     * 消息解码函数
+     */
+    readonly msgDecode: (cmdId: number, msg: Buffer) => any;
 
     /**
      * rpc集合
@@ -127,17 +144,17 @@ export interface Application {
     /**
      * 编码解码回调
      */
-    set_encodeDecodeConfig(config: { "encode"?: (cmdId: number, data: any) => Buffer, "decode"?: (cmdId: number, data: Buffer, session: Session) => any }): void
+    setEncodeDecodeConfig(config: I_encodeDecodeConfig): void
 
     /**
      * 前端连接服务器配置
      */
-    set_connectorConfig(config: { "connector"?: "net" | "ws", "heartbeat"?: number, "maxConnectionNum"?: number }): void
+    setConnectorConfig(config: I_connectorConfig): void
 
     /**
      * rpc模块配置
      */
-    set_rpcConfig(config: { "timeOut"?: number }): void
+    setRpcConfig(config: { "timeout"?: number, "maxLen"?: number }): void
 
     /**
      * 设置键值对
@@ -239,13 +256,8 @@ export interface Application {
      * 内部日志输出
      * @param cb 回调函数
      */
-    onLog(cb: (level: "info" | "warn" | "error", filename: string, info: any) => void): void;
+    onLog(cb: (level: "info" | "warn" | "error", info: string) => void): void;
 
-    /**
-     * 加载模块
-     * @param dir 相对根目录的路径
-     */
-    loadFile(dir: string): any;
 
     /**
      * 获取bind的socket连接数
@@ -338,9 +350,9 @@ export interface ServerInfo {
      */
     readonly frontend?: boolean;
     /**
-     * 是否是独立的
+     * clientPort
      */
-    readonly alone?: boolean;
+    readonly clientPort: number;
 
     [key: string]: any;
 }
@@ -364,21 +376,96 @@ export const enum rpcErr {
     /**
      * 没有错误
      */
-    no_err = 0,
+    ok = 0,
     /**
-     * 源服务器没有目标服务器
+     * 没有目标服务器
      */
-    src_has_no_end = 1,
-    /**
-     * 源服务器没有rpc服务器
-     */
-    src_has_no_rpc = 2,
-    /**
-     * rpc服务器没有目标服务器
-     */
-    rpc_has_no_end = 3,
+    noServer = 1,
     /**
      * rpc超时
      */
-    rpc_time_out = 4
+    timeout = 2
+}
+
+/**
+ * 编码解码
+ */
+export interface I_encodeDecodeConfig {
+    /**
+     * 协议编码
+     */
+    "protoEncode"?: (cmdId: number, msg: any) => Buffer,
+    /**
+     * 消息编码
+     */
+    "msgEncode"?: (cmdId: number, msg: any) => Buffer,
+    /**
+     * 协议解码
+     */
+    "protoDecode"?: (data: Buffer) => { "cmdId": number, "msg": Buffer },
+    /**
+     * 消息解码
+     */
+    "msgDecode"?: (cmdId: number, msg: Buffer) => any,
+}
+
+
+/**
+ * 前端connector配置
+ */
+export interface I_connectorConfig {
+    /**
+     * 自定义connector类
+     */
+    "connector"?: I_connectorConstructor,
+    /**
+     * 心跳（秒）
+     */
+    "heartbeat"?: number,
+    /**
+     * 最大连接数
+     */
+    "maxConnectionNum"?: number,
+    /**
+     * 消息包最大长度
+     */
+    "maxLen"?: number
+}
+
+/**
+ * 自定义connector类
+ */
+export interface I_connectorConstructor {
+    new(info: { app: Application, clientManager: I_clientManager, config: { "route": string[], "heartbeat": number, "maxLen": number }, startCb: () => void }): void;
+}
+
+/**
+ * 用户socket管理代理
+ */
+export interface I_clientManager {
+    addClient(client: I_clientSocket): void;
+    handleMsg(client: I_clientSocket, msg: Buffer): void;
+    removeClient(client: I_clientSocket): void;
+}
+
+/**
+ * 用户socket
+ */
+export interface I_clientSocket {
+    /**
+     * session（由框架内部赋值）
+     */
+    session: Session;
+    /**
+     * ip
+     */
+    remoteAddress: string;
+    /**
+     * 发送消息
+     */
+    send(msg: Buffer): void;
+    /**
+     * 关闭
+     */
+    close(): void;
 }

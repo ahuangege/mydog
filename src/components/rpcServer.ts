@@ -1,57 +1,41 @@
-/**
- * rpc消息中转服务器
- */
+import Application from "..//application";
+import tcpServer from "../components/tcpServer";
+import { SocketProxy, loggerType } from "../util/interfaceDefine";
+import * as define from "../util/define";
+import * as rpcService from "./rpcService";
+import { concatStr } from "../util/appUtil";
 
-import Application from "../application";
-import tcpServer from "./tcpServer";
-import { SocketProxy, loggerType, componentName, rpcErr, rpcMsg } from "../util/interfaceDefine";
-import define = require("../util/define");
-
-let app: Application;
-let servers: { [id: string]: rpc_server_proxy } = {};
-
-export function start(_app: Application, cb: Function) {
-    app = _app;
-    tcpServer(app.port, startCb, newClientCb);
+export function start(app: Application, cb: () => void) {
+    tcpServer(app.port, app.rpcConfig.maxLen || define.some_config.SocketBufferMaxLen, startCb, newClientCb);
 
     function startCb() {
-        let str = "server start: " + app.host + ":" + app.port + " / " + app.serverId;
+        let str = concatStr("listening at [", app.host, ":", app.port, "]  ", app.serverId);
         console.log(str);
-        app.logger(loggerType.info, componentName.rpcServer, str);
-        cb && cb();
+        app.logger(loggerType.info, str);
+        cb();
     }
+
     function newClientCb(socket: SocketProxy) {
-        new rpc_server_proxy(socket);
+        new RpcServerSocket(app, socket);
     }
 }
 
-
-class rpc_server_proxy {
+class RpcServerSocket {
+    private app: Application;
     private socket: SocketProxy;
-    private sid: string = "";
-    private heartbeat_timer: NodeJS.Timeout = null as any;
+    private id: string = "";
     private registered: boolean = false;
-    private register_timer: NodeJS.Timeout;
-    constructor(socket: SocketProxy) {
+    private registerTimer: NodeJS.Timer = null as any;
+    private heartbeatTimer: NodeJS.Timer = null as any;
+    constructor(app: Application, socket: SocketProxy) {
+        this.app = app;
         this.socket = socket;
         socket.on("data", this.onData.bind(this));
         socket.on("close", this.onClose.bind(this));
-
-        this.register_timer = setTimeout(function () {
-            app.logger(loggerType.warn, componentName.rpcServer, "register time out, close it: " + socket.socket.remoteAddress);
+        this.registerTimer = setTimeout(function () {
+            app.logger(loggerType.error, concatStr("register timeout, close rpc socket, ", socket.remoteAddress));
             socket.close();
         }, 10000);
-
-        this.heartBeat_handle();
-    }
-
-
-    /**
-     * 发送消息
-     * @param buf
-     */
-    send(buf: Buffer) {
-        this.socket.send(buf);
     }
 
     /**
@@ -59,17 +43,38 @@ class rpc_server_proxy {
      * @param data
      */
     private onData(data: Buffer) {
-        let type = data.readUInt8(0);
-        if (type === define.Rpc_Client_To_Server.msg) {
-            this.msg_handle(data);
-        } else if (type === define.Rpc_Client_To_Server.register) {
-            this.register_handle(data);
-        } else if (type === define.Rpc_Client_To_Server.heartbeat) {
-            this.heartBeat_handle();
-            this.heartbeatResponse();
-        } else {
-            app.logger(loggerType.warn, componentName.rpcServer, "illegal data, close rpc client named " + this.sid);
-            this.socket.close();
+        try {
+            let type = data.readUInt8(0);
+            if (type === define.Rpc_Msg.clientMsgIn) {
+                if (!this.registered) return this.socket.close();
+                this.app.backendServer.handleMsg(this.id, data);
+            }
+            else if (type === define.Rpc_Msg.clientMsgOut) {
+                if (!this.registered) return this.socket.close();
+                this.app.frontendServer.sendMsgByUids(data);
+            }
+            else if (type === define.Rpc_Msg.rpcMsg) {
+                if (!this.registered) return this.socket.close();
+                rpcService.handleMsg(this.id, data);
+            }
+            else if (type === define.Rpc_Msg.applySession) {
+                if (!this.registered) return this.socket.close();
+                this.app.frontendServer.applySession(data);
+            }
+            else if (type === define.Rpc_Msg.register) {
+                this.registerHandle(data);
+            }
+            else if (type === define.Rpc_Msg.heartbeat) {
+                if (!this.registered) return this.socket.close();
+                this.heartbeatHandle();
+                this.heartbeatResponse();
+            }
+            else {
+                this.app.logger(loggerType.error, concatStr("illegal data type, close rpc client named " + this.id));
+                this.socket.close();
+            }
+        } catch (e) {
+            this.app.logger(loggerType.error, e.stack);
         }
     }
 
@@ -77,52 +82,65 @@ class rpc_server_proxy {
      * socket连接关闭了
      */
     private onClose() {
-        clearTimeout(this.register_timer);
-        clearTimeout(this.heartbeat_timer);
+        clearTimeout(this.registerTimer);
+        clearTimeout(this.heartbeatTimer);
         if (this.registered) {
-            delete servers[this.sid];
+            this.app.rpcPool.removeSocket(this.id);
         }
+        this.app.logger(loggerType.error, concatStr("a rpc client disconnected, ", this.id, ", ", this.socket.remoteAddress));
     }
 
     /**
      * 注册
-     * @param data
      */
-    private register_handle(_data: Buffer) {
-        let data: any;
+    private registerHandle(msg: Buffer) {
+        clearTimeout(this.registerTimer);
+        let data: { "id": string, "serverToken": string };
         try {
-            data = JSON.parse(_data.slice(1).toString());
+            data = JSON.parse(msg.slice(1).toString());
         } catch (err) {
-            app.logger(loggerType.warn, componentName.rpcServer, "register JSON parse error，close it:" + this.socket.socket.remoteAddress);
+            this.app.logger(loggerType.error, concatStr("JSON parse error，close the rpc socket, ", this.socket.remoteAddress));
             this.socket.close();
             return;
         }
 
-        if (data.serverToken !== app.serverToken) {
-            app.logger(loggerType.warn, componentName.rpcServer, "illegal serverToken, close it: " + this.socket.socket.remoteAddress);
+        if (data.serverToken !== this.app.serverToken) {
+            this.app.logger(loggerType.error, concatStr("illegal serverToken, close the rpc socket, ", this.socket.remoteAddress));
             this.socket.close();
             return;
         }
-        if (!!servers[data.sid]) {
-            app.logger(loggerType.warn, componentName.rpcServer, "already has a rpc client named " + data.sid + ", close it: " + this.socket.socket.remoteAddress);
+        if (this.app.rpcPool.hasSocket(data.id)) {
+            this.app.logger(loggerType.error, concatStr("already has a rpc client named ", data.id, ", close it, ", this.socket.remoteAddress));
             this.socket.close();
             return;
         }
-        clearTimeout(this.register_timer);
+        if (this.app.serverId <= data.id) {
+            this.socket.close();
+            return;
+        }
         this.registered = true;
-        this.sid = data.sid;
-        servers[this.sid] = this;
-        app.logger(loggerType.info, componentName.rpcServer, "get new rpc client named  " + this.sid);
+        this.id = data.id;
+        this.app.rpcPool.addSocket(this.id, this.socket);
+
+        this.app.logger(loggerType.info, concatStr("get new rpc client named ", this.id));
+
+        // 注册成功，回应
+        let buffer = Buffer.allocUnsafe(5);
+        buffer.writeUInt32BE(1, 0);
+        buffer.writeUInt8(define.Rpc_Msg.register, 4);
+        this.socket.send(buffer);
+        this.heartbeatHandle();
+
     }
 
     /**
      * 心跳
      */
-    private heartBeat_handle() {
+    private heartbeatHandle() {
         let self = this;
-        clearTimeout(this.heartbeat_timer);
-        this.heartbeat_timer = setTimeout(function () {
-            app.logger(loggerType.warn, componentName.rpcServer, " heartBeat time out : " + self.sid);
+        clearTimeout(this.heartbeatTimer);
+        this.heartbeatTimer = setTimeout(function () {
+            self.app.logger(loggerType.warn, concatStr("heartBeat time out, close it, " + self.id));
             self.socket.close();
         }, define.some_config.Time.Rpc_Heart_Beat_Time * 1000 * 2);
     }
@@ -133,39 +151,7 @@ class rpc_server_proxy {
     private heartbeatResponse() {
         let buffer = Buffer.allocUnsafe(5);
         buffer.writeUInt32BE(1, 0);
-        buffer.writeUInt8(define.Rpc_Server_To_Client.heartbeatResponse, 4);
-        this.send(buffer);
-    }
-
-    /**
-     * 中转rpc消息
-     * @param msgBuf
-     */
-    private msg_handle(msgBuf: Buffer) {
-        if (!this.registered) {
-            return;
-        }
-        let iMsgLen = msgBuf.readUInt8(6);
-        let iMsg: rpcMsg = JSON.parse(msgBuf.slice(7, 7 + iMsgLen).toString());
-        let server = servers[iMsg.to];
-        if (server) {
-            server.send(msgBuf.slice(1));
-        } else if (iMsg.id && iMsg.from) {
-            let iMsgBuf = Buffer.from(JSON.stringify({
-                "id": iMsg.id
-            }));
-            let msgBuf2 = Buffer.from(JSON.stringify([rpcErr.rpc_has_no_end]));
-            let buffer = Buffer.allocUnsafe(6 + iMsgBuf.length + msgBuf2.length);
-            buffer.writeUInt32BE(iMsgBuf.length + msgBuf2.length + 2, 0);
-            buffer.writeUInt8(define.Rpc_Server_To_Client.msg, 4);
-            buffer.writeUInt8(iMsgBuf.length, 5);
-            iMsgBuf.copy(buffer, 6);
-            msgBuf2.copy(buffer, 6 + iMsgBuf.length);
-            this.send(buffer);
-        }
-    }
-
-    public close() {
-        this.socket.close();
+        buffer.writeUInt8(define.Rpc_Msg.heartbeat, 4);
+        this.socket.send(buffer);
     }
 }

@@ -4,19 +4,13 @@
 
 
 import Application from "../application";
-import { rpcRouteFunc, ServerInfo, rpcTimeout, SocketProxy, loggerType, componentName, rpcErr, rpcMsg } from "../util/interfaceDefine";
+import { rpcRouteFunc, rpcTimeout, rpcErr, rpcMsg } from "../util/interfaceDefine";
 import * as path from "path";
 import * as fs from "fs";
 import define = require("../util/define");
-import { TcpClient } from "./tcpClient";
 
 let app: Application;
 let rpcRouter: { [serverType: string]: rpcRouteFunc };
-let servers: { [serverType: string]: ServerInfo[] };
-let serversIdMap: { [id: string]: ServerInfo };
-let connectingClients: { [id: string]: rpc_client_proxy } = {};
-let client_index = 1;
-let clients: rpc_client_proxy[] = [];
 let msgHandler: { [filename: string]: any } = {};
 let rpcId = 1;  // 必须从1开始，不可为0
 let rpcRequest: { [id: number]: rpcTimeout } = {};
@@ -29,51 +23,36 @@ let rpcTimeMax: number = 10 * 1000;
 export function init(_app: Application) {
     app = _app;
     rpcRouter = app.rpcRouter;
-    servers = app.servers;
-    serversIdMap = app.serversIdMap;
-    let rpcConfig = app.rpcConfig;
-    if (rpcConfig) {
-        if (rpcConfig.hasOwnProperty("timeOut") && Number(rpcConfig["timeOut"]) > 5) {
-            rpcTimeMax = Number(rpcConfig["timeOut"]) * 1000;
-        }
+    if (app.rpcConfig.hasOwnProperty("timeout") && Number(app.rpcConfig["timeout"]) > 5) {
+        rpcTimeMax = Number(app.rpcConfig["timeout"]) * 1000;
     }
     new rpc_create();
 }
 
-/**
- * 新增rpc server
- * @param server 
- */
-export function addRpcServer(server: ServerInfo) {
-    if (connectingClients[server.id]) {
-        connectingClients[server.id].close();
-    } else {
-        for (let i = 0; i < clients.length; i++) {
-            if (clients[i].id === server.id) {
-                clients[i].close();
-                break;
-            }
-        }
-    }
 
-    new rpc_client_proxy(server);
+/**
+ * 处理rpc消息
+ */
+export function handleMsg(id: string, msg: Buffer) {
+    let data = JSON.parse(msg.slice(1).toString());
+    let rpcInvoke: rpcMsg = data.pop();
+    if (!rpcInvoke.route) {
+        let timeout = rpcRequest[rpcInvoke.id as number];
+        if (timeout) {
+            delRequest(rpcInvoke.id as number);
+            clearTimeout(timeout.timer);
+            timeout.cb.apply(null, data);
+        }
+    } else {
+        let cmd = (rpcInvoke.route as string).split('.');
+        if (rpcInvoke.id) {
+            data.push(getCallBackFunc(id, rpcInvoke.id));
+        }
+        let file = msgHandler[cmd[0]];
+        file[cmd[1]].apply(file, data);
+    }
 }
 
-/**
- * 移除rpc server
- * @param id 
- */
-export function removeRpcServer(id: string) {
-    for (let i = 0; i < clients.length; i++) {
-        if (clients[i].id === id) {
-            clients[i].close();
-            return;
-        }
-    }
-    if (connectingClients[id]) {
-        connectingClients[id].close();
-    }
-};
 
 const enum rpc_type {
     route,
@@ -173,11 +152,6 @@ class rpc_create {
         }
 
         let cbFunc = function (sid: string) {
-            if (!serversIdMap[sid]) {
-                cb && cb(rpcErr.src_has_no_end);
-                return;
-            }
-
             if (sid === app.serverId) {
                 if (cb) {
                     let timeout = {
@@ -192,15 +166,12 @@ class rpc_create {
                 return;
             }
 
-            let client = getRpcSocket();
-            if (!client) {
-                cb && cb(rpcErr.src_has_no_rpc);
+            if (!app.rpcPool.hasSocket(sid)) {
+                cb && cb(rpcErr.noServer);
                 return;
             }
 
             let rpcInvoke: rpcMsg = {
-                "from": app.serverId,
-                "to": sid,
                 "route": file_method
             };
             if (cb) {
@@ -210,17 +181,18 @@ class rpc_create {
                     "timer": null as any
                 }
                 createRpcTimeout(timeout);
-                rpcInvoke["id"] = timeout.id;
+                rpcInvoke.id = timeout.id;
             }
-            sendRpcMsg(client, rpcInvoke, args);
+            args.push(rpcInvoke);
+            sendRpcMsg(sid, args);
         };
 
         let tmpRouter = rpcRouter[serverType];
         if (tmpRouter) {
             tmpRouter(app, routeParam, cbFunc);
         } else {
-            let list = servers[serverType];
-            if (!list || !list.length) {
+            let list = app.getServersByType(serverType);
+            if (list.length === 0) {
                 cbFunc("");
             } else {
                 let index = Math.floor(Math.random() * list.length);
@@ -229,8 +201,8 @@ class rpc_create {
         }
     }
 
-    proxyCbSendToServer(toServerId: string, serverType: string, file_method: string, args: any[]) {
-        if (toServerId === "*") {
+    proxyCbSendToServer(sid: string, serverType: string, file_method: string, args: any[]) {
+        if (sid === "*") {
             this.proxyCbSendToServerType(serverType, file_method, args);
             return;
         }
@@ -240,12 +212,7 @@ class rpc_create {
             cb = args.pop();
         }
 
-        if (!serversIdMap[toServerId]) {
-            cb && cb(rpcErr.src_has_no_end);
-            return;
-        }
-
-        if (toServerId === app.serverId) {
+        if (sid === app.serverId) {
             if (cb) {
                 let timeout = {
                     "id": getRpcId(),
@@ -259,15 +226,12 @@ class rpc_create {
             return;
         }
 
-        let client = getRpcSocket();
-        if (!client) {
-            cb && cb(rpcErr.src_has_no_rpc);
+        if (!app.rpcPool.hasSocket(sid)) {
+            cb && cb(rpcErr.noServer);
             return;
         }
 
         let rpcInvoke: rpcMsg = {
-            "from": app.serverId,
-            "to": toServerId,
             "route": file_method
         };
         if (cb) {
@@ -279,7 +243,8 @@ class rpc_create {
             createRpcTimeout(timeout);
             rpcInvoke.id = timeout.id;
         }
-        sendRpcMsg(client, rpcInvoke, args);
+        args.push(rpcInvoke)
+        sendRpcMsg(sid, args);
     }
 
     proxyCbSendToServerType(serverType: string, file_method: string, args: any[]) {
@@ -288,11 +253,11 @@ class rpc_create {
             cb = args.pop();
         }
         let endTo: string[] = [];
-        if (servers[serverType]) {
-            for (let i = 0; i < servers[serverType].length; i++) {
-                endTo.push(servers[serverType][i].id);
-            }
+        let servers = app.getServersByType(serverType);
+        for (let i = 0; i < servers.length; i++) {
+            endTo.push(servers[i].id);
         }
+
         if (endTo.length === 0) {
             cb && cb({});
             return;
@@ -337,14 +302,11 @@ class rpc_create {
                 return;
             }
 
-            let client = getRpcSocket();
-            if (!client) {
-                callback && callback(rpcErr.src_has_no_rpc);
+            if (!app.rpcPool.hasSocket(toId)) {
+                callback && callback(rpcErr.noServer);
                 return;
             }
             let rpcInvoke: rpcMsg = {
-                "from": app.serverId,
-                "to": toId,
                 "route": file_method
             };
             if (callback) {
@@ -354,9 +316,9 @@ class rpc_create {
                     "timer": null as any
                 }
                 createRpcTimeout(timeout);
-                rpcInvoke["id"] = timeout.id;
+                rpcInvoke.id = timeout.id;
             }
-            sendRpcMsg(client, rpcInvoke, args);
+            sendRpcMsg(toId, [...args, rpcInvoke]);
         }
     }
 }
@@ -370,7 +332,7 @@ function createRpcTimeout(timeout: rpcTimeout) {
     rpcRequest[timeout.id] = timeout;
     timeout.timer = setTimeout(function () {
         delRequest(timeout.id);
-        timeout.cb(rpcErr.rpc_time_out);
+        timeout.cb(rpcErr.timeout);
     }, rpcTimeMax);
 }
 
@@ -385,47 +347,22 @@ function getRpcId() {
     return id;
 }
 
-/**
- * 获取一个rpc socket
- */
-function getRpcSocket() {
-    let socket = null;
-    if (clients.length) {
-        socket = clients[client_index % clients.length];
-        client_index = (client_index + 1) % clients.length;
-    }
-    return socket;
-}
-
-
 
 /**
- * 发送给rpc服务器，进行中转
- * @param client 
- * @param iMsg 内部导向消息
- * @param msg 用户传输消息
- * 
- *  消息格式如下:
- * 
- *    [4]        [1]         [4]         [1]         [1]      [...]      [...]
- *  allMsgLen   msgType    rpcMsgLen  rpcMsgType   iMsgLen    iMsg        msg
- * 
+ * 发送rpc消息
  */
-function sendRpcMsg(client: rpc_client_proxy, iMsg: rpcMsg, msg: any) {
-    let iMsgBuf = Buffer.from(JSON.stringify(iMsg));
+function sendRpcMsg(sid: string, msg: any) {
     let msgBuf = Buffer.from(JSON.stringify(msg));
-    let buf = Buffer.allocUnsafe(11 + iMsgBuf.length + msgBuf.length);
-    buf.writeUInt32BE(7 + iMsgBuf.length + msgBuf.length, 0);
-    buf.writeUInt8(define.Rpc_Client_To_Server.msg, 4);
-    buf.writeUInt32BE(2 + iMsgBuf.length + msgBuf.length, 5);
-    buf.writeUInt8(define.Rpc_Server_To_Client.msg, 9);
-    buf.writeUInt8(iMsgBuf.length, 10);
-    iMsgBuf.copy(buf, 11);
-    msgBuf.copy(buf, 11 + iMsgBuf.length);
-    client.send(buf);
+    let buf = Buffer.allocUnsafe(5 + msgBuf.length);
+    buf.writeUInt32BE(1 + msgBuf.length, 0);
+    buf.writeUInt8(define.Rpc_Msg.rpcMsg, 4);
+    msgBuf.copy(buf, 5);
+    app.rpcPool.sendMsg(sid, buf);
 }
 
-
+/**
+ * 给本服务器发送rpc消息
+ */
 function sendRpcMsgToSelf(route: string, msg: any[]) {
     let cmd = route.split('.');
     let file = msgHandler[cmd[0]];
@@ -441,20 +378,16 @@ function delRequest(id: number) {
 }
 
 
-
 /**
  * rpc回调
  */
-function getCallBackFunc(to: string, id: number) {
+function getCallBackFunc(sid: string, id: number) {
     return function (...args: any[]) {
         let rpcInvoke: rpcMsg = {
-            "to": to,
             "id": id
         };
-        let client = getRpcSocket();
-        if (client) {
-            sendRpcMsg(client, rpcInvoke, args);
-        }
+        args.push(rpcInvoke);
+        sendRpcMsg(sid, args);
     }
 }
 
@@ -469,153 +402,6 @@ function getCallBackFuncSelf(id: number) {
             clearTimeout(timeout.timer);
             timeout.cb.apply(null, args);
         }
-    }
-}
-
-
-/**
- * rpc socket
- */
-class rpc_client_proxy {
-    public id: string;
-    private host: string;
-    private port: number;
-    private socket: SocketProxy = null as any;
-    private connect_timer: NodeJS.Timer = null as any;
-    private heartbeat_timer: NodeJS.Timer = null as any;
-    private heartbeat_timeout_timer: NodeJS.Timer = null as any;
-    private die: boolean = false;
-
-    constructor(server: ServerInfo) {
-        this.id = server.id;
-        this.host = server.host;
-        this.port = server.port;
-        this.doConnect(0);
-    }
-
-    private doConnect(delay: number) {
-        if (this.die) {
-            return;
-        }
-        let self = this;
-        connectingClients[self.id] = this;
-        this.connect_timer = setTimeout(function () {
-            let connectCb = function () {
-                app.logger(loggerType.info, componentName.rpcService, " connect to rpc server " + self.id + " success");
-
-                delete connectingClients[self.id];
-                clients.push(self);
-
-                // 注册
-                let loginBuf = Buffer.from(JSON.stringify({
-                    sid: app.serverId,
-                    serverToken: app.serverToken
-                }));
-                let buf = Buffer.allocUnsafe(loginBuf.length + 5);
-                buf.writeUInt32BE(loginBuf.length + 1, 0);
-                buf.writeUInt8(define.Rpc_Client_To_Server.register, 4);
-                loginBuf.copy(buf, 5);
-                tmpClient.send(buf);
-
-                // 心跳包
-                self.heartbeat();
-            };
-            let tmpClient = new TcpClient(self.port, self.host, connectCb);
-            app.logger(loggerType.info, componentName.rpcService, " try to connect to rpc server " + self.id);
-            self.socket = tmpClient;
-            tmpClient.on("data", self.onData.bind(self));
-            tmpClient.on("close", self.onClose.bind(self));
-
-        }, delay);
-    }
-
-
-
-    private removeFromClients() {
-        let index = clients.indexOf(this);
-        if (index !== -1) {
-            clients.splice(index, 1);
-        }
-    }
-
-    private onClose() {
-        clearTimeout(this.heartbeat_timer);
-        clearTimeout(this.heartbeat_timeout_timer);
-        this.removeFromClients();
-        this.socket = null as any;
-        app.logger(loggerType.warn, componentName.rpcService, "socket closed, reconnect the rpc server " + this.id + " later");
-        this.doConnect(define.some_config.Time.Rpc_Reconnect_Time * 1000);
-    }
-
-    private heartbeat() {
-        let self = this;
-        let timeDelay = define.some_config.Time.Rpc_Heart_Beat_Time * 1000 - 5000 + Math.floor(5000 * Math.random());
-        this.heartbeat_timer = setTimeout(function () {
-            let buf = Buffer.allocUnsafe(5);
-            buf.writeUInt32BE(1, 0);
-            buf.writeUInt8(define.Rpc_Client_To_Server.heartbeat, 4);
-            self.send(buf);
-            self.heartbeatTimeout();
-            self.heartbeat();
-        }, timeDelay)
-    }
-
-    private heartbeatTimeout() {
-        let self = this;
-        this.heartbeat_timeout_timer = setTimeout(function () {
-            app.logger(loggerType.warn, componentName.rpcService, "heartbeat timeout, close the socket " + self.id);
-            self.socket.close();
-        }, define.some_config.Time.Rpc_Heart_Beat_Timeout_Time * 1000)
-
-    }
-
-    send(buf: Buffer) {
-        this.socket.send(buf);
-    }
-
-    private onData(data: Buffer) {
-        let type = data.readUInt8(0);
-        if (type === define.Rpc_Server_To_Client.msg) {
-            try {
-                this.dealMsg(data);
-            } catch (e) {
-                app.logger(loggerType.error, componentName.rpcService, e);
-            }
-        } else if (type === define.Rpc_Server_To_Client.heartbeatResponse) {
-            clearTimeout(this.heartbeat_timeout_timer);
-        }
-    }
-
-    private dealMsg(data: Buffer) {
-        let iMsgLen = data.readUInt8(1);
-        let iMsg: rpcMsg = JSON.parse(data.slice(2, 2 + iMsgLen).toString());
-        let msg = JSON.parse(data.slice(2 + iMsgLen).toString());
-        if (!iMsg.from) {
-            let timeout = rpcRequest[iMsg.id as number];
-            if (timeout) {
-                delRequest(iMsg.id as number);
-                clearTimeout(timeout.timer);
-                timeout.cb.apply(null, msg);
-            }
-        } else {
-            let cmd = (iMsg.route as string).split('.');
-            if (iMsg.id) {
-                msg.push(getCallBackFunc(iMsg.from, iMsg.id));
-            }
-            let file = msgHandler[cmd[0]];
-            file[cmd[1]].apply(file, msg);
-        }
-    }
-
-    close() {
-        this.die = true;
-        if (this.socket) {
-            this.socket.close();
-        }
-        if (connectingClients[this.id] = this) {
-            delete connectingClients[this.id];
-        }
-        clearTimeout(this.connect_timer);
     }
 }
 

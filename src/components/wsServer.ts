@@ -5,24 +5,27 @@
 
 import { EventEmitter } from "events";
 import { SocketProxy } from "../util/interfaceDefine";
-import { decode } from "./msgCoder";
-let ws = require("ws");
+import * as ws from "ws";
 
-export default function wsServer(port: number, startCb: () => void, newClientCb: (socket: SocketProxy) => void) {
+export default function wsServer(port: number, maxLen: number, startCb: () => void, newClientCb: (socket: SocketProxy) => void) {
     let server = new ws.Server({ "port": port }, startCb);
-    server.on("connection", function (socket: any) {
-        newClientCb(new WsSocket(socket));
+    server.on("connection", function (socket, req) {
+        newClientCb(new WsSocket(socket, req.connection.remoteAddress as string, maxLen));
     });
 }
 
 class WsSocket extends EventEmitter implements SocketProxy {
     die: boolean = false;
+    remoteAddress: string = "";
     socket: any;
+    maxLen: number;
     len: number = 0;
     buffer: Buffer = Buffer.allocUnsafe(0);
-    constructor(socket: any) {
+    constructor(socket: any, remoteAddress: string, maxLen: number) {
         super();
         this.socket = socket;
+        this.maxLen = maxLen;
+        this.remoteAddress = remoteAddress;
         socket.on("close", (err: any) => {
             if (!this.die) {
                 this.die = true;
@@ -35,9 +38,9 @@ class WsSocket extends EventEmitter implements SocketProxy {
                 this.emit("close", err);
             }
         });
-        socket.on("data", (data: Buffer) => {
+        socket.on("message", (data: Buffer) => {
             if (!this.die) {
-                decode(this, data);
+                this.emit("data", data);
             } else {
                 this.close()
             }

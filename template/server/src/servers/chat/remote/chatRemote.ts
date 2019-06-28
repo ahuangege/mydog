@@ -23,12 +23,12 @@ class remote {
     }
 
     getRooms(cb: (err: rpcErr, data: Proto.connector_main_getChatInfo_rsp) => void) {
-        cb(rpcErr.no_err, this.roomMgr.getRooms());
+        cb(rpcErr.ok, this.roomMgr.getRooms());
     };
 
     newRoom(msg: Proto.connector_main_newRoom_req, cb: (err: rpcErr, info: Proto.join_room_rsp) => void) {
         let info = this.roomMgr.newRoom(msg);
-        cb(rpcErr.no_err, info);
+        cb(rpcErr.ok, info);
     };
 
     joinRoom(msg: Proto.connector_main_newRoom_req, cb: (err: rpcErr, info: Proto.join_room_rsp) => void) {
@@ -37,6 +37,7 @@ class remote {
     };
 
     leaveRoom(msg: { "roomId": number, "playerId": number }) {
+        console.log("leaveRoom")
         this.roomMgr.leaveRoom(msg.roomId, msg.playerId);
     };
 }

@@ -9,22 +9,15 @@ export let some_config = {
 
         Rpc_Reconnect_Time: 5,
         Rpc_Heart_Beat_Time: 60,
-        Rpc_Heart_Beat_Timeout_Time: 10,
-
-        Remote_Reconnect_Time: 5,
-        Remote_Heart_Beat_Time: 60,
-        Remote_Heart_Beat_Timeout_Time: 10
+        Rpc_Heart_Beat_Timeout_Time: 20,
     },
     File_Dir: {
         Servers: "servers",
         Config: "config/sys"
     },
-    Connector: {
-        Net: "net",
-        Ws: "ws"
-    },
     Server_Token: "hi,i am inner server",
-    Master_Client_Token: "hi,i am client",
+    Cli_Token: "hi,i am cli",
+    SocketBufferMaxLen: 10 * 1024 * 1024
 }
 
 /**
@@ -59,51 +52,28 @@ export const enum Cli_To_Master {
  * client to server 消息类型
  */
 export const enum Client_To_Server {
-    handshake = 1,
-    heartbeat = 2,
-    msg = 3
+    msg = 1,
+    handshake = 2,
+    heartbeat = 3,
 }
 
 /**
  * server to client 消息类型
  */
 export const enum Server_To_Client {
-    handshake = 1,
-    msg = 2,
+    msg = 1,
+    handshake = 2,
     heartbeatResponse = 3
 }
 
 /**
- * front to back 消息类型
+ * 内部用户服务器消息类型
  */
-export const enum Front_To_Back {
-    register = 1,
-    heartbeat = 2,
-    msg = 3
-}
-
-/**
- * back to front 消息类型
- */
-export const enum Back_To_Front {
-    msg = 1,
-    applySession = 2,
-    heartbeatResponse = 3
-}
-
-/**
- * rpc_client to rpc_server 消息类型
- */
-export const enum Rpc_Client_To_Server {
-    register = 1,
-    heartbeat = 2,
-    msg = 3
-}
-
-/**
- * rpc_server to rpc_client 消息类型
- */
-export const enum Rpc_Server_To_Client {
-    msg = 1,
-    heartbeatResponse = 2
+export const enum Rpc_Msg {
+    register = 1,           // 注册
+    heartbeat = 2,          // 心跳
+    applySession = 3,       // 后端向前端同步session
+    clientMsgIn = 4,        // 收到客户端消息
+    clientMsgOut = 5,       // 向客户端发送消息
+    rpcMsg = 6              // rpc消息
 }

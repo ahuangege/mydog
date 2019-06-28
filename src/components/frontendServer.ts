@@ -1,242 +1,236 @@
-/**
- * 前端服务器启动监听端口，接受客户端的连接，并路由消息
- */
-
 
 import Application from "../application";
-import { setEncode, encodeClientData } from "./msgCoder";
 import define = require("../util/define");
 import * as path from "path";
 import * as fs from "fs";
-import wsServer from "./wsServer";
-import tcpServer from "./tcpServer";
-import { SocketProxy, loggerType, componentName, decode_func } from "../util/interfaceDefine";
+import { loggerType, I_connectorConstructor, I_clientSocket, I_clientManager, routeFunc, sessionApplyJson, encodeDecode } from "../util/interfaceDefine";
 import { Session, initSessionApp } from "./session";
-import * as remoteFrontend from "./remoteFrontend";
 
-let app: Application;
-let serverType: string;
-let routeConfig: string[];
-let handshakeBuf: Buffer;
-let heartbeatBuf: Buffer;
-let msgHandler: { [filename: string]: any } = {};
-let decode: decode_func | null = null;
-let client_heartbeat_time: number = 0;
-let maxConnectionNum = Number.POSITIVE_INFINITY;
+import * as protocol from "../connector/protocol";
+import { concatStr } from "../util/appUtil";
 
-
-export function start(_app: Application, cb: Function) {
-    app = _app;
-    serverType = app.serverType;
-    routeConfig = app.routeConfig;
-    let connectorConfig = app.connectorConfig;
-    if (connectorConfig) {
-        if (connectorConfig.hasOwnProperty("heartbeat") && Number(connectorConfig.heartbeat) >= 5) {
-            client_heartbeat_time = Number(connectorConfig.heartbeat) * 1000;
-        }
-        if (connectorConfig.hasOwnProperty("maxConnectionNum") && Number(connectorConfig.maxConnectionNum) > 0) {
-            maxConnectionNum = Number(connectorConfig.maxConnectionNum);
-        }
-    }
-    let encodeDecodeConfig = app.encodeDecodeConfig;
-    if (encodeDecodeConfig) {
-        decode = encodeDecodeConfig.decode || null;
-        setEncode(encodeDecodeConfig.encode);
+export class FrontendServer {
+    private app: Application;
+    constructor(app: Application) {
+        this.app = app;
     }
 
-    // 握手buffer
-    let routeBuf = Buffer.from(JSON.stringify({ "route": routeConfig, "heartbeat": client_heartbeat_time / 1000 }));
-    handshakeBuf = Buffer.alloc(routeBuf.length + 5);
-    handshakeBuf.writeUInt32BE(routeBuf.length + 1, 0);
-    handshakeBuf.writeUInt8(define.Server_To_Client.handshake, 4);
-    routeBuf.copy(handshakeBuf, 5);
+    /**
+     * 启动
+     */
+    start(cb: Function) {
+        initSessionApp(this.app);
 
-    // 心跳buffer
-    heartbeatBuf = Buffer.alloc(5);
-    heartbeatBuf.writeUInt32BE(1, 0);
-    heartbeatBuf.writeUInt8(define.Server_To_Client.heartbeatResponse, 4);
+        let self = this;
+        let startCb = function () {
+            let str = concatStr("listening at [", self.app.host, ":", self.app.clientPort, "]  ", self.app.serverId, " (clientPort)");
+            console.log(str);
+            self.app.logger(loggerType.info, str);
+            cb && cb();
+        };
+        protocol.init(this.app);
+        let mydog = require("../mydog");
+        let connectorConstructor: I_connectorConstructor = this.app.connectorConfig.connector || mydog.connector.connectorTcp;
+        let defaultEncodeDecode: encodeDecode;
+        if (connectorConstructor === mydog.connector.connectorTcp) {
+            defaultEncodeDecode = protocol.Tcp_EncodeDecode;
+        } else if (connectorConstructor === mydog.connector.connectorWs) {
+            defaultEncodeDecode = protocol.Ws_EncodeDecode;
+        } else {
+            defaultEncodeDecode = protocol.Tcp_EncodeDecode;
+        }
+        this.app.protoEncode = this.app.encodeDecodeConfig.protoEncode || defaultEncodeDecode.protoEncode;
+        this.app.msgEncode = this.app.encodeDecodeConfig.msgEncode || defaultEncodeDecode.msgEncode;
+        this.app.protoDecode = this.app.encodeDecodeConfig.protoDecode || defaultEncodeDecode.protoDecode;
+        this.app.msgDecode = this.app.encodeDecodeConfig.msgDecode || defaultEncodeDecode.msgDecode;
 
-
-    initSessionApp(app);
-    loadHandler();
-    startServer(cb);
-}
-
-/**
- * 前端服务器加载路由处理
- */
-function loadHandler() {
-    let dirName = path.join(app.base, define.some_config.File_Dir.Servers, app.serverType, "handler");
-    let exists = fs.existsSync(dirName);
-    if (exists) {
-        fs.readdirSync(dirName).forEach(function (filename) {
-            if (!/\.js$/.test(filename)) {
-                return;
-            }
-            let name = path.basename(filename, '.js');
-            let handler = require(path.join(dirName, filename));
-            if (handler.default && typeof handler.default === "function") {
-                msgHandler[name] = new handler.default(app);
-            } else if (typeof handler === "function") {
-                msgHandler[name] = new handler(app);
-            }
+        let heartbeat = 0;
+        if (this.app.connectorConfig.heartbeat && Number(this.app.connectorConfig.heartbeat) > 5) {
+            heartbeat = Number(this.app.connectorConfig.heartbeat);
+        }
+        new connectorConstructor({
+            "app": this.app,
+            "config": { "route": this.app.routeConfig, "heartbeat": heartbeat, "maxLen": this.app.connectorConfig.maxLen || define.some_config.SocketBufferMaxLen },
+            "clientManager": new ClientManager(this.app),
+            "startCb": startCb
         });
     }
+
+    /**
+     * 同步session
+     */
+    applySession(data: Buffer) {
+        let session = JSON.parse(data.slice(1).toString()) as sessionApplyJson;
+        let client = this.app.clients[session.uid];
+        if (client) {
+            client.session.setAll(session);
+        }
+    }
+    /**
+     * 前端服将后端服的消息转发给客户端
+     */
+    sendMsgByUids(data: Buffer) {
+        let uidBuffLen = data.readUInt16BE(1);
+        let uids = JSON.parse(data.slice(3, 3 + uidBuffLen).toString());
+        let msgBuf = data.slice(3 + uidBuffLen);
+        let clients = this.app.clients;
+        let client: I_clientSocket;
+        for (let i = 0; i < uids.length; i++) {
+            client = clients[uids[i]];
+            if (client) {
+                client.send(msgBuf);
+            }
+        }
+    }
+
 }
 
-/**
- * 启动服务器，监听端口
- */
-function startServer(cb: Function) {
-    let startCb = function () {
-        let str = "server start: " + app.host + ":" + app.port + " / " + app.serverId;
-        console.log(str);
-        app.logger(loggerType.info, componentName.frontendServer, str);
-        cb && cb();
-    };
-    let newClientCb = function (socket: SocketProxy) {
-        if (app.clientNum >= maxConnectionNum) {
-            app.logger(loggerType.warn, componentName.frontendServer, "socket num has reached the Max  " + app.clientNum + " , close it");
-            socket.close();
+
+class ClientManager implements I_clientManager {
+    private app: Application;
+    private msgHandler: { [filename: string]: any } = {};
+    private maxConnectionNum: number = Number.POSITIVE_INFINITY;
+    private serverType: string = "";
+    private router: { [serverType: string]: routeFunc };
+    constructor(app: Application) {
+        this.app = app;
+        this.serverType = app.serverType;
+        this.router = this.app.router;
+        if (app.connectorConfig && app.connectorConfig.maxConnectionNum && Number(app.connectorConfig.maxConnectionNum) > 0) {
+            this.maxConnectionNum = Number(app.connectorConfig.maxConnectionNum);
+        }
+        this.loadHandler();
+    }
+
+    /**
+     * 前端服务器加载路由处理
+     */
+    private loadHandler() {
+        let dirName = path.join(this.app.base, define.some_config.File_Dir.Servers, this.serverType, "handler");
+        let exists = fs.existsSync(dirName);
+        if (exists) {
+            let self = this;
+            fs.readdirSync(dirName).forEach(function (filename) {
+                if (!/\.js$/.test(filename)) {
+                    return;
+                }
+                let name = path.basename(filename, '.js');
+                let handler = require(path.join(dirName, filename));
+                if (handler.default && typeof handler.default === "function") {
+                    self.msgHandler[name] = new handler.default(self.app);
+                } else if (typeof handler === "function") {
+                    self.msgHandler[name] = new handler(self.app);
+                }
+            });
+        }
+    }
+
+
+    addClient(client: I_clientSocket) {
+        if (!!client.session) {
+            this.app.logger(loggerType.error, concatStr("the I_client has already been added, close it"));
+            client.close();
             return;
         }
+        if (this.app.clientNum >= this.maxConnectionNum) {
+            this.app.logger(loggerType.error, concatStr("socket num has reached the Max ", this.app.clientNum, ", close it"));
+            client.close();
+            return;
+        }
+        this.app.clientNum++;
+
         let session = new Session();
-        session.sid = app.serverId;
-        session.socket = socket;
-        app.clientNum++;
-        heartbeat_handle(session);
-        socket.on('data', data_Switch.bind(null, session));
-        socket.on('close', socketClose.bind(null, session));
-    };
-
-    let configType = "";
-    if (app.connectorConfig) {
-        configType = app.connectorConfig.connector;
+        session.sid = this.app.serverId;
+        session.socket = client;
+        client.session = session;
     }
-    configType = configType === define.some_config.Connector.Ws ? define.some_config.Connector.Ws : define.some_config.Connector.Net;
 
-    if (configType === define.some_config.Connector.Ws) {
-        wsServer(app.port, startCb, newClientCb);
-    } else {
-        tcpServer(app.port, startCb, newClientCb);
+    removeClient(client: I_clientSocket) {
+        if (!client.session) {
+            return;
+        }
+        delete this.app.clients[client.session.uid];
+        this.app.clientNum--;
+        if (client.session._onclosed) {
+            client.session._onclosed(this.app, client.session);
+        }
+        client.session = null as any;
     }
-}
 
+    handleMsg(client: I_clientSocket, msgBuf: Buffer) {
+        try {
+            if (!client.session) {
+                this.app.logger(loggerType.error, concatStr("cannot handle msg before registered, close it, ", client.remoteAddress));
+                client.close();
+                return;
+            }
+            let data = this.app.protoDecode(msgBuf);
 
-/**
- * 客户端断开连接
- * @param session
- */
-function socketClose(session: Session) {
-    delete app.clients[session.uid];
-    app.clientNum--;
-    clearTimeout(session.heartbeat_timer);
-    if (session._onclosed) {
-        session._onclosed(app, session);
-    }
-}
+            let cmd = this.app.routeConfig[data.cmdId];
+            if (!cmd) {
+                this.app.logger(loggerType.warn, concatStr("route index out of range, ", data.cmdId, ", ", client.remoteAddress));
+                return;
+            }
 
-/**
- * 收到客户端消息
- */
-function data_Switch(session: Session, data: Buffer) {
-    let type = data.readUInt8(0);
-    try {
-        if (type === define.Client_To_Server.msg) {               // 普通的自定义消息
-            msg_handle(session, data);
-        } else if (type === define.Client_To_Server.heartbeat) {        // 心跳
-            heartbeat_handle(session);
-            heartbeatResponse(session);
-        } else if (type === define.Client_To_Server.handshake) {        // 握手
-            handshake_handle(session);
-        } else {
-            session.socket.close();
+            let cmdArr = cmd.split('.');
+            if (this.serverType === cmdArr[0]) {
+                let msg = this.app.msgDecode(data.cmdId, data.msg);
+                this.msgHandler[cmdArr[1]][cmdArr[2]](msg, client.session, this.callBack(client, data.cmdId));
+            } else {
+                this.doRemote(data.cmdId, data.msg, client.session, cmdArr[0]);
+            }
+        } catch (e) {
+            this.app.logger(loggerType.warn, concatStr("handleMsg err,", client.remoteAddress, "\n", e.stack));
         }
     }
-    catch (e) {
-        app.logger(loggerType.error, componentName.frontendServer, e);
-    }
-}
 
-
-/**
- * 握手
- * @param session
- */
-function handshake_handle(session: Session) {
-    if (session.registered) {
-        session.socket.close();
-        return;
-    }
-    session.registered = true;
-    session.socket.send(handshakeBuf);
-}
-
-/**
- * 心跳
- * @param session
- */
-function heartbeat_handle(session: Session) {
-    if (client_heartbeat_time === 0) {
-        return;
-    }
-    clearTimeout(session.heartbeat_timer);
-    session.heartbeat_timer = setTimeout(function () {
-        session.socket.close();
-    }, client_heartbeat_time * 2);
-}
-
-/**
- * 心跳回应
- * @param session 
- */
-function heartbeatResponse(session: Session) {
-    session.socket.send(heartbeatBuf);
-}
-
-/**
- * 自定义消息
- * @param session
- * @param msgBuf
- */
-function msg_handle(session: Session, msgBuf: Buffer) {
-    if (!session.registered) {
-        session.socket.close();
-        return;
-    }
-    let cmdId = msgBuf.readUInt8(1);
-    let cmd = routeConfig[cmdId];
-    if (!cmd) {
-        app.logger(loggerType.warn, componentName.frontendServer, "route index out of range: " + cmdId);
-        return;
-    }
-
-    let cmdArr = cmd.split('.');
-    if (serverType === cmdArr[0]) {
-        let msg: any;
-        if (decode) {
-            msg = decode(cmdId, msgBuf.slice(2), session);
-        } else {
-            msg = JSON.parse(msgBuf.slice(2).toString());
+    /**
+     * 回调
+     */
+    private callBack(client: I_clientSocket, cmdId: number) {
+        let self = this;
+        return function (msg: any) {
+            if (msg === undefined) {
+                msg = null;
+            }
+            let buf = self.app.protoEncode(cmdId, msg);
+            client.send(buf);
         }
-        msgHandler[cmdArr[1]][cmdArr[2]](msg, session, callBack(session.socket, cmdId));
-    } else {
-        remoteFrontend.doRemote(msgBuf.slice(1), session, cmdArr[0]);
     }
-}
 
-/**
- * 回调
- * @param socket
- * @param cmdId
- * @returns {Function}
- */
-function callBack(socket: SocketProxy, cmdId: number) {
-    return function (msg: any) {
-        if (msg === undefined) {
-            msg = null;
+    /**
+     * 转发客户端消息到后端服务器
+     */
+    private doRemote(cmdId: number, msgBuf: Buffer, session: Session, serverType: string) {
+        let tmpRouter = this.router[serverType] || this.defaultRoute;
+        tmpRouter(this.app, session, serverType, (id: string) => {
+            if (!this.app.rpcPool.hasSocket(id)) {
+                this.app.logger(loggerType.warn, concatStr("has no backend server named ", id + ", ", session.socket.remoteAddress));
+                return;
+            }
+            if (this.app.serversIdMap[id].frontend) {
+                this.app.logger(loggerType.warn, concatStr("cannot send msg to frontendServer ", id, ", ", session.socket.remoteAddress));
+                return;
+            }
+            let sessionBuf = Buffer.from(JSON.stringify(session.getAll()));
+            let buf = Buffer.allocUnsafe(9 + sessionBuf.length + msgBuf.length);
+            buf.writeUInt32BE(5 + sessionBuf.length + msgBuf.length, 0);
+            buf.writeUInt8(define.Rpc_Msg.clientMsgIn, 4);
+            buf.writeUInt16BE(sessionBuf.length, 5);
+            sessionBuf.copy(buf, 7);
+            buf.writeUInt16BE(cmdId, 7 + sessionBuf.length);
+            msgBuf.copy(buf, 9 + sessionBuf.length);
+            this.app.rpcPool.sendMsg(id, buf);
+        });
+    }
+
+    private defaultRoute(app: Application, session: Session, serverType: string, cb: (sid: string) => void) {
+        let list = app.getServersByType(serverType);
+        if (list.length === 0) {
+            cb("");
+            return;
         }
-        let buf = encodeClientData(cmdId, msg);
-        socket.send(buf);
+        let index = Math.floor(Math.random() * list.length);
+        cb(list[index].id);
     }
 }

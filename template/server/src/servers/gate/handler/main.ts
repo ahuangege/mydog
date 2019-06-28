@@ -24,9 +24,10 @@ class Handler {
         }
         let data = {
             "host": connectors[index].host,
-            "port": connectors[index].port,
+            "port": connectors[index].clientPort,
             "chat": this.app.getServersByType("chat") as any
         };
         next(data);
     }
 }
+

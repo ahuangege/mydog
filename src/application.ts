@@ -5,12 +5,12 @@
 
 import * as path from "path"
 import { some_config } from "./util/define";
-import { ServerInfo, routeFunc, rpcRouteFunc, loggerType, componentName, encode_func, decode_func, connector_config } from "./util/interfaceDefine";
-import { Session } from "./components/session";
-import * as remoteBackend from "./components/remoteBackend";
-import { encodeClientData } from "./components/msgCoder";
+import { ServerInfo, routeFunc, rpcRouteFunc, loggerType, connector_config, I_clientSocket, msgEncodeFunc, msgDecodeFunc, protoEncodeFunc, protoDecodeFunc, encodeDecode } from "./util/interfaceDefine";
 import * as appUtil from "./util/appUtil";
 import { EventEmitter } from "events";
+import { RpcSocketPool } from "./components/rpcSocketPool";
+import { FrontendServer } from "./components/frontendServer";
+import { BackendServer } from "./components/backendServer";
 
 declare global {
     interface Rpc {
@@ -24,43 +24,50 @@ export default class Application extends EventEmitter {
 
     routeConfig: string[] = [];                                                                              // route.ts
     masterConfig: ServerInfo = {} as ServerInfo;                                                             // master.ts
-    rpcServersConfig: ServerInfo[] = [];                                                                     // rpc.ts
     serversConfig: { [serverType: string]: ServerInfo[] } = {};                                              // servers.ts
 
     clientNum: number = 0;                                                                                   // 所有的socket连接数
-    clients: { [uid: number]: Session } = {};                                                                // bind了的socket
+    clients: { [uid: number]: I_clientSocket } = {};                                                         // bind了的socket
     settings: { [key: string]: any } = {};                                                                   // 用户set，get  
 
     servers: { [serverType: string]: ServerInfo[] } = {};                                                    // 正在运行的所有用户服务器
     serversIdMap: { [id: string]: ServerInfo } = {};                                                         // 正在运行的所有用户服务器（字典格式）
-    rpcServersIdMap: { [id: string]: ServerInfo } = {};                                                      // 正在运行的所有rpc服务器（字典格式）
 
     serverToken: string = some_config.Server_Token;                                                          // 服务器内部认证密钥
-    clientToken: string = some_config.Master_Client_Token;                                                   // master与cli的认证密匙
+    cliToken: string = some_config.Cli_Token;                                                                // master与cli的认证密匙
 
     serverInfo: ServerInfo = {} as ServerInfo;                                                               // 本服务器的配置
     env: "production" | "development" = "development";                                                       // 环境
     host: string = "";                                                                                       // ip
     port: number = 0;                                                                                        // port
+    clientPort: number = 0;                                                                                  // clientPort
     serverId: string = "";                                                                                   // 服务器名字id， 服务器唯一标识
     serverType: string = "";                                                                                 // 服务器类型
     frontend: boolean = false;                                                                               // 是否是前端服务器
-    alone: boolean = false;                                                                                  // 是否是单独的
     startMode: "all" | "alone" = "all";                                                                      // 启动方式  all / alone
     startTime: number = 0;                                                                                   // 启动时刻
 
     router: { [serverType: string]: routeFunc } = {};                                                        // 路由消息到后端时的前置选择
     rpcRouter: { [serverType: string]: rpcRouteFunc } = {};                                                  // rpc消息时的前置选择
     rpc: { route: (routeParam: any) => Rpc, toServer: (serverId: string) => Rpc } = {} as any;               // rpc包装
+    rpcPool: RpcSocketPool = new RpcSocketPool();                                                            // rpc socket pool
 
-    logger: (level: loggerType, componentName: componentName, msg: any) => void = function () { };           // 内部日志输出口
+    logger: (level: loggerType, msg: string) => void = function () { };                                      // 内部日志输出口
 
-    encodeDecodeConfig: { "encode": encode_func, "decode": decode_func } = {} as any;                        // 编码解码函数
-    connectorConfig: connector_config = {} as any;                                                           // 前端server配置
-    rpcConfig: { "timeOut": number } = {} as any;                                                            // rpc配置
+    encodeDecodeConfig: encodeDecode = {} as any;                                                            // 编码解码函数
+    msgEncode: msgEncodeFunc = null as any;
+    msgDecode: msgDecodeFunc = null as any;
+    protoEncode: protoEncodeFunc = null as any;
+    protoDecode: protoDecodeFunc = null as any;
+    connectorConfig: connector_config = {} as any;                                                           // 前端connector配置
+    rpcConfig: { "timeout": number, "maxLen": number } = {} as any;                                          // rpc配置
+    frontendServer: FrontendServer;
+    backendServer: BackendServer;
 
     constructor() {
         super();
+        this.frontendServer = new FrontendServer(this);
+        this.backendServer = new BackendServer(this);
         appUtil.defaultConfiguration(this);
     }
 
@@ -81,7 +88,7 @@ export default class Application extends EventEmitter {
      * 配置编码解码函数
      * @param config 
      */
-    set_encodeDecodeConfig(config: { "encode": encode_func, "decode": decode_func }): void {
+    setEncodeDecodeConfig(config: encodeDecode): void {
         this.encodeDecodeConfig = config;
     }
 
@@ -89,7 +96,7 @@ export default class Application extends EventEmitter {
      * 配置前端server参数
      * @param config 
      */
-    set_connectorConfig(config: connector_config) {
+    setConnectorConfig(config: connector_config) {
         this.connectorConfig = config;
     }
 
@@ -97,7 +104,7 @@ export default class Application extends EventEmitter {
      * 配置rpc参数
      * @param config 
      */
-    set_rpcConfig(config: { "timeOut": number }) {
+    setRpcConfig(config: { "timeout": number, "maxLen": number }) {
         this.rpcConfig = config;
     }
 
@@ -127,7 +134,7 @@ export default class Application extends EventEmitter {
      * 根据服务器类型获取服务器数组
      */
     getServersByType(serverType: string) {
-        return this.servers[serverType];
+        return this.servers[serverType] || [];
     }
 
     /**
@@ -176,7 +183,7 @@ export default class Application extends EventEmitter {
     closeClient(uid: number) {
         let client = this.clients[uid];
         if (client) {
-            client.socket.close();
+            client.close();
         }
     }
 
@@ -186,7 +193,7 @@ export default class Application extends EventEmitter {
     applySession(uid: number, some: any) {
         let client = this.clients[uid];
         if (client) {
-            client.setSome(some);
+            client.session.setSome(some);
         }
     }
 
@@ -209,12 +216,12 @@ export default class Application extends EventEmitter {
         if (msg === undefined) {
             msg = null;
         }
-        let msgBuf = encodeClientData(cmdIndex, msg);
-        let client: Session;
+        let msgBuf = this.protoEncode(cmdIndex, msg);
+        let client: I_clientSocket;
         for (let i = 0; i < uids.length; i++) {
             client = this.clients[uids[i]];
             if (client) {
-                client.socket.send(msgBuf);
+                client.send(msgBuf);
             }
         }
     }
@@ -237,9 +244,9 @@ export default class Application extends EventEmitter {
         if (msg === undefined) {
             msg = null;
         }
-        let data = encodeClientData(cmdIndex, msg);
+        let data = this.protoEncode(cmdIndex, msg);
         for (let uid in this.clients) {
-            this.clients[uid].socket.send(data)
+            this.clients[uid].send(data)
         }
     }
 
@@ -263,7 +270,7 @@ export default class Application extends EventEmitter {
         if (msg === undefined) {
             msg = null;
         }
-        remoteBackend.sendMsgByUidSid(cmdIndex, msg, uids, sids);
+        this.backendServer.sendMsgByUidSid(cmdIndex, msg, uids, sids);
     }
 
     /**
@@ -289,7 +296,7 @@ export default class Application extends EventEmitter {
      * 设置内部日志输出
      * @param cb  回调函数
      */
-    onLog(cb: (level: loggerType, comName: componentName, msg: any) => void) {
+    onLog(cb: (level: loggerType, msg: string) => void) {
         if (typeof cb !== "function") {
             console.error("app.onLog() --- cb must be a function");
             return;
@@ -297,15 +304,6 @@ export default class Application extends EventEmitter {
         this.logger = cb;
     }
 
-    /**
-     * 加载模块
-     * @param dir  相对根目录的路径
-     * @returns
-     */
-    loadFile(dir: string) {
-        dir = path.join(this.base, dir);
-        return require(dir)
-    }
 
     /**
      * 获取bind的socket连接数

@@ -15,6 +15,7 @@ class Handler {
     getChatInfo(msg: { "id": string }, session: Session, next: (rooms: Proto.connector_main_getChatInfo_rsp) => void) {
         if (!session.uid) {
             session.bind(uid++);
+            console.log('--uid:', session.uid)
             session.setCloseCb(onUserLeave);
         }
         this.app.rpc.toServer(msg.id).chat.chatRemote.getRooms(function (err: rpcErr, data) {

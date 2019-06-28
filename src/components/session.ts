@@ -4,8 +4,8 @@
 
 
 import Application from "../application";
-import * as remoteBackend from "./remoteBackend";
-import { sessionApplyJson, SocketProxy } from "../util/interfaceDefine";
+import * as backendServer from "./backendServer";
+import { sessionApplyJson, I_clientSocket } from "../util/interfaceDefine";
 
 let app: Application;
 
@@ -18,10 +18,8 @@ export class Session {
     sid: string = "";                               // 前端服务器id
     settings: { [key: string]: any } = {};          // 用户set,get
 
-    socket: SocketProxy = null as any;              // 玩家的socket连接
+    socket: I_clientSocket = null as any;              // 玩家的socket连接
     _onclosed: (app: Application, session: Session) => void = null as any;              // socket断开回调
-    registered: boolean = false;                    // 客户端是否注册
-    heartbeat_timer: NodeJS.Timeout = null as any;    // 心跳计时
 
     /**
      * 绑定session     》前端专用
@@ -34,7 +32,7 @@ export class Session {
         if (app.clients[_uid]) {
             return false;
         }
-        app.clients[_uid] = this;
+        app.clients[_uid] = this.socket;
         this.uid = _uid;
         return true;
     }
@@ -97,7 +95,7 @@ export class Session {
     apply() {
         if (!app.frontend) {
             let tmpSession = this.getAll();
-            remoteBackend.sendSession(tmpSession);
+            app.backendServer.sendSession(tmpSession);
         }
     }
 

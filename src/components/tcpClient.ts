@@ -10,13 +10,19 @@ import { decode } from "./msgCoder";
 
 export class TcpClient extends EventEmitter implements SocketProxy {
     die: boolean = false;
+    remoteAddress: string = "";
     socket: net.Socket;
+    maxLen: number;
     len: number = 0;
     buffer: Buffer = Buffer.allocUnsafe(0);
 
-    constructor(port: number, host: string, connectCb: () => void) {
+    constructor(port: number, host: string, maxLen: number, connectCb: () => void) {
         super();
-        this.socket = net.connect(port, host, connectCb);
+        this.socket = net.connect(port, host, () => {
+            this.remoteAddress = this.socket.remoteAddress as string;
+            connectCb();
+        });
+        this.maxLen = maxLen;
         this.socket.on("close", (err) => {
             if (!this.die) {
                 this.die = true;

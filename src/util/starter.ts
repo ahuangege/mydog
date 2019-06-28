@@ -9,21 +9,14 @@ let env: "production" | "development" = "development";
 
 export function runServers(app: Application) {
     let servers = app.serversConfig;
-    let serverTypes;
     let server: ServerInfo;
     for (let serverType in servers) {
-        serverTypes = servers[serverType];
+        let serverTypes = servers[serverType];
         for (let i = 0; i < serverTypes.length; i++) {
             server = serverTypes[i];
             server.serverType = serverType;
             run(app, server);
         }
-    }
-    let servers2 = app.rpcServersConfig;
-    for (let i = 0; i < servers2.length; i++) {
-        server = servers2[i];
-        server.serverType = "rpc";
-        run(app, server);
     }
 }
 

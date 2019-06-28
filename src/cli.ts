@@ -27,7 +27,7 @@ class clientProxy {
     constructor(host: string, port: number, token: string, cb: Function) {
         this.token = token;
         this.connect_cb = cb;
-        this.socket = new TcpClient(port, host, this.connectCb.bind(this));
+        this.socket = new TcpClient(port, host, define.some_config.SocketBufferMaxLen, this.connectCb.bind(this));
 
         this.socket.on("data", (buf: Buffer) => {
             let data = JSON.parse(buf.toString());
@@ -50,7 +50,7 @@ class clientProxy {
         // 注册
         var loginInfo = {
             T: define.Cli_To_Master.register,
-            clientToken: this.token
+            cliToken: this.token
         };
         let loginInfo_buf = msgCoder.encodeInnerData(loginInfo);
         this.socket.send(loginInfo_buf);
@@ -110,7 +110,7 @@ program.command('list')
     .description('list the servers')
     .option('-h, --host <master-host>', 'master server host', DEFAULT_MASTER_HOST)
     .option('-p, --port <master-port>', 'master server port', DEFAULT_MASTER_PORT)
-    .option('-t, --token <master-client-token>', 'master server client token', define.some_config.Master_Client_Token)
+    .option('-t, --token <cli-token>', 'cli token', define.some_config.Cli_Token)
     .action(function (opts) {
         list(opts);
     });
@@ -119,7 +119,7 @@ program.command('stop')
     .description('stop the servers')
     .option('-h, --host <master-host>', 'master server host', DEFAULT_MASTER_HOST)
     .option('-p, --port <master-port>', 'master server port', DEFAULT_MASTER_PORT)
-    .option('-t, --token <master-client-token>', 'master server client token', define.some_config.Master_Client_Token)
+    .option('-t, --token <cli-token>', 'cli token', define.some_config.Cli_Token)
     .action(function (opts) {
         stop(opts);
     });
@@ -129,7 +129,7 @@ program.command('remove')
     .description('remove some servers')
     .option('-h, --host <master-host>', 'master server host', DEFAULT_MASTER_HOST)
     .option('-p, --port <master-port>', 'master server port', DEFAULT_MASTER_PORT)
-    .option('-t, --token <master-client-token>', 'master server client token', define.some_config.Master_Client_Token)
+    .option('-t, --token <cli-token>', ' cli token', define.some_config.Cli_Token)
     .action(function (opts) {
         let args = [].slice.call(arguments, 0);
         opts = args[args.length - 1];
@@ -167,7 +167,7 @@ function init() {
 
 
 function createApplicationAt(ph: string) {
-    copy(path.join(__dirname, '../template/ts'), ph);
+    copy(path.join(__dirname, '../template/server'), ph);
     copy(path.join(__dirname, '../template/client'), ph);
 }
 
@@ -280,11 +280,6 @@ function list(opts: any) {
             if (serverTypes["master"]) {
                 pushArr(endArr, serverTypes["master"]);
                 delete serverTypes["master"];
-            }
-            if (serverTypes["rpc"]) {
-                pushArr(endArr, serverTypes["rpc"]);
-                delete serverTypes["rpc"];
-
             }
             for (x in serverTypes) {
                 pushArr(endArr, serverTypes[x]);

@@ -12,10 +12,7 @@ import * as master from "../components/master";
 import * as monitor from "../components/monitor";
 import * as rpcServer from "../components/rpcServer";
 import * as rpcService from "../components/rpcService";
-import * as frontendServer from "../components/frontendServer";
-import * as backendServer from "../components/backendServer";
-import * as remoteFrontend from "../components/remoteFrontend";
-import * as remoteBackend from "../components/remoteBackend";
+
 
 /**
  * 加载配置
@@ -36,30 +33,24 @@ export function startServer(app: Application) {
     startPng(app);
     if (app.serverType === "master") {
         master.start(app);
-    } else if (app.serverType === "rpc") {
-
-        rpcServer.start(app, function () {
-            monitor.start(app);
-        });
-
     } else if (app.frontend) {
 
-        frontendServer.start(app, function () {
-            rpcService.init(app);
-            remoteFrontend.init(app);
-            monitor.start(app);
+        rpcServer.start(app, function () {
+            app.frontendServer.start(function () {
+                rpcService.init(app);
+                monitor.start(app);
+            });
         });
 
     } else {
 
-        backendServer.start(app, function () {
+        rpcServer.start(app, function () {
+            app.backendServer.init();
             rpcService.init(app);
-            remoteBackend.init(app);
             monitor.start(app);
         });
     }
 };
-
 
 
 let parseArgs = function (args: any[]) {
@@ -92,11 +83,10 @@ let parseArgs = function (args: any[]) {
 
 let loadBaseConfig = function (app: Application) {
     loadConfigBaseApp(app, "masterConfig", path.join(some_config.File_Dir.Config, 'master.js'));
-    loadConfigBaseApp(app, "rpcServersConfig", path.join(some_config.File_Dir.Config, 'rpc.js'));
     loadConfigBaseApp(app, "serversConfig", path.join(some_config.File_Dir.Config, 'servers.js'));
     loadConfigBaseApp(app, "routeConfig", path.join(some_config.File_Dir.Config, 'route.js'));
 
-    function loadConfigBaseApp(app: Application, key: "masterConfig" | "rpcServersConfig" | "serversConfig" | "routeConfig", val: string) {
+    function loadConfigBaseApp(app: Application, key: "masterConfig" | "serversConfig" | "routeConfig", val: string) {
         let env = app.env;
         let originPath = path.join(app.base, val);
         if (fs.existsSync(originPath)) {
@@ -116,38 +106,32 @@ let loadBaseConfig = function (app: Application) {
 
 let processArgs = function (app: Application, args: any) {
     app.main = args.main;
-    app.serverType = args.serverType || "master";
     app.serverId = args.id || app.masterConfig.id;
-    if (app.serverType === "master") {
+    if (app.serverId === app.masterConfig.id) {
+        app.serverType = "master";
         app.startMode = args.startMode === "alone" ? "alone" : "all";
         app.host = app.masterConfig.host;
         app.port = app.masterConfig.port;
-    } else if (app.serverType === "rpc") {
-        app.startMode = args.startMode === "all" ? "all" : "alone";
-        let rpcServersConfig = app.rpcServersConfig;
-        let rpcServerConfig: ServerInfo = {} as any;
-        for (let i = 0; i < rpcServersConfig.length; i++) {
-            if (rpcServersConfig[i].id === app.serverId) {
-                rpcServerConfig = rpcServersConfig[i];
-                break;
-            }
-        }
-        app.host = args.host || rpcServerConfig.host;
-        app.port = args.port || rpcServerConfig.port;
     } else {
         app.startMode = args.startMode === "all" ? "all" : "alone";
-        let serversConfig = app.serversConfig[app.serverType];
         let serverConfig: ServerInfo = {} as any;
-        if (serversConfig) {
-            for (let i = 0; i < serversConfig.length; i++) {
-                if (serversConfig[i].id === app.serverId) {
-                    serverConfig = serversConfig[i];
+        let tmpServerType: string = "";
+        for (let serverType in app.serversConfig) {
+            for (let one of app.serversConfig[serverType]) {
+                if (one.id === app.serverId) {
+                    serverConfig = one;
+                    tmpServerType = serverType;
                     break;
                 }
             }
         }
+        app.serverType = args.serverType || tmpServerType;
         app.host = args.host || serverConfig.host;
         app.port = args.port || serverConfig.port;
+        if (!app.serverType || !app.host || !app.port) {
+            throw Error("param error");
+        }
+        app.clientPort = args.clientPort || serverConfig.clientPort;
 
         let server: ServerInfo = args;
         if (args.hasOwnProperty("frontend")) {
@@ -157,13 +141,6 @@ let processArgs = function (app: Application, args: any) {
         }
         server.frontend = app.frontend;
 
-
-        if (args.hasOwnProperty("alone")) {
-            app.alone = args.alone === true;
-        } else {
-            app.alone = serverConfig.alone === true;
-        }
-        server.alone = app.alone;
 
         delete server["main"];
         delete server["env"];
@@ -197,7 +174,7 @@ function startPng(app: Application) {
         "  ※                      ※",
         "  ※----------------------※",
     ];
-    let version = require("../mydog.js").default.version;
+    let version = require("../mydog").version;
     version = "Ver: " + version;
     console.log("      ");
     console.log("      ");
@@ -217,4 +194,12 @@ function startPng(app: Application) {
     }
     console.log("  ");
     console.log("  ");
+}
+
+export function concatStr(...args: (string | number)[]) {
+    let str = "";
+    for (let one of args) {
+        str += one
+    }
+    return str;
 }

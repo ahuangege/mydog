@@ -32,7 +32,9 @@
   "bundleDependencies": [],
   "dependencies": {
     "commander": "^2.17.1",
-    "ws": "^6.0.0"
+    "ws": "^7.0.1",
+    "@types/node": "^12.0.8",
+    "@types/ws": "^6.0.1"
   },
   "deprecated": false,
   "description": "a framework of nodejs server, thin pomelo",
@@ -43,7 +45,7 @@
     "nodejs"
   ],
   "license": "ISC",
-  "main": "index.js",
+  "main": "lib/mydog.js",
   "name": "mydog",
   "scripts": {
     "test": "echo \"Error: no test   specified\" && exit 1"

@@ -1,7 +1,6 @@
 import { EventEmitter } from "events";
 import Application from "../application";
 import { Session } from "../components/session";
-import * as net from "net";
 
 /**
  * 服务器配置
@@ -20,13 +19,14 @@ export interface ServerInfo {
      */
     port: number;
     /**
+     * clientPort
+     */
+    clientPort?: number;
+    /**
      * 是否是前端服务器
      */
     frontend?: boolean;
-    /**
-     * 是否是独立的
-     */
-    alone?: boolean;
+
 
     [key: string]: any;
 }
@@ -35,8 +35,10 @@ export interface ServerInfo {
  * socket连接代理
  */
 export interface SocketProxy extends EventEmitter {
-    socket: net.Socket;
+    socket: any;
+    remoteAddress: string;
     die: boolean;
+    maxLen: number;
     len: number;
     buffer: Buffer;
     close(): void;
@@ -66,7 +68,8 @@ export interface monitor_remove_server {
 export interface monitor_reg_master {
     T: number,
     serverType: string,
-    serverToken: string,
+    serverToken?: string,
+    cliToken?: string,
     serverInfo: ServerInfo
 }
 
@@ -102,26 +105,11 @@ export enum loggerType {
     error = "error"
 }
 
-/**
- * 组件名
- */
-export enum componentName {
-    master = "master",
-    monitor = "monitor",
-    frontendServer = "frontendServer",
-    backendServer = "backendServer",
-    remoteFrontend = "remoteFrontend",
-    remoteBackend = "remoteBackend",
-    rpcServer = "rpcServer",
-    rpcService = "rpcService",
-}
 
 /**
- * rpc请求消息
+ * rpc消息导向包（1、有route有id表示收到消息且需回调。2、有route无id表示收到消息无需回调。3、无route有id表示是回调的消息）
  */
 export interface rpcMsg {
-    from?: string;
-    to: string;
     route?: string;
     id?: number;
 }
@@ -140,45 +128,62 @@ export interface rpcTimeout {
  */
 export const enum rpcErr {
     /**
-     * 源服务器没有目标服务器
+     * 没有目标服务器
      */
-    src_has_no_end = 1,
-    /**
-     * 源服务器没有rpc服务器
-     */
-    src_has_no_rpc = 2,
-    /**
-     * rpc服务器没有目标服务器
-     */
-    rpc_has_no_end = 3,
+    noServer = 1,
     /**
      * rpc超时
      */
-    rpc_time_out = 4
+    timeout = 2
 }
 
+
 /**
- * 编码函数
+ * 编码解码
  */
-export interface encode_func {
-    (cmdId: number, data: any): Buffer
+export interface encodeDecode {
+    "protoEncode": protoEncodeFunc,
+    "msgEncode": msgEncodeFunc,
+    "protoDecode": protoDecodeFunc,
+    "msgDecode": msgDecodeFunc
 }
 
+
 /**
- * 解码函数
+ * 协议编码函数
  */
-export interface decode_func {
-    (cmdId: number, data: Buffer, session: Session): any
+export interface protoEncodeFunc {
+    (cmdId: number, msg: any): Buffer
+}
+/**
+ * 消息编码函数
+ */
+export interface msgEncodeFunc {
+    (cmdId: number, msg: any): Buffer
 }
 
 /**
- * 前端server配置
+ * 协议解码函数
+ */
+export interface protoDecodeFunc {
+    (data: Buffer): { "cmdId": number, "msg": Buffer }
+}
+/**
+ * 消息解码函数
+ */
+export interface msgDecodeFunc {
+    (cmdId: number, msg: Buffer): any
+}
+
+
+/**
+ * 前端connector配置
  */
 export interface connector_config {
     /**
-     * socket类型
+     * connector构造器
      */
-    "connector": "net" | "ws",
+    "connector": I_connectorConstructor,
     /**
      * 心跳（秒）
      */
@@ -186,5 +191,35 @@ export interface connector_config {
     /**
      * 最大连接数
      */
-    "maxConnectionNum": number
+    "maxConnectionNum": number,
+    /**
+     * 消息包最大长度
+     */
+    "maxLen": number
+}
+
+/**
+ * 连接用户的socket管理代理
+ */
+export interface I_clientManager {
+    addClient(client: I_clientSocket): void;
+    handleMsg(client: I_clientSocket, msg: Buffer): void;
+    removeClient(client: I_clientSocket): void;
+}
+
+/**
+ * 连接服构造函数
+ */
+export interface I_connectorConstructor {
+    new(info: { app: Application, clientManager: I_clientManager, config: { "route": string[], "heartbeat": number, "maxLen": number }, startCb: () => void }): void;
+}
+
+/**
+ * 每个用户的socket
+ */
+export interface I_clientSocket {
+    session: Session;
+    remoteAddress: string;
+    send(msg: Buffer): void;
+    close(): void;
 }

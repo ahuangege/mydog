@@ -68,7 +68,7 @@ export default class room {
             if (msg.type === 1) {
                 back_msg.from = player.name;
                 back_msg.fromId = player.id;
-                this.broadcastMsg("onChat", msg);
+                this.broadcastMsg("onChat", back_msg);
             } else {
                 let toPlayer = this.players[msg.toId];
                 if (toPlayer) {
@@ -82,7 +82,7 @@ export default class room {
                         uids.push(toPlayer.uid);
                         sids.push(toPlayer.sid);
                     }
-                    this.app.sendMsgByUidSid("onChat", msg, uids, sids);
+                    this.app.sendMsgByUidSid("onChat", back_msg, uids, sids);
                 }
             }
         }
