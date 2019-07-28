@@ -122,19 +122,9 @@ export interface Application {
     readonly msgDecode: (cmdId: number, msg: Buffer) => any;
 
     /**
-     * rpc集合
+     * rpc
      */
-    readonly rpc: {
-        /**
-         * 指定服务器id
-         */
-        toServer: (serverId: string) => Rpc,
-
-        /**
-         * 通过rpcRoute路由
-         */
-        route: (routeParam: any) => Rpc,
-    };
+    readonly rpc: (serverId: string) => Rpc;
 
     /**
      * 服务器启动
@@ -161,7 +151,8 @@ export interface Application {
      * @param key 键
      * @param value 值
      */
-    set(key: string | number, value: any): void
+    set<T>(key: string | number, value: T): T
+    set(key: string | number, value: any): any
 
     /**
      * 获取键值对
@@ -194,13 +185,6 @@ export interface Application {
      * @param routeFunc 路由函数
      */
     route(serverType: string, routeFunc: (app: Application, session: Session, serverType: string, cb: (serverId: string) => void) => void): void;
-
-    /**
-     * rpc路由配置
-     * @param serverType 服务器类型
-     * @param rpcRouteFunc 路由函数
-     */
-    rpcRoute(serverType: string, rpcRouteFunc: (app: Application, routeParam: any, cb: (serverId: string) => void) => void): void;
 
     /**
      * 是否有该客户端   《前端专用》
@@ -240,10 +224,9 @@ export interface Application {
      * 向客户端发送消息  《后端专用》
      * @param cmd 路由
      * @param msg 消息
-     * @param uids uid数组
-     * @param sids sid数组
+     * @param uidsid uidsid数组
      */
-    sendMsgByUidSid(cmd: string, msg: any, uids: number[], sids: string[]): void;
+    sendMsgByUidSid(cmd: string, msg: any, uidsid: { "uid": number, "sid": string }[]): void;
 
     /**
      * 配置服务器执行函数
@@ -297,7 +280,8 @@ export interface Session {
      * @param key 键
      * @param value 值
      */
-    set(key: number | string, value: any): void;
+    set<T>(key: number | string, value: T): T;
+    set(key: number | string, value: any): any;
 
     /**
      * 获取键值对

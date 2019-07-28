@@ -12,6 +12,8 @@ import * as master from "../components/master";
 import * as monitor from "../components/monitor";
 import * as rpcServer from "../components/rpcServer";
 import * as rpcService from "../components/rpcService";
+import { FrontendServer } from "../components/frontendServer";
+import { BackendServer } from "../components/backendServer";
 
 
 /**
@@ -34,8 +36,8 @@ export function startServer(app: Application) {
     if (app.serverType === "master") {
         master.start(app);
     } else if (app.frontend) {
-
         rpcServer.start(app, function () {
+            app.frontendServer = new FrontendServer(app);
             app.frontendServer.start(function () {
                 rpcService.init(app);
                 monitor.start(app);
@@ -43,8 +45,8 @@ export function startServer(app: Application) {
         });
 
     } else {
-
         rpcServer.start(app, function () {
+            app.backendServer = new BackendServer(app);
             app.backendServer.init();
             rpcService.init(app);
             monitor.start(app);

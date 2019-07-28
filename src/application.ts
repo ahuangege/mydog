@@ -48,8 +48,7 @@ export default class Application extends EventEmitter {
     startTime: number = 0;                                                                                   // 启动时刻
 
     router: { [serverType: string]: routeFunc } = {};                                                        // 路由消息到后端时的前置选择
-    rpcRouter: { [serverType: string]: rpcRouteFunc } = {};                                                  // rpc消息时的前置选择
-    rpc: { route: (routeParam: any) => Rpc, toServer: (serverId: string) => Rpc } = {} as any;               // rpc包装
+    rpc: (serverId: string) => Rpc = null as any;               // rpc包装
     rpcPool: RpcSocketPool = new RpcSocketPool();                                                            // rpc socket pool
 
     logger: (level: loggerType, msg: string) => void = function () { };                                      // 内部日志输出口
@@ -61,13 +60,11 @@ export default class Application extends EventEmitter {
     protoDecode: protoDecodeFunc = null as any;
     connectorConfig: connector_config = {} as any;                                                           // 前端connector配置
     rpcConfig: { "timeout": number, "maxLen": number } = {} as any;                                          // rpc配置
-    frontendServer: FrontendServer;
-    backendServer: BackendServer;
+    frontendServer: FrontendServer = null as any;
+    backendServer: BackendServer = null as any;
 
     constructor() {
         super();
-        this.frontendServer = new FrontendServer(this);
-        this.backendServer = new BackendServer(this);
         appUtil.defaultConfiguration(this);
     }
 
@@ -113,6 +110,7 @@ export default class Application extends EventEmitter {
      */
     set(key: string | number, value: any) {
         this.settings[key] = value;
+        return value;
     }
 
     /**
@@ -155,19 +153,6 @@ export default class Application extends EventEmitter {
             return;
         }
         this.router[serverType] = routeFunc;
-    }
-
-    /**
-     * rpc路由配置
-     * @param serverType 接收消息的服务器类型
-     * @param routeFunc 配置函数
-     */
-    rpcRoute(serverType: string, rpcRouteFunc: rpcRouteFunc) {
-        if (typeof rpcRouteFunc !== "function") {
-            console.error("app.rpcRoute() --- cb must be a function");
-            return;
-        }
-        this.rpcRouter[serverType] = rpcRouteFunc;
     }
 
     /**
@@ -254,10 +239,9 @@ export default class Application extends EventEmitter {
      * 向客户端发送消息     》后端专用
      * @param cmd   路由
      * @param msg   消息
-     * @param uids  uid数组 [1,2]
-     * @param sids  sid数组 ["connector-server-1", "connector-server-2"]
+     * @param uidsid  uidsid 数组
      */
-    sendMsgByUidSid(cmd: string, msg: any, uids: number[], sids: string[]) {
+    sendMsgByUidSid(cmd: string, msg: any, uidsid: { "uid": number, "sid": string }[]) {
         if (this.frontend) {
             console.error("app.sendMsgByUidSid() --- frontend server cannot use this method");
             return;
@@ -270,7 +254,7 @@ export default class Application extends EventEmitter {
         if (msg === undefined) {
             msg = null;
         }
-        this.backendServer.sendMsgByUidSid(cmdIndex, msg, uids, sids);
+        this.backendServer.sendMsgByUidSid(cmdIndex, msg, uidsid);
     }
 
     /**

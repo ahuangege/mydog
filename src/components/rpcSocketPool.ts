@@ -20,14 +20,16 @@ export class RpcSocketPool {
      * 是否有某socket
      */
     hasSocket(id: string) {
-        return !!this.rpcSockets[id];
+        return this.rpcSockets[id];
     }
 
     /**
      * 发送消息
      */
     sendMsg(id: string, msg: Buffer) {
-        this.rpcSockets[id] && this.rpcSockets[id].send(msg);
+        if (this.rpcSockets[id]) {
+            this.rpcSockets[id].send(msg);
+        }
     }
 }
 

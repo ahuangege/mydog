@@ -12,8 +12,7 @@ export default class room {
     playerId: number = 1;
     userNum: number = 0;
     playerIds: number[] = [];
-    uids: number[] = [];
-    sids: string[] = [];
+    uidsid: { "uid": number, "sid": string }[] = [];
     constructor(_app: Application) {
         this.app = _app;
         this.roomMgr = _app.get("roomMgr") as roomMgr;
@@ -42,8 +41,7 @@ export default class room {
         this.roomMgr.userNum++;
         this.userNum++;
         this.playerIds.push(player.id);
-        this.uids.push(player.uid);
-        this.sids.push(player.sid);
+        this.uidsid.push({ "uid": player.uid, "sid": player.sid });
 
         let player_arr: Proto.player_info[] = [];
         for (let x in this.players) {
@@ -76,13 +74,12 @@ export default class room {
                     back_msg.toId = toPlayer.id;
                     back_msg.from = player.name;
                     back_msg.fromId = player.id;
-                    let uids = [player.uid];
-                    let sids = [player.sid];
+                    let uidsid: { "uid": number, "sid": string }[] = [];
+                    uidsid.push({ "uid": player.uid, "sid": player.sid });
                     if (player.id !== toPlayer.id) {
-                        uids.push(toPlayer.uid);
-                        sids.push(toPlayer.sid);
+                        uidsid.push({ "uid": toPlayer.uid, "sid": toPlayer.sid });
                     }
-                    this.app.sendMsgByUidSid("onChat", back_msg, uids, sids);
+                    this.app.sendMsgByUidSid("onChat", back_msg, uidsid);
                 }
             }
         }
@@ -93,8 +90,7 @@ export default class room {
         if (player) {
             let index = this.playerIds.indexOf(playerId);
             this.playerIds.splice(index, 1);
-            this.uids.splice(index, 1);
-            this.sids.splice(index, 1);
+            this.uidsid.splice(index, 1);
             delete this.players[playerId];
             this.roomMgr.userNum--;
             this.userNum--;
@@ -106,6 +102,6 @@ export default class room {
     }
 
     broadcastMsg(route: string, msg: any) {
-        this.app.sendMsgByUidSid(route, msg, this.uids, this.sids);
+        this.app.sendMsgByUidSid(route, msg, this.uidsid);
     };
 }

@@ -1,13 +1,9 @@
 import { Application, Session, rpcErr } from "mydog";
 import Proto = require("../../../app/Proto");
 
-export default function (app: Application) {
-    return new Handler(app);
-}
-
 let uid = 1;
 
-class Handler {
+export default class Handler {
     app: Application;
     constructor(app: Application) {
         this.app = app;
@@ -15,10 +11,9 @@ class Handler {
     getChatInfo(msg: { "id": string }, session: Session, next: (rooms: Proto.connector_main_getChatInfo_rsp) => void) {
         if (!session.uid) {
             session.bind(uid++);
-            console.log('--uid:', session.uid)
             session.setCloseCb(onUserLeave);
         }
-        this.app.rpc.toServer(msg.id).chat.chatRemote.getRooms(function (err: rpcErr, data) {
+        this.app.rpc(msg.id).chat.chatRemote.getRooms(function (err: rpcErr, data) {
             if (err) {
                 next({ "rooms": [] });
                 return;
@@ -31,7 +26,7 @@ class Handler {
         msg.uid = session.uid;
         msg.sid = session.sid;
         var self = this;
-        self.app.rpc.toServer(msg.id).chat.chatRemote.newRoom(msg, function (err: rpcErr, data: Proto.join_room_rsp) {
+        self.app.rpc(msg.id).chat.chatRemote.newRoom(msg, function (err: rpcErr, data: Proto.join_room_rsp) {
             if (err) {
                 next({ "status": -2 } as any);
                 return;
@@ -49,7 +44,7 @@ class Handler {
         msg.uid = session.uid;
         msg.sid = session.sid;
         var self = this;
-        self.app.rpc.toServer(msg.id).chat.chatRemote.joinRoom(msg, function (err, data) {
+        self.app.rpc(msg.id).chat.chatRemote.joinRoom(msg, function (err, data) {
             if (err) {
                 next({ "status": -2 } as any);
                 return;
@@ -67,7 +62,7 @@ class Handler {
 var onUserLeave = function (app: Application, session: Session) {
     console.log("one client out");
     if (session.get("chatServerId")) {
-        app.rpc.toServer(session.get("chatServerId")).chat.chatRemote.leaveRoom({
+        app.rpc(session.get("chatServerId")).chat.chatRemote.leaveRoom({
             "roomId": session.get("roomId"),
             "playerId": session.get("playerId")
         });

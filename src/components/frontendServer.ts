@@ -45,7 +45,7 @@ export class FrontendServer {
         this.app.msgDecode = this.app.encodeDecodeConfig.msgDecode || defaultEncodeDecode.msgDecode;
 
         let heartbeat = 0;
-        if (this.app.connectorConfig.heartbeat && Number(this.app.connectorConfig.heartbeat) > 5) {
+        if (this.app.connectorConfig.heartbeat && Number(this.app.connectorConfig.heartbeat) > 0) {
             heartbeat = Number(this.app.connectorConfig.heartbeat);
         }
         new connectorConstructor({
@@ -118,8 +118,6 @@ class ClientManager implements I_clientManager {
                 let handler = require(path.join(dirName, filename));
                 if (handler.default && typeof handler.default === "function") {
                     self.msgHandler[name] = new handler.default(self.app);
-                } else if (typeof handler === "function") {
-                    self.msgHandler[name] = new handler(self.app);
                 }
             });
         }

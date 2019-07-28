@@ -2,10 +2,6 @@ import { Application, RpcClass, rpcErr } from "mydog";
 import roomMgr from "../../../app/roomMgr";
 import Proto = require("../../../app/Proto");
 
-export default function (app: Application) {
-    return new remote(app);
-}
-
 declare global {
     interface Rpc {
         chat: {
@@ -14,7 +10,7 @@ declare global {
     }
 }
 
-class remote {
+export default class remote {
     private app: Application;
     private roomMgr: roomMgr;
     constructor(app: Application) {
@@ -37,7 +33,6 @@ class remote {
     };
 
     leaveRoom(msg: { "roomId": number, "playerId": number }) {
-        console.log("leaveRoom")
         this.roomMgr.leaveRoom(msg.roomId, msg.playerId);
     };
 }

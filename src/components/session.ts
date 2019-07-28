@@ -40,6 +40,7 @@ export class Session {
 
     set(key: string | number, value: any) {
         this.settings[key] = value;
+        return value;
     }
 
     get(key: string | number) {

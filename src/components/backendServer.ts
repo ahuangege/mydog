@@ -59,8 +59,6 @@ export class BackendServer {
                 let handler = require(path.join(dirName, filename));
                 if (handler.default && typeof handler.default === "function") {
                     self.msgHandler[name] = new handler.default(self.app);
-                } else if (typeof handler === "function") {
-                    self.msgHandler[name] = new handler(self.app);
                 }
             });
         }
@@ -108,24 +106,25 @@ export class BackendServer {
     /**
      * 后端服务器给客户端发消息
      */
-    sendMsgByUidSid(cmdIndex: number, msg: any, uids: number[], sids: string[]) {
-        let group = {} as any;
-        for (let i = 0; i < sids.length; i++) {
-            if (!group[sids[i]]) {
-                group[sids[i]] = [];
+    sendMsgByUidSid(cmdIndex: number, msg: any, uidsid: { "uid": number, "sid": string }[]) {
+        let groups: { [sid: string]: number[] } = {};
+        let group: number[];
+        for (let one of uidsid) {
+            if (!one.sid) {
+                continue;
             }
-            group[sids[i]].push(uids[i]);
+            group = groups[one.sid];
+            if (!group) {
+                group = [];
+                groups[one.sid] = group;
+            }
+            group.push(one.uid);
         }
         let app = this.app;
-        let msgBuf: Buffer = null as any;
-        for (let sid in group) {
-            if (app.rpcPool.hasSocket(sid)) {
-                if (!msgBuf) {
-                    msgBuf = app.protoEncode(cmdIndex, msg);
-                }
-                let buf = encodeRemoteData(group[sid], msgBuf);
-                app.rpcPool.sendMsg(sid, buf);
-            }
+        let msgBuf: Buffer = app.protoEncode(cmdIndex, msg);
+        for (let sid in groups) {
+            let buf = encodeRemoteData(groups[sid], msgBuf);
+            app.rpcPool.sendMsg(sid, buf);
         }
     }
 }

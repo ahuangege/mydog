@@ -10,7 +10,6 @@ import * as fs from "fs";
 import define = require("../util/define");
 
 let app: Application;
-let rpcRouter: { [serverType: string]: rpcRouteFunc };
 let msgHandler: { [filename: string]: any } = {};
 let rpcId = 1;  // 必须从1开始，不可为0
 let rpcRequest: { [id: number]: rpcTimeout } = {};
@@ -22,7 +21,6 @@ let rpcTimeMax: number = 10 * 1000;
  */
 export function init(_app: Application) {
     app = _app;
-    rpcRouter = app.rpcRouter;
     if (app.rpcConfig.hasOwnProperty("timeout") && Number(app.rpcConfig["timeout"]) > 5) {
         rpcTimeMax = Number(app.rpcConfig["timeout"]) * 1000;
     }
@@ -54,19 +52,12 @@ export function handleMsg(id: string, msg: Buffer) {
 }
 
 
-const enum rpc_type {
-    route,
-    toServer,
-}
-
 /**
  * rpc构造
  */
 class rpc_create {
-
-    rpcType: rpc_type = rpc_type.route;
-    rpcParam: any = null;
-    rpcObj: Rpc = {};
+    private toId: any = null;
+    private rpcObj: Rpc = {};
 
     constructor() {
         this.loadRemoteMethod();
@@ -74,7 +65,7 @@ class rpc_create {
 
     loadRemoteMethod() {
         let self = this;
-        app.rpc = { "route": this.route.bind(this), "toServer": this.toServer.bind(this) };
+        app.rpc = this.rpcFunc.bind(this);
         let tmp_rpc_obj = this.rpcObj as any;
         let dirName = path.join(app.base, define.some_config.File_Dir.Servers);
         let exists = fs.existsSync(dirName);
@@ -82,51 +73,40 @@ class rpc_create {
             return;
         }
         fs.readdirSync(dirName).forEach(function (serverName) {
-            let server: { [filename: string]: any } = {};
+            tmp_rpc_obj[serverName] = {};
             let remoteDirName = path.join(dirName, serverName, '/remote');
+
             let exists = fs.existsSync(remoteDirName);
             if (exists) {
                 fs.readdirSync(remoteDirName).forEach(function (fileName) {
                     if (!/\.js$/.test(fileName)) {
                         return;
                     }
-                    let name = path.basename(fileName, '.js');
+                    let fileBasename = path.basename(fileName, '.js');
                     let remote = require(path.join(remoteDirName, fileName));
                     if (remote.default && typeof remote.default === "function") {
-                        server[name] = new remote.default(app);
-                    } else if (typeof remote === "function") {
-                        server[name] = new remote(app);
+                        tmp_rpc_obj[serverName][fileBasename] = self.initFunc(serverName, fileBasename,
+                            remote.default.prototype, Object.getOwnPropertyNames(remote.default.prototype));
+                        if (serverName === app.serverType) {
+                            msgHandler[fileBasename] = new remote.default(app);
+                        }
                     }
                 });
-            }
-            tmp_rpc_obj[serverName] = {};
-            for (let name in server) {
-                tmp_rpc_obj[serverName][name] = self.initFunc(serverName, name, server[name]);
-            }
-            if (serverName === app.serverType) {
-                msgHandler = server;
             }
         });
     }
 
-    route(routeParam: any) {
-        this.rpcType = rpc_type.route;
-        this.rpcParam = routeParam;
-        return this.rpcObj;
-    }
-
-    toServer(serverId: string) {
-        this.rpcType = rpc_type.toServer;
-        this.rpcParam = serverId;
+    rpcFunc(serverId: string) {
+        this.toId = serverId;
         return this.rpcObj;
     }
 
 
-    initFunc(serverName: string, fileName: string, obj: any) {
+    initFunc(serverName: string, filename: string, func: any, funcFields: string[]) {
         let res: { [method: string]: Function } = {};
-        for (let field in obj) {
-            if (typeof obj[field] === "function") {
-                res[field] = this.proxyCb(serverName, fileName + "." + field);
+        for (let field of funcFields) {
+            if (field !== "constructor" && typeof func[field] === "function") {
+                res[field] = this.proxyCb(serverName, filename + "." + field);
             }
         }
         return res;
@@ -135,70 +115,10 @@ class rpc_create {
     proxyCb(serverName: string, file_method: string) {
         let self = this;
         let func = function (...args: any[]) {
-            if (self.rpcType === rpc_type.route) {
-                self.proxyCbSendByRoute(self.rpcParam, serverName, file_method, args);
-            } else {
-                self.proxyCbSendToServer(self.rpcParam, serverName, file_method, args);
-            }
-            self.rpcParam = null;
+            self.proxyCbSendToServer(self.toId, serverName, file_method, args);
+            self.toId = null;
         }
         return func;
-    }
-
-    proxyCbSendByRoute(routeParam: any, serverType: string, file_method: string, args: any[]) {
-        let cb: Function | null = null;
-        if (typeof args[args.length - 1] === "function") {
-            cb = args.pop();
-        }
-
-        let cbFunc = function (sid: string) {
-            if (sid === app.serverId) {
-                if (cb) {
-                    let timeout = {
-                        "id": getRpcId(),
-                        "cb": cb,
-                        "timer": null as any
-                    }
-                    createRpcTimeout(timeout);
-                    args.push(getCallBackFuncSelf(timeout.id));
-                }
-                sendRpcMsgToSelf(file_method, args);
-                return;
-            }
-
-            if (!app.rpcPool.hasSocket(sid)) {
-                cb && cb(rpcErr.noServer);
-                return;
-            }
-
-            let rpcInvoke: rpcMsg = {
-                "route": file_method
-            };
-            if (cb) {
-                let timeout = {
-                    "id": getRpcId(),
-                    "cb": cb,
-                    "timer": null as any
-                }
-                createRpcTimeout(timeout);
-                rpcInvoke.id = timeout.id;
-            }
-            args.push(rpcInvoke);
-            sendRpcMsg(sid, args);
-        };
-
-        let tmpRouter = rpcRouter[serverType];
-        if (tmpRouter) {
-            tmpRouter(app, routeParam, cbFunc);
-        } else {
-            let list = app.getServersByType(serverType);
-            if (list.length === 0) {
-                cbFunc("");
-            } else {
-                let index = Math.floor(Math.random() * list.length);
-                cbFunc(list[index].id);
-            }
-        }
     }
 
     proxyCbSendToServer(sid: string, serverType: string, file_method: string, args: any[]) {
