@@ -101,6 +101,7 @@ program.command('init')
 
 program.command('start')
     .description('start the application')
+    .option('-i, --id <server-id>', 'start server id')
     .option('-p, --pro', 'enable production environment')
     .action(function (opts) {
         start(opts);
@@ -196,7 +197,7 @@ function prompt(msg: string, fn: (data: string) => void) {
     }
     process.stdin.setEncoding('ascii');
     process.stdin.once('data', function (data) {
-        fn(data);
+        fn(data.toString());
     }).resume();
 }
 
@@ -242,9 +243,13 @@ function start(opts: any) {
 
     let ls;
     let params = [absScript, 'env=' + opts.env];
+    if (opts.id) {
+        params.push('id=' + opts.id);
+    }
     if (opts.env === "production") {
         ls = spawn(process.execPath, params, { detached: true, stdio: 'ignore' });
         ls.unref();
+        console.log('The application is running in the background now.\n');
         process.exit(0);
     } else {
         ls = spawn(process.execPath, params);

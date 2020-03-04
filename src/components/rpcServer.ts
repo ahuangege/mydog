@@ -25,8 +25,11 @@ class RpcServerSocket {
     private socket: SocketProxy;
     private id: string = "";
     private registered: boolean = false;
-    private registerTimer: NodeJS.Timer = null as any;
-    private heartbeatTimer: NodeJS.Timer = null as any;
+    private registerTimer: NodeJS.Timeout = null as any;
+    private heartbeatTimer: NodeJS.Timeout = null as any;
+    private sendCache: boolean = false;
+    private sendArr: Buffer[] = [];
+    private sendTimer: NodeJS.Timer = null as any;
     constructor(app: Application, socket: SocketProxy) {
         this.app = app;
         this.socket = socket;
@@ -36,6 +39,11 @@ class RpcServerSocket {
             app.logger(loggerType.error, concatStr("register timeout, close rpc socket, ", socket.remoteAddress));
             socket.close();
         }, 10000);
+        let interval = Number(app.rpcConfig.interval) || 0;
+        if (interval > 5) {
+            this.sendCache = true;
+            this.sendTimer = setInterval(this.sendInterval.bind(this), interval);
+        }
     }
 
     /**
@@ -84,6 +92,8 @@ class RpcServerSocket {
     private onClose() {
         clearTimeout(this.registerTimer);
         clearTimeout(this.heartbeatTimer);
+        clearInterval(this.sendTimer);
+        this.sendArr = [];
         if (this.registered) {
             this.app.rpcPool.removeSocket(this.id);
         }
@@ -120,7 +130,7 @@ class RpcServerSocket {
         }
         this.registered = true;
         this.id = data.id;
-        this.app.rpcPool.addSocket(this.id, this.socket);
+        this.app.rpcPool.addSocket(this.id, this);
 
         this.app.logger(loggerType.info, concatStr("get new rpc client named ", this.id));
 
@@ -153,5 +163,23 @@ class RpcServerSocket {
         buffer.writeUInt32BE(1, 0);
         buffer.writeUInt8(define.Rpc_Msg.heartbeat, 4);
         this.socket.send(buffer);
+    }
+
+    send(data: Buffer) {
+        if (this.sendCache) {
+            this.sendArr.push(data);
+        } else {
+            this.socket.send(data);
+        }
+    }
+
+    private sendInterval() {
+        if (this.sendArr.length > 0) {
+            let arr = this.sendArr;
+            for (let i = 0, len = arr.length; i < len; i++) {
+                this.socket.send(arr[i]);
+            }
+            this.sendArr = [];
+        }
     }
 }

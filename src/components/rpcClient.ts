@@ -38,6 +38,10 @@ export class RpcClientSocket {
     private connectTimer: NodeJS.Timer = null as any;
     private heartbeatTimer: NodeJS.Timer = null as any;
     private heartbeatTimeoutTimer: NodeJS.Timer = null as any;
+    private sendCache: boolean = false;
+    private interval: number = 0;
+    private sendArr: Buffer[] = [];
+    private sendTimer: NodeJS.Timer = null as any;
     private die: boolean = false;
 
     constructor(app: Application, server: ServerInfo) {
@@ -46,6 +50,12 @@ export class RpcClientSocket {
         this.host = server.host;
         this.port = server.port;
         rpcClientSockets[this.id] = this;
+        let interval = Number(app.rpcConfig.interval) || 0;
+        if (interval > 5) {
+            this.sendCache = true;
+            this.interval = interval;
+
+        }
         this.doConnect(0);
     }
 
@@ -68,7 +78,9 @@ export class RpcClientSocket {
                 buf.writeUInt8(define.Rpc_Msg.register, 4);
                 registerBuf.copy(buf, 5);
                 self.socket.send(buf);
-
+                if (self.sendCache) {
+                    self.sendTimer = setInterval(self.sendInterval.bind(self), self.interval);
+                }
             };
             self.connectTimer = null as any;
             self.socket = new TcpClient(self.port, self.host, self.app.rpcConfig.maxLen || define.some_config.SocketBufferMaxLen, connectCb);
@@ -83,6 +95,8 @@ export class RpcClientSocket {
         this.app.rpcPool.removeSocket(this.id);
         clearTimeout(this.heartbeatTimer);
         clearTimeout(this.heartbeatTimeoutTimer);
+        clearInterval(this.sendTimer);
+        this.sendArr = [];
         this.heartbeatTimeoutTimer = null as any;
         this.socket = null as any;
         this.app.logger(loggerType.error, concatStr("socket closed, reconnect the rpc server ", this.id, " later"));
@@ -159,7 +173,7 @@ export class RpcClientSocket {
      */
     private registerHandle() {
         this.heartbeatSend();
-        this.app.rpcPool.addSocket(this.id, this.socket);
+        this.app.rpcPool.addSocket(this.id, this);
     }
 
     /**
@@ -171,6 +185,24 @@ export class RpcClientSocket {
             this.socket.close();
         } else if (this.connectTimer !== null) {
             clearTimeout(this.connectTimer);
+        }
+    }
+
+    send(data: Buffer) {
+        if (this.sendCache) {
+            this.sendArr.push(data);
+        } else {
+            this.socket.send(data);
+        }
+    }
+
+    private sendInterval() {
+        if (this.sendArr.length > 0) {
+            let arr = this.sendArr;
+            for (let i = 0, len = arr.length; i < len; i++) {
+                this.socket.send(arr[i]);
+            }
+            this.sendArr = [];
         }
     }
 }

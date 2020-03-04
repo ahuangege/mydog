@@ -5,6 +5,7 @@ import * as util from "util"
 import * as os from "os"
 import { ServerInfo } from "./interfaceDefine";
 
+let app: Application = null as any;
 let env: "production" | "development" = "development";
 
 export function runServers(app: Application) {
@@ -58,6 +59,10 @@ function run(app: Application, server: ServerInfo, cb?: Function) {
 function sshrun(cmd: string, host: string, cb?: Function) {
     let args = [];
     args.push(host);
+    let ssh_params = app.get("ssh_config_params");
+    if (!!ssh_params && Array.isArray(ssh_params)) {
+        args = args.concat(ssh_params);
+    }
     args.push(cmd);
     spawnProcess("ssh", host, args, cb);
 };
@@ -86,7 +91,7 @@ function spawnProcess(command: string, host: string, options: string[], cb?: Fun
             process.stdout.write(msg);
         });
     } else {
-        child = cp.spawn(command, options, { detached: true, stdio: 'inherit' });
+        child = cp.spawn(command, options, { detached: true, stdio: 'ignore' });
         child.unref();
     }
 

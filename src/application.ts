@@ -5,7 +5,7 @@
 
 import * as path from "path"
 import { some_config } from "./util/define";
-import { ServerInfo, routeFunc, rpcRouteFunc, loggerType, connector_config, I_clientSocket, msgEncodeFunc, msgDecodeFunc, protoEncodeFunc, protoDecodeFunc, encodeDecode } from "./util/interfaceDefine";
+import { ServerInfo, routeFunc, rpcRouteFunc, loggerType, I_connectorConfig, I_clientSocket, msgEncodeFunc, msgDecodeFunc, protoEncodeFunc, protoDecodeFunc, encodeDecode, I_rpcConfig } from "./util/interfaceDefine";
 import * as appUtil from "./util/appUtil";
 import { EventEmitter } from "events";
 import { RpcSocketPool } from "./components/rpcSocketPool";
@@ -58,8 +58,8 @@ export default class Application extends EventEmitter {
     msgDecode: msgDecodeFunc = null as any;
     protoEncode: protoEncodeFunc = null as any;
     protoDecode: protoDecodeFunc = null as any;
-    connectorConfig: connector_config = {} as any;                                                           // 前端connector配置
-    rpcConfig: { "timeout": number, "maxLen": number } = {} as any;                                          // rpc配置
+    connectorConfig: I_connectorConfig = {} as any;                                                           // 前端connector配置
+    rpcConfig: I_rpcConfig = {};                                          // rpc配置
     frontendServer: FrontendServer = null as any;
     backendServer: BackendServer = null as any;
 
@@ -93,7 +93,7 @@ export default class Application extends EventEmitter {
      * 配置前端server参数
      * @param config 
      */
-    setConnectorConfig(config: connector_config) {
+    setConnectorConfig(config: I_connectorConfig) {
         this.connectorConfig = config;
     }
 
@@ -101,7 +101,7 @@ export default class Application extends EventEmitter {
      * 配置rpc参数
      * @param config 
      */
-    setRpcConfig(config: { "timeout": number, "maxLen": number }) {
+    setRpcConfig(config: I_rpcConfig) {
         this.rpcConfig = config;
     }
 

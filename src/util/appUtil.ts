@@ -108,10 +108,11 @@ let loadBaseConfig = function (app: Application) {
 
 let processArgs = function (app: Application, args: any) {
     app.main = args.main;
+    let startAlone = !!args.id;
     app.serverId = args.id || app.masterConfig.id;
     if (app.serverId === app.masterConfig.id) {
         app.serverType = "master";
-        app.startMode = args.startMode === "alone" ? "alone" : "all";
+        app.startMode = startAlone ? "alone" : "all";
         app.host = app.masterConfig.host;
         app.port = app.masterConfig.port;
     } else {

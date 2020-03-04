@@ -179,23 +179,42 @@ export interface msgDecodeFunc {
 /**
  * 前端connector配置
  */
-export interface connector_config {
+export interface I_connectorConfig {
     /**
-     * connector构造器
+     * 自定义connector类
      */
-    "connector": I_connectorConstructor,
+    "connector"?: I_connectorConstructor,
     /**
      * 心跳（秒）
      */
-    "heartbeat": number,
+    "heartbeat"?: number,
     /**
      * 最大连接数
      */
-    "maxConnectionNum": number,
+    "maxConnectionNum"?: number,
     /**
      * 消息包最大长度
      */
-    "maxLen": number
+    "maxLen"?: number
+}
+
+
+/**
+ * rpc配置
+ */
+export interface I_rpcConfig {
+    /**
+     * 超时时间（秒）
+     */
+    "timeout"?: number,
+    /**
+     * 消息包最大长度
+     */
+    "maxLen"?: number,
+    /**
+     * 消息发送频率（毫秒）
+     */
+    "interval"?: number
 }
 
 /**

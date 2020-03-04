@@ -144,22 +144,20 @@ export interface Application {
     /**
      * rpc模块配置
      */
-    setRpcConfig(config: { "timeout"?: number, "maxLen"?: number }): void
+    setRpcConfig(config: I_rpcConfig): void
 
     /**
      * 设置键值对
      * @param key 键
      * @param value 值
      */
-    set<T>(key: string | number, value: T): T
-    set(key: string | number, value: any): any
+    set<T = any>(key: string | number, value: T): T
 
     /**
      * 获取键值对
      * @param key 键
      */
-    get(key: string | number): any;
-    get<T>(key: string | number): T;
+    get<T = any>(key: string | number): T;
 
     /**
      * 删除键值对
@@ -280,15 +278,13 @@ export interface Session {
      * @param key 键
      * @param value 值
      */
-    set<T>(key: number | string, value: T): T;
-    set(key: number | string, value: any): any;
+    set<T = any>(key: number | string, value: T): T;
 
     /**
      * 获取键值对
      * @param key 键
      */
-    get(key: number | string): any;
-    get<T>(key: number | string): T;
+    get<T = any>(key: number | string): T;
 
     /**
      * 删除键值对
@@ -414,6 +410,24 @@ export interface I_connectorConfig {
      * 消息包最大长度
      */
     "maxLen"?: number
+}
+
+/**
+ * rpc配置
+ */
+export interface I_rpcConfig {
+    /**
+     * 超时时间（秒）
+     */
+    "timeout"?: number,
+    /**
+     * 消息包最大长度
+     */
+    "maxLen"?: number,
+    /**
+     * 消息发送频率（毫秒）
+     */
+    "interval"?: number
 }
 
 /**
