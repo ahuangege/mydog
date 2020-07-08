@@ -2,6 +2,7 @@
 
 import * as path from "path";
 import * as fs from "fs";
+import * as readline from "readline";
 import { spawn } from "child_process";
 import * as define from "./util/define";
 import * as msgCoder from "./components/msgCoder";
@@ -27,12 +28,12 @@ class clientProxy {
     constructor(host: string, port: number, token: string, cb: Function) {
         this.token = token;
         this.connect_cb = cb;
-        this.socket = new TcpClient(port, host, define.some_config.SocketBufferMaxLen, this.connectCb.bind(this));
+        this.socket = new TcpClient(port, host, define.some_config.SocketBufferMaxLen, true, this.connectCb.bind(this));
 
         this.socket.on("data", (buf: Buffer) => {
             let data = JSON.parse(buf.toString());
-            var reqId = data.reqId;
-            var req = this.reqs[reqId];
+            let reqId = data.reqId;
+            let req = this.reqs[reqId];
             if (!req) {
                 return;
             }
@@ -48,7 +49,7 @@ class clientProxy {
 
     private connectCb() {
         // 注册
-        var loginInfo = {
+        let loginInfo = {
             T: define.Cli_To_Master.register,
             cliToken: this.token
         };
@@ -61,7 +62,7 @@ class clientProxy {
     private heartbeat() {
         let self = this;
         setTimeout(function () {
-            var heartBeatMsg = { T: define.Cli_To_Master.heartbeat };
+            let heartBeatMsg = { T: define.Cli_To_Master.heartbeat };
             let heartBeatMsg_buf = msgCoder.encodeInnerData(heartBeatMsg);
             self.socket.send(heartBeatMsg_buf);
             self.heartbeat();
@@ -101,9 +102,12 @@ program.command('init')
 
 program.command('start')
     .description('start the application')
-    .option('-i, --id <server-id>', 'start server id')
-    .option('-p, --pro', 'enable production environment')
+    .option('-e, --env <environment>', 'the used environment', "development")
+    .option('-d, --daemon', 'enable the daemon start')
     .action(function (opts) {
+        let args = [].slice.call(arguments, 0);
+        opts = args[args.length - 1];
+        opts.serverIds = args.slice(0, -1);
         start(opts);
     });
 
@@ -112,6 +116,7 @@ program.command('list')
     .option('-h, --host <master-host>', 'master server host', DEFAULT_MASTER_HOST)
     .option('-p, --port <master-port>', 'master server port', DEFAULT_MASTER_PORT)
     .option('-t, --token <cli-token>', 'cli token', define.some_config.Cli_Token)
+    .option('-i, --interval <request-interval>', 'request-interval')
     .action(function (opts) {
         list(opts);
     });
@@ -233,92 +238,107 @@ function copy(origin: string, target: string) {
 }
 
 
-function start(opts: any) {
+function start(opts: { "env": string, "daemon": boolean, "serverIds": string }) {
+
     let absScript = path.resolve(process.cwd(), 'app.js');
     if (!fs.existsSync(absScript)) {
         abort("  ->  Not find the script: " + absScript);
     }
-
-    opts.env = opts.pro ? "production" : "development";
-
-    let ls;
-    let params = [absScript, 'env=' + opts.env];
-    if (opts.id) {
-        params.push('id=' + opts.id);
+    opts.env = opts.env || "development";
+    opts.daemon = !!opts.daemon;
+    if (opts.serverIds.length === 0) {
+        startSvr([absScript, 'env=' + opts.env, "daemon=" + opts.daemon]);
+    } else {
+        for (let one of opts.serverIds) {
+            startSvr([absScript, 'env=' + opts.env, "daemon=" + opts.daemon, "id=" + one]);
+        }
     }
-    if (opts.env === "production") {
-        ls = spawn(process.execPath, params, { detached: true, stdio: 'ignore' });
-        ls.unref();
+
+    if (opts.daemon) {
         console.log('The application is running in the background now.\n');
         process.exit(0);
-    } else {
-        ls = spawn(process.execPath, params);
-        ls.stdout.on('data', function (data) {
-            console.log(data.toString());
-        });
-        ls.stderr.on('data', function (data) {
-            console.log(data.toString());
-        });
     }
+
+    function startSvr(params: string[]) {
+        let ls;
+        if (opts.daemon) {
+            ls = spawn(process.execPath, params, { detached: true, stdio: 'ignore' });
+            ls.unref();
+        } else {
+            ls = spawn(process.execPath, params);
+            ls.stdout.on('data', function (data) {
+                console.log(data.toString());
+            });
+            ls.stderr.on('data', function (data) {
+                console.log(data.toString());
+            });
+        }
+    }
+
 }
 
 
 function list(opts: any) {
+    let interval = Number(opts.interval) || 5;
+    if (interval < 1) {
+        interval = 1;
+    }
     connectToMaster(opts.host, opts.port, opts.token, function (client) {
-        client.request({ "func": "list" }, function (err, servers) {
-            if (err) {
-                return abort(err);
-            }
-            var serverTypes: any = {};
-            var server;
-            for (var i = 0; i < servers.length; i++) {
-                server = servers[i];
-                server.time = formatTime(server.time);
-                serverTypes[server.serverType] = serverTypes[server.serverType] || [];
-                serverTypes[server.serverType].push(server);
-            }
-            for (var x in serverTypes) {
-                serverTypes[x].sort(comparer);
-            }
-            var endArr = [];
-            endArr.push(["id", "serverType", "pid", "rss(M)", "heapTotal(M)", "heapUsed(M)", "upTime(d/h/m)"]);
-            if (serverTypes["master"]) {
-                pushArr(endArr, serverTypes["master"]);
+        console.log("\n");
+        requestList();
+        let rowNum = 0;
+        function requestList() {
+            client.request({ "func": "list" }, function (err, msg: { "name": string, "env": string, "serverTypeSort": string[], "infoArr": string[][] }) {
+                if (err) {
+                    return abort(err);
+                }
+                let titles = msg.infoArr.shift() as string[];
+                titles.splice(1, 1);
+                let serverTypes: { [svrType: string]: string[][] } = {};
+                for (let one of msg.serverTypeSort) {
+                    serverTypes[one] = [];
+                }
+                for (let one of msg.infoArr) {
+                    serverTypes[one[1]].push(one);
+                    one.splice(1, 1);
+                }
+                for (let x in serverTypes) {
+                    serverTypes[x].sort(comparer);
+                }
+                let id = 1;
+                titles.unshift("");
+                let endArr: string[][] = [];
+                endArr.push(titles);
+                serverTypes["master"][0].unshift(id.toString());
+                id++;
+                endArr.push(serverTypes["master"][0]);
                 delete serverTypes["master"];
-            }
-            for (x in serverTypes) {
-                pushArr(endArr, serverTypes[x]);
-            }
-            formatPrint(endArr);
-            abort("");
-        });
+
+                for (let x in serverTypes) {
+                    for (let one of serverTypes[x]) {
+                        one.unshift(id.toString());
+                        id++;
+                        endArr.push(one);
+                    }
+                }
+
+                readline.cursorTo(process.stdout, 0);
+                readline.moveCursor(process.stdout, 0, -rowNum);
+                readline.clearScreenDown(process.stdout);
+                rowNum = endArr.length + 1;
+                mydogListPrint(msg.name, msg.env, endArr);
+                setTimeout(requestList, interval * 1000)
+            });
+        }
     });
 
-    function formatTime(time: number) {
-        time = Math.floor((Date.now() - time) / 1000);
-        var days = Math.floor(time / (24 * 3600));
-        time = time % (24 * 3600);
-        var hours = Math.floor(time / 3600);
-        time = time % 3600;
-        var minutes = Math.ceil(time / 60);
-        return days + "/" + hours + "/" + minutes;
-    }
-
-    var comparer = function (a: { "id": string }, b: { "id": string }) {
-        if (a.id < b.id) {
+    let comparer = function (a: string[], b: string[]) {
+        if (a[0] < b[0]) {
             return -1;
-        } else if (a.id > b.id) {
-            return 1;
         } else {
-            return 0;
+            return 1;
         }
     };
-
-    function pushArr(endArr: any[], arr: any) {
-        for (var i = 0; i < arr.length; i++) {
-            endArr.push([arr[i].id, arr[i].serverType, arr[i].pid, arr[i].rss, arr[i].heapTotal, arr[i].heapUsed, arr[i].time]);
-        }
-    }
 }
 
 
@@ -348,53 +368,84 @@ function remove(opts: any) {
 }
 
 
-function formatPrint(strs: string[][]) {
-    var i, j;
-    for (i = 0; i < strs.length; i++) {
-        for (j = 0; j < strs[0].length; j++) {
-            strs[i][j] = (strs[i][j] || "").toString();
+function mydogListPrint(appName: string, env: string, infoArr: string[][]) {
+
+    let consoleMaxColumns = process.stdout.columns - 2;
+    let nameEnv = "appName: " + appName + "    env: " + env;
+    console.log("\x1b[32m" + getRealStr(nameEnv) + "\x1b[0m");
+
+    let widthArr: number[][] = [];  // 每个字段的控制台宽度
+    let columnWidth: number[] = []; // 每列的最大宽度
+    let titleLen = infoArr[0].length;
+    for (let i = 0; i < titleLen; i++) {
+        columnWidth.push(0);
+    }
+    for (let i = 0; i < infoArr.length; i++) {
+        let one = infoArr[i];
+        if (one.length > titleLen) {
+            one.splice(titleLen);
+        } else if (one.length < titleLen) {
+            for (let j = titleLen - one.length - 1; j >= 0; j--) {
+                one.push("");
+            }
+        }
+        let tmpArr: number[] = [];
+        for (let j = 0; j < titleLen; j++) {
+            one[j] = one[j].toString();
+            let tmpLen = getDisplayLength(one[j]);
+            tmpArr.push(tmpLen);
+            if (tmpLen > columnWidth[j]) {
+                columnWidth[j] = tmpLen;
+            }
+        }
+        widthArr[i] = tmpArr;
+    }
+    for (let i = 0; i < titleLen; i++) {
+        columnWidth[i] += 3;
+    }
+
+    for (let i = 0; i < infoArr.length; i++) {
+        let one = infoArr[i];
+        let tmpWidthArr = widthArr[i];
+        for (let j = 0; j < titleLen; j++) {
+            one[j] += " ".repeat(columnWidth[j] - tmpWidthArr[j]);
+        }
+        if (i === 0) {
+            console.log("\x1b[31m" + getRealStr(one.join("")) + "\x1b[0m");
+        } else {
+            console.log(getRealStr(one.join("")));
         }
     }
 
-    var lens = [];
-    for (i = 0; i < strs[0].length; i++) {
-        lens[i] = strs[0][i].length;
-    }
 
-    for (i = 1; i < strs.length; i++) {
-        for (j = 0; j < strs[0].length; j++) {
-            lens[j] = strs[i][j].length > lens[j] ? strs[i][j].length : lens[j];
-        }
-    }
 
-    for (i = 0; i < lens.length - 1; i++) {
-        lens[i] = lens[i] + 3;
-    }
-
-    for (i = 0; i < strs.length; i++) {
-        for (j = 0; j < lens.length; j++) {
-            strs[i][j] = formatStrLen(strs[i][j], lens[j]);
-        }
-    }
-
-    console.log("");
-    for (i = 0; i < strs.length; i++) {
-        let tmpStr = "  " + (strs[i].slice(0, lens.length)).join("");
-        console.log(tmpStr)
-    }
-    console.log("");
-
-    function formatStrLen(str: string, len: number) {
-        var add = len - str.length;
-        for (var i = 0; i < add; i++) {
-            str += " ";
+    function getRealStr(str: string) {
+        while (getDisplayLength(str) > consoleMaxColumns) {
+            str = str.substring(0, str.length - 2);
         }
         return str;
+    }
+
+
+    //获得字符串实际长度，中文2，英文1
+    //控制台中中文占用2个英文字符的宽度
+    function getDisplayLength(str: string) {
+        let realLength = 0, len = str.length, charCode = -1;
+        for (var i = 0; i < len; i++) {
+            charCode = str.charCodeAt(i);
+            if (charCode >= 0 && charCode <= 128) {
+                realLength += 1;
+            } else {
+                realLength += 2;
+            }
+
+        }
+        return realLength;
     }
 
 }
 
 function connectToMaster(host: string, port: number, token: string, cb: (client: clientProxy) => void) {
     console.log("try to connect  " + host + ":" + port);
-    var client = new clientProxy(host, port, token, cb);
+    let client = new clientProxy(host, port, token, cb);
 }

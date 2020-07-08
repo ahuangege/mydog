@@ -22,7 +22,7 @@ import { BackendServer } from "../components/backendServer";
  */
 export function defaultConfiguration(app: Application) {
     let args = parseArgs(process.argv);
-    app.env = args.env === "production" ? "production" : "development";
+    app.env = args.env || "development";
     loadBaseConfig(app);
     processArgs(app, args);
 }
@@ -36,19 +36,19 @@ export function startServer(app: Application) {
     if (app.serverType === "master") {
         master.start(app);
     } else if (app.frontend) {
+        rpcService.init(app);
         rpcServer.start(app, function () {
             app.frontendServer = new FrontendServer(app);
             app.frontendServer.start(function () {
-                rpcService.init(app);
                 monitor.start(app);
             });
         });
 
     } else {
+        rpcService.init(app);
         rpcServer.start(app, function () {
             app.backendServer = new BackendServer(app);
             app.backendServer.init();
-            rpcService.init(app);
             monitor.start(app);
         });
     }
@@ -93,9 +93,14 @@ let loadBaseConfig = function (app: Application) {
         let originPath = path.join(app.base, val);
         if (fs.existsSync(originPath)) {
             let file = require(originPath).default;
-            if (file[env]) {
+            if (key === "masterConfig" || key === "serversConfig") {
+                if (!file[env]) {
+                    console.error("ERROR-- no such environment: " + key + "/" + env);
+                    process.exit();
+                }
                 file = file[env];
             }
+
             app[key] = file;
         } else {
             console.error("ERROR-- no such file: " + originPath);
@@ -110,57 +115,43 @@ let processArgs = function (app: Application, args: any) {
     app.main = args.main;
     let startAlone = !!args.id;
     app.serverId = args.id || app.masterConfig.id;
+    app.isDaemon = !!args.isDaemon;
     if (app.serverId === app.masterConfig.id) {
+        app.serverInfo = app.masterConfig;
         app.serverType = "master";
         app.startMode = startAlone ? "alone" : "all";
         app.host = app.masterConfig.host;
         app.port = app.masterConfig.port;
     } else {
         app.startMode = args.startMode === "all" ? "all" : "alone";
-        let serverConfig: ServerInfo = {} as any;
-        let tmpServerType: string = "";
+        let serverConfig: ServerInfo = null as any;
         for (let serverType in app.serversConfig) {
             for (let one of app.serversConfig[serverType]) {
                 if (one.id === app.serverId) {
                     serverConfig = one;
-                    tmpServerType = serverType;
+                    app.serverType = serverType;
                     break;
                 }
             }
+            if (serverConfig) {
+                break;
+            }
         }
-        app.serverType = args.serverType || tmpServerType;
-        app.host = args.host || serverConfig.host;
-        app.port = args.port || serverConfig.port;
-        if (!app.serverType || !app.host || !app.port) {
-            throw Error("param error");
+        if (!serverConfig) {
+            console.error("ERROR-- no such server: " + app.serverId);
+            process.exit();
         }
-        app.clientPort = args.clientPort || serverConfig.clientPort;
-
-        let server: ServerInfo = args;
-        if (args.hasOwnProperty("frontend")) {
-            app.frontend = args.frontend === true;
-        } else {
-            app.frontend = serverConfig.frontend === true;
-        }
-        server.frontend = app.frontend;
-
-
-        delete server["main"];
-        delete server["env"];
-        delete server["serverType"];
-        delete server["startMode"];
-
-        server["id"] = app.serverId;
-        server["host"] = app.host;
-        server["port"] = app.port;
-
+        app.serverInfo = serverConfig;
+        app.host = serverConfig.host;
+        app.port = serverConfig.port;
+        app.frontend = !!serverConfig.frontend;
+        app.clientPort = serverConfig.clientPort || 0;
 
         let servers: { [serverType: string]: ServerInfo[] } = {};
         servers[app.serverType] = [];
-        servers[app.serverType].push(server);
-        app.serverInfo = server;
+        servers[app.serverType].push(serverConfig);
         app.servers = servers;
-        app.serversIdMap[server.id] = server;
+        app.serversIdMap[serverConfig.id] = serverConfig;
     }
 };
 

@@ -8,10 +8,15 @@ import { EventEmitter } from "events";
 import { SocketProxy } from "../util/interfaceDefine";
 import { decode } from "./msgCoder";
 
-export default function tcpServer(port: number, maxLen: number, startCb: () => void, newClientCb: (socket: SocketProxy) => void) {
-    net.createServer(function (socket) {
+export default function tcpServer(port: number, maxLen: number, noDelay: boolean, startCb: () => void, newClientCb: (socket: SocketProxy) => void) {
+    let svr = net.createServer(function (socket) {
+        socket.setNoDelay(noDelay);
         newClientCb(new NetSocket(socket, maxLen));
     }).listen(port, startCb);
+
+    svr.on("error", (err) => {
+        console.log(err);
+    });
 }
 
 class NetSocket extends EventEmitter implements SocketProxy {

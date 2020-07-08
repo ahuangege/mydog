@@ -4,7 +4,7 @@
 
 
 import Application from "../application";
-import { rpcRouteFunc, rpcTimeout, rpcErr, rpcMsg } from "../util/interfaceDefine";
+import { rpcTimeout, rpcErr, rpcMsg } from "../util/interfaceDefine";
 import * as path from "path";
 import * as fs from "fs";
 import define = require("../util/define");
@@ -21,8 +21,10 @@ let rpcTimeMax: number = 10 * 1000;
  */
 export function init(_app: Application) {
     app = _app;
-    if (app.rpcConfig.hasOwnProperty("timeout") && Number(app.rpcConfig["timeout"]) > 5) {
-        rpcTimeMax = Number(app.rpcConfig["timeout"]) * 1000;
+    let rpcConfig = app.someconfig.rpc || {};
+    let timeout = Number(rpcConfig.timeout) || 0;
+    if (timeout >= 5) {
+        rpcTimeMax = timeout * 1000;
     }
     new rpc_create();
 }
@@ -72,6 +74,7 @@ class rpc_create {
         if (!exists) {
             return;
         }
+        let thisSvrHandler: { "filename": string, "con": any }[] = [];
         fs.readdirSync(dirName).forEach(function (serverName) {
             tmp_rpc_obj[serverName] = {};
             let remoteDirName = path.join(dirName, serverName, '/remote');
@@ -88,12 +91,15 @@ class rpc_create {
                         tmp_rpc_obj[serverName][fileBasename] = self.initFunc(serverName, fileBasename,
                             remote.default.prototype, Object.getOwnPropertyNames(remote.default.prototype));
                         if (serverName === app.serverType) {
-                            msgHandler[fileBasename] = new remote.default(app);
+                            thisSvrHandler.push({ "filename": fileBasename, "con": remote.default });
                         }
                     }
                 });
             }
         });
+        for (let one of thisSvrHandler) {
+            msgHandler[one.filename] = new one.con(app);
+        }
     }
 
     rpcFunc(serverId: string) {
@@ -133,6 +139,7 @@ class rpc_create {
         }
 
         if (sid === app.serverId) {
+            args = JSON.parse(JSON.stringify(args));
             if (cb) {
                 let timeout = {
                     "id": getRpcId(),
@@ -208,7 +215,7 @@ class rpc_create {
 
         function send(toId: string, callback: Function) {
             if (toId === app.serverId) {
-                let tmp_args = [...args];
+                let tmp_args = [...JSON.parse(JSON.stringify(args))];
                 if (callback) {
                     let timeout = {
                         "id": getRpcId(),
@@ -284,9 +291,11 @@ function sendRpcMsg(sid: string, msg: any) {
  * 给本服务器发送rpc消息
  */
 function sendRpcMsgToSelf(route: string, msg: any[]) {
-    let cmd = route.split('.');
-    let file = msgHandler[cmd[0]];
-    file[cmd[1]].apply(file, msg);
+    process.nextTick(() => {
+        let cmd = route.split('.');
+        let file = msgHandler[cmd[0]];
+        file[cmd[1]].apply(file, msg);
+    });
 }
 
 

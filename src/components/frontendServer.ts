@@ -30,7 +30,8 @@ export class FrontendServer {
         };
         protocol.init(this.app);
         let mydog = require("../mydog");
-        let connectorConstructor: I_connectorConstructor = this.app.connectorConfig.connector || mydog.connector.connectorTcp;
+        let connectorConfig = this.app.someconfig.connector || {};
+        let connectorConstructor: I_connectorConstructor = connectorConfig.connector || mydog.connector.connectorTcp;
         let defaultEncodeDecode: encodeDecode;
         if (connectorConstructor === mydog.connector.connectorTcp) {
             defaultEncodeDecode = protocol.Tcp_EncodeDecode;
@@ -39,18 +40,22 @@ export class FrontendServer {
         } else {
             defaultEncodeDecode = protocol.Tcp_EncodeDecode;
         }
-        this.app.protoEncode = this.app.encodeDecodeConfig.protoEncode || defaultEncodeDecode.protoEncode;
-        this.app.msgEncode = this.app.encodeDecodeConfig.msgEncode || defaultEncodeDecode.msgEncode;
-        this.app.protoDecode = this.app.encodeDecodeConfig.protoDecode || defaultEncodeDecode.protoDecode;
-        this.app.msgDecode = this.app.encodeDecodeConfig.msgDecode || defaultEncodeDecode.msgDecode;
+        let encodeDecodeConfig = this.app.someconfig.encodeDecode || {};
+        this.app.protoEncode = encodeDecodeConfig.protoEncode || defaultEncodeDecode.protoEncode;
+        this.app.msgEncode = encodeDecodeConfig.msgEncode || defaultEncodeDecode.msgEncode;
+        this.app.protoDecode = encodeDecodeConfig.protoDecode || defaultEncodeDecode.protoDecode;
+        this.app.msgDecode = encodeDecodeConfig.msgDecode || defaultEncodeDecode.msgDecode;
 
-        let heartbeat = 0;
-        if (this.app.connectorConfig.heartbeat && Number(this.app.connectorConfig.heartbeat) > 0) {
-            heartbeat = Number(this.app.connectorConfig.heartbeat);
-        }
+        let heartbeat = connectorConfig.heartbeat || 0;
+        let noDelay = connectorConfig.noDelay === false ? false : true;
         new connectorConstructor({
             "app": this.app,
-            "config": { "route": this.app.routeConfig, "heartbeat": heartbeat, "maxLen": this.app.connectorConfig.maxLen || define.some_config.SocketBufferMaxLen },
+            "config": {
+                "route": this.app.routeConfig,
+                "heartbeat": heartbeat,
+                "maxLen": connectorConfig.maxLen || define.some_config.SocketBufferMaxLen,
+                "noDelay": noDelay
+            },
             "clientManager": new ClientManager(this.app),
             "startCb": startCb
         });
@@ -96,8 +101,9 @@ class ClientManager implements I_clientManager {
         this.app = app;
         this.serverType = app.serverType;
         this.router = this.app.router;
-        if (app.connectorConfig && app.connectorConfig.maxConnectionNum && Number(app.connectorConfig.maxConnectionNum) > 0) {
-            this.maxConnectionNum = Number(app.connectorConfig.maxConnectionNum);
+        let connectorConfig = this.app.someconfig.connector || {};
+        if (connectorConfig.maxConnectionNum && connectorConfig.maxConnectionNum > 0) {
+            this.maxConnectionNum = connectorConfig.maxConnectionNum;
         }
         this.loadHandler();
     }

@@ -8,7 +8,7 @@ import define = require("../util/define");
 import { Master_ServerProxy, Master_ClientProxy } from "./master";
 import { monitor_client_proxy } from "./monitor";
 
-
+let serverTypeSort: string[] = [];
 
 interface requset {
     cb: Function;
@@ -23,6 +23,10 @@ export class MasterCli {
     constructor(app: Application, servers: { [id: string]: Master_ServerProxy }) {
         this.app = app;
         this.servers = servers;
+        serverTypeSort.push("master");
+        for (let svrType in app.serversConfig) {
+            serverTypeSort.push(svrType);
+        }
     }
 
     deal_cli_msg(socket: Master_ClientProxy, data: any) {
@@ -60,13 +64,27 @@ export class MasterCli {
     }
 
     private func_list(reqId: number, socket: Master_ClientProxy, args: any) {
+        let self = this;
         let num = 0;
         for (let sid in this.servers) {
             num++;
             this.send_to_monitor(this.servers[sid], { "func": "list" }, cb)
         }
-        let serverInfoArr: any[] = [];
-        serverInfoArr.push(getListInfo(this.app));
+        let titles = ["id", "serverType", "pid", "rss(M)", "upTime(d/h/m)"];
+        let infos = getListInfo(this.app);
+        let listFunc = this.app.mydoglistFunc;
+        if (typeof listFunc === "function") {
+            let resArr = listFunc();
+            if (resArr && Array.isArray(resArr)) {
+                for (let one of resArr) {
+                    titles.push(one.title);
+                    infos.push(one.value);
+                }
+            }
+        }
+        let serverInfoArr: string[][] = [];
+        serverInfoArr.push(titles);
+        serverInfoArr.push(infos);
         if (num === 0) {
             cb("no other server", null);
         }
@@ -76,7 +94,15 @@ export class MasterCli {
             }
             num--;
             if (num <= 0) {
-                socket.send({ "reqId": reqId, "msg": serverInfoArr });
+                socket.send({
+                    "reqId": reqId,
+                    "msg": {
+                        "name": self.app.appName,
+                        "env": self.app.env,
+                        "serverTypeSort": serverTypeSort,
+                        "infoArr": serverInfoArr,
+                    }
+                });
             }
         }
     }
@@ -125,16 +151,19 @@ export class MasterCli {
 function getListInfo(app: Application) {
     let mem = process.memoryUsage();
     let Mb = 1024 * 1024;
-    return {
-        "id": app.serverId,
-        "serverType": app.serverType,
-        "rss": Math.floor(mem.rss / Mb),
-        "heapTotal": Math.floor(mem.heapTotal / Mb),
-        "heapUsed": Math.floor(mem.heapUsed / Mb),
-        "pid": process.pid,
-        "time": app.startTime
-    };
+    return [app.serverId, app.serverType, process.pid.toString(), Math.floor(mem.rss / Mb).toString(), formatTime(app.startTime)];
 }
+
+function formatTime(time: number) {
+    time = Math.floor((Date.now() - time) / 1000);
+    var days = Math.floor(time / (24 * 3600));
+    time = time % (24 * 3600);
+    var hours = Math.floor(time / 3600);
+    time = time % 3600;
+    var minutes = Math.ceil(time / 60);
+    return days + "/" + hours + "/" + minutes;
+}
+
 
 
 export class MonitorCli {
@@ -157,10 +186,21 @@ export class MonitorCli {
 
 
     private func_list(reqId: number, socket: monitor_client_proxy, args: any) {
+        let infos = getListInfo(this.app);
+        let listFunc = this.app.mydoglistFunc;
+        if (typeof listFunc === "function") {
+            let resArr = listFunc();
+            if (resArr && Array.isArray(resArr)) {
+                for (let one of resArr) {
+                    infos.push(one.value);
+                }
+            }
+        }
+
         let msg = {
             "T": define.Monitor_To_Master.cliMsg,
             "reqId": reqId,
-            "msg": getListInfo(this.app)
+            "msg": infos
         };
         this.send_to_master(socket, msg);
     };

@@ -5,8 +5,12 @@ import * as define from "../util/define";
 import * as rpcService from "./rpcService";
 import { concatStr } from "../util/appUtil";
 
+let serverToken: string = "";
+
 export function start(app: Application, cb: () => void) {
-    tcpServer(app.port, app.rpcConfig.maxLen || define.some_config.SocketBufferMaxLen, startCb, newClientCb);
+    let rpcConfig = app.someconfig.rpc || {};
+    let noDelay = rpcConfig.noDelay === false ? false : true;
+    tcpServer(app.port, rpcConfig.maxLen || define.some_config.SocketBufferMaxLen, noDelay, startCb, newClientCb);
 
     function startCb() {
         let str = concatStr("listening at [", app.host, ":", app.port, "]  ", app.serverId);
@@ -18,6 +22,9 @@ export function start(app: Application, cb: () => void) {
     function newClientCb(socket: SocketProxy) {
         new RpcServerSocket(app, socket);
     }
+
+    let tokenConfig = app.someconfig.recognizeToken || {};
+    serverToken = tokenConfig.serverToken || define.some_config.Server_Token;
 }
 
 class RpcServerSocket {
@@ -39,8 +46,9 @@ class RpcServerSocket {
             app.logger(loggerType.error, concatStr("register timeout, close rpc socket, ", socket.remoteAddress));
             socket.close();
         }, 10000);
-        let interval = Number(app.rpcConfig.interval) || 0;
-        if (interval > 5) {
+        let rpcConfig = app.someconfig.rpc || {};
+        let interval = Number(rpcConfig.interval) || 0;
+        if (interval >= 10) {
             this.sendCache = true;
             this.sendTimer = setInterval(this.sendInterval.bind(this), interval);
         }
@@ -114,7 +122,7 @@ class RpcServerSocket {
             return;
         }
 
-        if (data.serverToken !== this.app.serverToken) {
+        if (data.serverToken !== serverToken) {
             this.app.logger(loggerType.error, concatStr("illegal serverToken, close the rpc socket, ", this.socket.remoteAddress));
             this.socket.close();
             return;
@@ -149,10 +157,15 @@ class RpcServerSocket {
     private heartbeatHandle() {
         let self = this;
         clearTimeout(this.heartbeatTimer);
+        let rpcConfig = this.app.someconfig.rpc || {};
+        let heartbeat = rpcConfig.heartbeat || define.some_config.Time.Rpc_Heart_Beat_Time;
+        if (heartbeat < 5) {
+            heartbeat = 5;
+        }
         this.heartbeatTimer = setTimeout(function () {
             self.app.logger(loggerType.warn, concatStr("heartBeat time out, close it, " + self.id));
             self.socket.close();
-        }, define.some_config.Time.Rpc_Heart_Beat_Time * 1000 * 2);
+        }, heartbeat * 1000 * 2);
     }
 
     /**

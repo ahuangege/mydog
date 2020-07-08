@@ -4,8 +4,7 @@
 
 
 import * as path from "path"
-import { some_config } from "./util/define";
-import { ServerInfo, routeFunc, rpcRouteFunc, loggerType, I_connectorConfig, I_clientSocket, msgEncodeFunc, msgDecodeFunc, protoEncodeFunc, protoDecodeFunc, encodeDecode, I_rpcConfig } from "./util/interfaceDefine";
+import { ServerInfo, routeFunc, I_someConfig, loggerType, I_connectorConfig, I_clientSocket, msgEncodeFunc, msgDecodeFunc, protoEncodeFunc, protoDecodeFunc, encodeDecode, I_rpcConfig } from "./util/interfaceDefine";
 import * as appUtil from "./util/appUtil";
 import { EventEmitter } from "events";
 import { RpcSocketPool } from "./components/rpcSocketPool";
@@ -18,6 +17,7 @@ declare global {
 }
 
 export default class Application extends EventEmitter {
+    appName: string = "myApp";                                                                               // 应用名称
     hasStarted: boolean = false;                                                                             // 是否已经启动
     main: string = "";                                                                                       // 启动文件
     base: string = path.dirname((require.main as any).filename);                                             // 根路径
@@ -33,11 +33,9 @@ export default class Application extends EventEmitter {
     servers: { [serverType: string]: ServerInfo[] } = {};                                                    // 正在运行的所有用户服务器
     serversIdMap: { [id: string]: ServerInfo } = {};                                                         // 正在运行的所有用户服务器（字典格式）
 
-    serverToken: string = some_config.Server_Token;                                                          // 服务器内部认证密钥
-    cliToken: string = some_config.Cli_Token;                                                                // master与cli的认证密匙
-
     serverInfo: ServerInfo = {} as ServerInfo;                                                               // 本服务器的配置
-    env: "production" | "development" = "development";                                                       // 环境
+    isDaemon: boolean = false;                 // 是否后台运行
+    env: string = "";                                                       // 环境
     host: string = "";                                                                                       // ip
     port: number = 0;                                                                                        // port
     clientPort: number = 0;                                                                                  // clientPort
@@ -53,15 +51,15 @@ export default class Application extends EventEmitter {
 
     logger: (level: loggerType, msg: string) => void = function () { };                                      // 内部日志输出口
 
-    encodeDecodeConfig: encodeDecode = {} as any;                                                            // 编码解码函数
     msgEncode: msgEncodeFunc = null as any;
     msgDecode: msgDecodeFunc = null as any;
     protoEncode: protoEncodeFunc = null as any;
     protoDecode: protoDecodeFunc = null as any;
-    connectorConfig: I_connectorConfig = {} as any;                                                           // 前端connector配置
-    rpcConfig: I_rpcConfig = {};                                          // rpc配置
+
+    someconfig: I_someConfig = {} as any;   // 部分开放的配置
     frontendServer: FrontendServer = null as any;
     backendServer: BackendServer = null as any;
+    mydoglistFunc: () => { "title": string, "value": string }[] = null as any;  // mydog list 监控获取数据
 
     constructor() {
         super();
@@ -81,28 +79,14 @@ export default class Application extends EventEmitter {
         appUtil.startServer(this);
     }
 
-    /**
-     * 配置编码解码函数
-     * @param config 
-     */
-    setEncodeDecodeConfig(config: encodeDecode): void {
-        this.encodeDecodeConfig = config;
-    }
 
-    /**
-     * 配置前端server参数
-     * @param config 
-     */
-    setConnectorConfig(config: I_connectorConfig) {
-        this.connectorConfig = config;
-    }
-
-    /**
-     * 配置rpc参数
-     * @param config 
-     */
-    setRpcConfig(config: I_rpcConfig) {
-        this.rpcConfig = config;
+    setConfig(key: "rpc", value: I_rpcConfig): void
+    setConfig(key: "connector", value: I_connectorConfig): void
+    setConfig(key: "encodeDecode", value: encodeDecode): void
+    setConfig(key: "ssh", value: string[]): void
+    setConfig(key: "recognizeToken", value: { "serverToken": string, "cliToken": string }): void
+    setConfig(key: keyof I_someConfig, value: any): void {
+        this.someconfig[key] = value;
     }
 
     /**
@@ -293,6 +277,17 @@ export default class Application extends EventEmitter {
      * 获取bind的socket连接数
      */
     getBindClientNum() {
-        return Object.keys(this.clients).length;
+        let num = 0;
+        for (let x in this.clients) {
+            num++;
+        }
+        return num;
+    }
+
+    /**
+     * mydog list 监控时，获取用户自定义数据
+     */
+    on_mydoglist(func: () => { "title": string, "value": string }[]) {
+        this.mydoglistFunc = func;
     }
 }

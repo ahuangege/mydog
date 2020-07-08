@@ -1,8 +1,8 @@
 {
   "_from": "mydog",
-  "_id": "mydog@1.9.5",
+  "_id": "mydog@2.0.2",
   "_inBundle": false,
-  "_integrity": "sha512-83EMfdWGEBdnotiPAqvZYOWy4JnEZ9Q4TGXvHqYhMDD9O9uiBojPytrc3oiqHQDyNKh7LM8SiBtGLlpDeHFiTQ==",
+  "_integrity": "sha512-8/jZDckCcdUOqsDfQKavZwhzyuuKnd4qhv9IUbommvw2vXZL5Kuz1qqH8dvSrsADGiUEpMvCV67F5pZvbPF1FQ==",
   "_location": "/mydog",
   "_phantomChildren": {},
   "_requested": {
@@ -19,22 +19,22 @@
     "#USER",
     "/"
   ],
-  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-1.9.5.tgz",
-  "_shasum": "6c0624e4769510c4ddf8824ce8d16f80ca6a3986",
+  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-2.0.2.tgz",
+  "_shasum": "2129c8176850301266068db8a6f80997b64699da",
   "_spec": "mydog",
-  "_where": "E:\\nodejs\\mydog_src\\source",
+  "_where": "E:\\mydogNew",
   "author": {
     "name": "ahuang"
   },
   "bin": {
-    "mydog": "./lib/cli.js"
+    "mydog": "lib/cli.js"
   },
-  "bundleDependencies": [],
+  "bundleDependencies": false,
   "dependencies": {
-    "commander": "^2.17.1",
-    "ws": "^7.0.1",
     "@types/node": "^12.0.8",
-    "@types/ws": "^6.0.1"
+    "@types/ws": "^6.0.1",
+    "commander": "^2.17.1",
+    "ws": "^7.0.1"
   },
   "deprecated": false,
   "description": "a framework of nodejs server, thin pomelo",

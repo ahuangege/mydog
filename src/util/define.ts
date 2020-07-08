@@ -3,13 +3,13 @@
  */
 export let some_config = {
     Time: {
-        Monitor_Reconnect_Time: 5,
+        Monitor_Reconnect_Time: 2,
         Monitor_Heart_Beat_Time: 60,
         Monitor_Heart_Beat_Timeout_Time: 10,
 
-        Rpc_Reconnect_Time: 5,
+        Rpc_Reconnect_Time: 2,
         Rpc_Heart_Beat_Time: 60,
-        Rpc_Heart_Beat_Timeout_Time: 20,
+        Rpc_Heart_Beat_Timeout_Time: 10,
     },
     File_Dir: {
         Servers: "servers",

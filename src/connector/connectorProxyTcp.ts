@@ -1,6 +1,6 @@
 import Application from "../application";
 import tcpServer from "../components/tcpServer";
-import { SocketProxy, I_clientManager, I_clientSocket } from "../util/interfaceDefine";
+import { SocketProxy, I_clientManager, I_clientSocket, I_connectorConstructor } from "../util/interfaceDefine";
 import { Session } from "../components/session";
 import * as define from "../util/define";
 
@@ -13,10 +13,10 @@ export class ConnectorTcp {
     public handshakeBuf: Buffer;        // 握手buffer
     public heartbeatBuf: Buffer;        // 心跳回应buffer
     public heartbeatTime: number = 0;   // 心跳时间
-    constructor(info: { app: Application, clientManager: I_clientManager, config: { "route": string[], "heartbeat": number, "maxLen": number }, startCb: () => void }) {
+    constructor(info: { app: Application, clientManager: I_clientManager, config: { "route": string[], "heartbeat": number, "maxLen": number, "noDelay": boolean }, startCb: () => void }) {
         this.app = info.app;
         this.clientManager = info.clientManager;
-        tcpServer(info.app.clientPort, info.config.maxLen, info.startCb, this.newClientCb.bind(this));
+        tcpServer(info.app.clientPort, info.config.maxLen, info.config.noDelay, info.startCb, this.newClientCb.bind(this));
 
         // 心跳时间
         this.heartbeatTime = info.config.heartbeat * 1000;

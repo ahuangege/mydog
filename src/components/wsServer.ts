@@ -12,6 +12,9 @@ export default function wsServer(port: number, maxLen: number, startCb: () => vo
     server.on("connection", function (socket, req) {
         newClientCb(new WsSocket(socket, req.connection.remoteAddress as string, maxLen));
     });
+    server.on("error", (err) => {
+        console.log(err);
+    });
 }
 
 class WsSocket extends EventEmitter implements SocketProxy {

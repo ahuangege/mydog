@@ -80,12 +80,6 @@ export interface routeFunc {
     (app: Application, session: Session, serverType: string, cb: (serverId: string) => void): void;
 }
 
-/**
- * rpc路由函数
- */
-export interface rpcRouteFunc {
-    (app: Application, routeParam: any, cb: (serverId: string) => void): void;
-}
 
 /**
  * 后端同步到前端的session
@@ -196,6 +190,10 @@ export interface I_connectorConfig {
      * 消息包最大长度
      */
     "maxLen"?: number
+    /**
+     * 是否开启Nagle算法（默认不开启）
+     */
+    "noDelay"?: boolean,
 }
 
 
@@ -214,7 +212,27 @@ export interface I_rpcConfig {
     /**
      * 消息发送频率（毫秒）
      */
-    "interval"?: number
+    "interval"?: number,
+    /**
+     * 是否开启Nagle算法（默认不开启）
+     */
+    "noDelay"?: boolean,
+    /**
+     * 心跳（秒）
+     */
+    "heartbeat"?: number,
+    /**
+     * 重连间隔（秒）
+     */
+    "reconnectDelay"?: number,
+}
+
+export interface I_someConfig {
+    "rpc": I_rpcConfig,             // rpc配置
+    "connector": I_connectorConfig, // 前端connector连接服配置
+    "encodeDecode": encodeDecode,   // 编码解码配置
+    "ssh": string[],                // ssh配置
+    "recognizeToken": { "serverToken": string, "cliToken": string }
 }
 
 /**
@@ -230,7 +248,7 @@ export interface I_clientManager {
  * 连接服构造函数
  */
 export interface I_connectorConstructor {
-    new(info: { app: Application, clientManager: I_clientManager, config: { "route": string[], "heartbeat": number, "maxLen": number }, startCb: () => void }): void;
+    new(info: { app: Application, clientManager: I_clientManager, config: { "route": string[], "heartbeat": number, "maxLen": number, "noDelay": boolean }, startCb: () => void }): void;
 }
 
 /**

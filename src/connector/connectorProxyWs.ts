@@ -13,7 +13,7 @@ export class ConnectorWs {
     public handshakeBuf: Buffer;        // 握手buffer
     public heartbeatBuf: Buffer;        // 心跳回应buffer
     public heartbeatTime: number = 0;   // 心跳时间
-    constructor(info: { app: Application, clientManager: I_clientManager, config: { "route": string[], "heartbeat": number, "maxLen": number }, startCb: () => void }) {
+    constructor(info: { app: Application, clientManager: I_clientManager, config: { "route": string[], "heartbeat": number, "maxLen": number, "noDelay": boolean }, startCb: () => void }) {
         this.app = info.app;
         this.clientManager = info.clientManager;
         wsServer(info.app.clientPort, info.config.maxLen, info.startCb, this.newClientCb.bind(this));

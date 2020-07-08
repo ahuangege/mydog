@@ -27,10 +27,13 @@ export class monitor_client_proxy {
     private removeDiffServers: { [id: string]: string } = {}; // monitor重连后，待对比移除的server集合
     private needDiff: boolean = false; // 是否需要对比
     private diffTimer: NodeJS.Timeout = null as any;    // 对比倒计时
+    private serverToken: string = "";
 
     constructor(app: Application) {
         this.app = app;
         this.monitorCli = new MonitorCli(app);
+        let tokenConfig = app.someconfig.recognizeToken || {};
+        this.serverToken = tokenConfig.serverToken || define.some_config.Server_Token;
         this.doConnect(0);
     }
 
@@ -50,7 +53,7 @@ export class monitor_client_proxy {
                 self.heartbeat();;
             };
             self.app.logger(loggerType.info, "monitor try to connect to master now");
-            self.socket = new TcpClient(self.app.masterConfig.port, self.app.masterConfig.host, define.some_config.SocketBufferMaxLen, connectCb);
+            self.socket = new TcpClient(self.app.masterConfig.port, self.app.masterConfig.host, define.some_config.SocketBufferMaxLen, true, connectCb);
             self.socket.on("data", self.onData.bind(self));
             self.socket.on("close", self.onClose.bind(self));
         }, delay);
@@ -64,7 +67,7 @@ export class monitor_client_proxy {
             T: define.Monitor_To_Master.register,
             serverType: this.app.serverType,
             serverInfo: this.app.serverInfo,
-            serverToken: this.app.serverToken
+            serverToken: this.serverToken
         };
         this.send(loginInfo);
     }

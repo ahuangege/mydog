@@ -16,16 +16,21 @@ let servers: { [id: string]: Master_ServerProxy } = {};
 let serversDataTmp: monitor_get_new_server = { "T": define.Master_To_Monitor.addServer, "serverInfoIdMap": {} };
 let masterCli: MasterCli;
 let app: Application;
+let serverToken: string = "";
+let cliToken: string = "";
 
 export function start(_app: Application, cb?: Function) {
     app = _app;
     masterCli = new MasterCli(_app, servers);
     startServer(cb);
+    let tokenConfig = app.someconfig.recognizeToken || {};
+    serverToken = tokenConfig.serverToken || define.some_config.Server_Token;
+    cliToken = tokenConfig.cliToken || define.some_config.Cli_Token;
 }
 
 function startServer(cb?: Function) {
 
-    tcpServer(app.port, define.some_config.SocketBufferMaxLen, startCb, newClientCb);
+    tcpServer(app.port, define.some_config.SocketBufferMaxLen, true, startCb, newClientCb);
 
     function startCb() {
         let str = concatStr("listening at [", app.host, ":", app.port, "]  ", app.serverId);
@@ -89,7 +94,7 @@ class UnregSocket_proxy {
 
         // 是服务器？
         if (data.serverToken) {
-            if (data.serverToken !== app.serverToken) {
+            if (data.serverToken !== serverToken) {
                 app.logger(loggerType.error, concatStr("illegal serverToken, close it, ", socket.remoteAddress));
                 socket.close();
                 return;
@@ -106,7 +111,7 @@ class UnregSocket_proxy {
 
         // 是cli？
         if (data.cliToken) {
-            if (data.cliToken !== app.cliToken) {
+            if (data.cliToken !== cliToken) {
                 app.logger(loggerType.error, concatStr("illegal cliToken, close it, ", socket.remoteAddress));
                 socket.close();
                 return;

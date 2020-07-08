@@ -43,6 +43,7 @@ export class RpcClientSocket {
     private sendArr: Buffer[] = [];
     private sendTimer: NodeJS.Timer = null as any;
     private die: boolean = false;
+    private serverToken: string = "";
 
     constructor(app: Application, server: ServerInfo) {
         this.app = app;
@@ -50,12 +51,15 @@ export class RpcClientSocket {
         this.host = server.host;
         this.port = server.port;
         rpcClientSockets[this.id] = this;
-        let interval = Number(app.rpcConfig.interval) || 0;
-        if (interval > 5) {
+        let rpcConfig = app.someconfig.rpc || {};
+        let interval = Number(rpcConfig.interval) || 0;
+        if (interval >= 10) {
             this.sendCache = true;
             this.interval = interval;
 
         }
+        let tokenConfig = app.someconfig.recognizeToken || {};
+        this.serverToken = tokenConfig.serverToken || define.some_config.Server_Token;
         this.doConnect(0);
     }
 
@@ -71,7 +75,7 @@ export class RpcClientSocket {
                 // 注册
                 let registerBuf = Buffer.from(JSON.stringify({
                     "id": self.app.serverId,
-                    "serverToken": self.app.serverToken
+                    "serverToken": self.serverToken
                 }));
                 let buf = Buffer.allocUnsafe(registerBuf.length + 5);
                 buf.writeUInt32BE(registerBuf.length + 1, 0);
@@ -83,7 +87,9 @@ export class RpcClientSocket {
                 }
             };
             self.connectTimer = null as any;
-            self.socket = new TcpClient(self.port, self.host, self.app.rpcConfig.maxLen || define.some_config.SocketBufferMaxLen, connectCb);
+            let rpcConfig = self.app.someconfig.rpc || {};
+            let noDelay = rpcConfig.noDelay === false ? false : true;
+            self.socket = new TcpClient(self.port, self.host, rpcConfig.maxLen || define.some_config.SocketBufferMaxLen, noDelay, connectCb);
             self.socket.on("data", self.onData.bind(self));
             self.socket.on("close", self.onClose.bind(self));
             self.app.logger(loggerType.info, concatStr("try to connect to rpc server ", self.id));
@@ -100,7 +106,9 @@ export class RpcClientSocket {
         this.heartbeatTimeoutTimer = null as any;
         this.socket = null as any;
         this.app.logger(loggerType.error, concatStr("socket closed, reconnect the rpc server ", this.id, " later"));
-        this.doConnect(define.some_config.Time.Rpc_Reconnect_Time * 1000);
+        let rpcConfig = this.app.someconfig.rpc || {};
+        let delay = rpcConfig.reconnectDelay || define.some_config.Time.Rpc_Reconnect_Time;
+        this.doConnect(delay * 1000);
     }
 
     /**
@@ -108,7 +116,12 @@ export class RpcClientSocket {
      */
     private heartbeatSend() {
         let self = this;
-        let timeDelay = define.some_config.Time.Rpc_Heart_Beat_Time * 1000 - 5000 + Math.floor(5000 * Math.random());
+        let rpcConfig = this.app.someconfig.rpc || {};
+        let heartbeat = rpcConfig.heartbeat || define.some_config.Time.Rpc_Heart_Beat_Time;
+        let timeDelay = heartbeat * 1000 - 5000 + Math.floor(5000 * Math.random());
+        if (timeDelay < 5000) {
+            timeDelay = 5000;
+        }
         this.heartbeatTimer = setTimeout(function () {
             let buf = Buffer.allocUnsafe(5);
             buf.writeUInt32BE(1, 0);
@@ -138,7 +151,7 @@ export class RpcClientSocket {
         this.heartbeatTimeoutTimer = setTimeout(function () {
             self.app.logger(loggerType.error, concatStr("heartbeat timeout, close the rpc socket " + self.id));
             self.socket.close();
-        }, define.some_config.Time.Rpc_Heart_Beat_Timeout_Time * 1000)
+        }, define.some_config.Time.Rpc_Heart_Beat_Timeout_Time * 1000);
 
     }
 

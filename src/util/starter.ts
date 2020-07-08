@@ -6,24 +6,22 @@ import * as os from "os"
 import { ServerInfo } from "./interfaceDefine";
 
 let app: Application = null as any;
-let env: "production" | "development" = "development";
 
-export function runServers(app: Application) {
+export function runServers(_app: Application) {
+    app = _app;
     let servers = app.serversConfig;
     let server: ServerInfo;
     for (let serverType in servers) {
         let serverTypes = servers[serverType];
         for (let i = 0; i < serverTypes.length; i++) {
             server = serverTypes[i];
-            server.serverType = serverType;
-            run(app, server);
+            run(server);
         }
     }
 }
 
 
-function run(app: Application, server: ServerInfo, cb?: Function) {
-    env = app.env;
+function run(server: ServerInfo, cb?: Function) {
     let cmd, key;
     if (isLocal(server.host)) {
         let options: any[] = [];
@@ -36,11 +34,9 @@ function run(app: Application, server: ServerInfo, cb?: Function) {
         }
         cmd = app.main;
         options.push(cmd);
-        options.push(util.format('env=%s', env));
-        for (key in server) {
-            options.push(util.format('%s=%s', key, server[key]));
-        }
-        options.push(util.format('%s=%s', "startMode", app.startMode));
+        options.push(util.format('id=%s', server.id));
+        options.push(util.format('env=%s', app.env));
+        options.push(util.format('startMode=%s', app.startMode));
         localrun(process.execPath, "", options, cb);
     } else {
         cmd = util.format('cd "%s" && "%s"', app.base, process.execPath);
@@ -48,10 +44,7 @@ function run(app: Application, server: ServerInfo, cb?: Function) {
         if (arg !== undefined) {
             cmd += arg;
         }
-        cmd += util.format(' "%s" env=%s ', app.main, env);
-        for (key in server) {
-            cmd += util.format(' %s=%s ', key, server[key]);
-        }
+        cmd += util.format(' "%s" id=%s env=%s startMode=%s', app.main, server.id, app.env, app.startMode);
         sshrun(cmd, server.host, cb);
     }
 };
@@ -59,7 +52,7 @@ function run(app: Application, server: ServerInfo, cb?: Function) {
 function sshrun(cmd: string, host: string, cb?: Function) {
     let args = [];
     args.push(host);
-    let ssh_params = app.get("ssh_config_params");
+    let ssh_params = app.someconfig.ssh;
     if (!!ssh_params && Array.isArray(ssh_params)) {
         args = args.concat(ssh_params);
     }
@@ -74,7 +67,10 @@ function localrun(cmd: string, host: string, options: string[], callback?: Funct
 function spawnProcess(command: string, host: string, options: string[], cb?: Function) {
     let child = null;
 
-    if (env === "development") {
+    if (app.isDaemon) {
+        child = cp.spawn(command, options, { detached: true, stdio: 'ignore' });
+        child.unref();
+    } else {
         child = cp.spawn(command, options);
         let prefix = command === "ssh" ? '[' + host + '] ' : '';
 
@@ -90,9 +86,6 @@ function spawnProcess(command: string, host: string, options: string[], cb?: Fun
             let msg = prefix + chunk.toString();
             process.stdout.write(msg);
         });
-    } else {
-        child = cp.spawn(command, options, { detached: true, stdio: 'ignore' });
-        child.unref();
     }
 
     child.on('exit', function (code) {

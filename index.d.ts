@@ -28,6 +28,11 @@ export let connector: {
 export interface Application {
 
     /**
+     * 应用名称
+     */
+    appName: string;
+
+    /**
      * 配置：route.ts
      */
     readonly routeConfig: string[];
@@ -58,16 +63,6 @@ export interface Application {
     readonly serversIdMap: { readonly [id: string]: ServerInfo };
 
     /**
-     * 服务器内部认证密钥
-     */
-    serverToken: string;
-
-    /**
-     * master与cli的认证密匙
-     */
-    cliToken: string;
-
-    /**
      * 本服务器的配置
      */
     readonly serverInfo: ServerInfo;
@@ -75,7 +70,7 @@ export interface Application {
     /**
      * env
      */
-    readonly env: "production" | "development";
+    readonly env: string;
 
     /**
      * ip
@@ -132,19 +127,26 @@ export interface Application {
     start(): void;
 
     /**
-     * 编码解码回调
+     * rpc配置
      */
-    setEncodeDecodeConfig(config: I_encodeDecodeConfig): void
-
+    setConfig(key: "rpc", value: I_rpcConfig): void;
     /**
-     * 前端连接服务器配置
+     * 前端connector配置
      */
-    setConnectorConfig(config: I_connectorConfig): void
-
+    setConfig(key: "connector", value: I_connectorConfig): void;
     /**
-     * rpc模块配置
+     * 编码解码配置
      */
-    setRpcConfig(config: I_rpcConfig): void
+    setConfig(key: "encodeDecode", value: I_encodeDecodeConfig): void;
+    /**
+     * ssh配置
+     */
+    setConfig(key: "ssh", value: string[]): void;
+    /**
+     * 认证密钥配置
+     */
+    setConfig(key: "recognizeToken", value: I_recognizeTokenConfig): void;
+
 
     /**
      * 设置键值对
@@ -251,6 +253,12 @@ export interface Application {
      * @param cb 回调
      */
     on(event: "onAddServer" | "onRemoveServer", cb: (serverType: string, id: string) => void): void;
+
+    /**
+     * mydog list 监控时，获取用户自定义数据
+     */
+    on_mydoglist(func: () => { "title": string, "value": string }[]): void;
+
 }
 
 /**
@@ -370,7 +378,7 @@ export const enum rpcErr {
 /**
  * 编码解码
  */
-export interface I_encodeDecodeConfig {
+interface I_encodeDecodeConfig {
     /**
      * 协议编码
      */
@@ -393,7 +401,7 @@ export interface I_encodeDecodeConfig {
 /**
  * 前端connector配置
  */
-export interface I_connectorConfig {
+interface I_connectorConfig {
     /**
      * 自定义connector类
      */
@@ -410,12 +418,16 @@ export interface I_connectorConfig {
      * 消息包最大长度
      */
     "maxLen"?: number
+    /**
+     * 是否开启Nagle算法（默认不开启）
+     */
+    "noDelay"?: boolean,
 }
 
 /**
  * rpc配置
  */
-export interface I_rpcConfig {
+interface I_rpcConfig {
     /**
      * 超时时间（秒）
      */
@@ -428,13 +440,39 @@ export interface I_rpcConfig {
      * 消息发送频率（毫秒）
      */
     "interval"?: number
+    /**
+     * 是否开启Nagle算法（默认不开启）
+     */
+    "noDelay"?: boolean,
+    /**
+     * 心跳（秒）
+     */
+    "heartbeat"?: number,
+    /**
+     * 重连间隔（秒）
+     */
+    "reconnectDelay"?: number,
+}
+
+/**
+ * 认证密钥
+ */
+interface I_recognizeTokenConfig {
+    /**
+     * 服务器内部认证密钥
+     */
+    "serverToken": string,
+    /**
+     * master与cli的认证密钥
+     */
+    "cliToken": string,
 }
 
 /**
  * 自定义connector类
  */
 export interface I_connectorConstructor {
-    new(info: { app: Application, clientManager: I_clientManager, config: { "route": string[], "heartbeat": number, "maxLen": number }, startCb: () => void }): void;
+    new(info: { app: Application, clientManager: I_clientManager, config: { "route": string[], "heartbeat": number, "maxLen": number, "noDelay": boolean }, startCb: () => void }): void;
 }
 
 /**

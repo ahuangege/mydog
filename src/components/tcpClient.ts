@@ -16,12 +16,13 @@ export class TcpClient extends EventEmitter implements SocketProxy {
     len: number = 0;
     buffer: Buffer = Buffer.allocUnsafe(0);
 
-    constructor(port: number, host: string, maxLen: number, connectCb: () => void) {
+    constructor(port: number, host: string, maxLen: number, noDelay: boolean, connectCb: () => void) {
         super();
         this.socket = net.connect(port, host, () => {
             this.remoteAddress = this.socket.remoteAddress as string;
             connectCb();
         });
+        this.socket.setNoDelay(noDelay);
         this.maxLen = maxLen;
         this.socket.on("close", (err) => {
             if (!this.die) {

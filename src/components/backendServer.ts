@@ -25,7 +25,8 @@ export class BackendServer {
         initSessionApp(this.app);
         protocol.init(this.app);
         let mydog = require("../mydog");
-        let connectorConstructor: I_connectorConstructor = this.app.connectorConfig.connector || mydog.connector.connectorTcp;
+        let connectorConfig = this.app.someconfig.connector || {};
+        let connectorConstructor: I_connectorConstructor = connectorConfig.connector || mydog.connector.connectorTcp;
         let defaultEncodeDecode: encodeDecode;
         if (connectorConstructor === mydog.connector.connectorTcp) {
             defaultEncodeDecode = protocol.Tcp_EncodeDecode;
@@ -34,10 +35,11 @@ export class BackendServer {
         } else {
             defaultEncodeDecode = protocol.Tcp_EncodeDecode;
         }
-        this.app.protoEncode = this.app.encodeDecodeConfig.protoEncode || defaultEncodeDecode.protoEncode;
-        this.app.msgEncode = this.app.encodeDecodeConfig.msgEncode || defaultEncodeDecode.msgEncode;
-        this.app.protoDecode = this.app.encodeDecodeConfig.protoDecode || defaultEncodeDecode.protoDecode;
-        this.app.msgDecode = this.app.encodeDecodeConfig.msgDecode || defaultEncodeDecode.msgDecode;
+        let encodeDecodeConfig = this.app.someconfig.encodeDecode || {};
+        this.app.protoEncode = encodeDecodeConfig.protoEncode || defaultEncodeDecode.protoEncode;
+        this.app.msgEncode = encodeDecodeConfig.msgEncode || defaultEncodeDecode.msgEncode;
+        this.app.protoDecode = encodeDecodeConfig.protoDecode || defaultEncodeDecode.protoDecode;
+        this.app.msgDecode = encodeDecodeConfig.msgDecode || defaultEncodeDecode.msgDecode;
 
         this.loadHandler();
     }
