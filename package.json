@@ -3,7 +3,7 @@
   "_id": "mydog@2.0.2",
   "_inBundle": false,
   "_integrity": "sha512-8/jZDckCcdUOqsDfQKavZwhzyuuKnd4qhv9IUbommvw2vXZL5Kuz1qqH8dvSrsADGiUEpMvCV67F5pZvbPF1FQ==",
-  "_location": "/mydog",
+  "_location":  "/mydog",
   "_phantomChildren": {},
   "_requested": {
     "type": "tag",
