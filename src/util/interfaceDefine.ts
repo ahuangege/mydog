@@ -194,6 +194,11 @@ export interface I_connectorConfig {
      * 是否开启Nagle算法（默认不开启）
      */
     "noDelay"?: boolean,
+    /**
+     * 消息发送频率（毫秒）
+     */
+    "interval"?: number
+
 }
 
 
@@ -248,7 +253,7 @@ export interface I_clientManager {
  * 连接服构造函数
  */
 export interface I_connectorConstructor {
-    new(info: { app: Application, clientManager: I_clientManager, config: { "route": string[], "heartbeat": number, "maxLen": number, "noDelay": boolean }, startCb: () => void }): void;
+    new(info: { app: Application, clientManager: I_clientManager, config: I_connectorConfig, startCb: () => void }): void;
 }
 
 /**

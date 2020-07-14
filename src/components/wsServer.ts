@@ -15,6 +15,7 @@ export default function wsServer(port: number, maxLen: number, startCb: () => vo
     server.on("error", (err) => {
         console.log(err);
     });
+    server.on("close", () => { });
 }
 
 class WsSocket extends EventEmitter implements SocketProxy {

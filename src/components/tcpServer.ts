@@ -17,6 +17,7 @@ export default function tcpServer(port: number, maxLen: number, noDelay: boolean
     svr.on("error", (err) => {
         console.log(err);
     });
+    svr.on("close", () => { });
 }
 
 class NetSocket extends EventEmitter implements SocketProxy {

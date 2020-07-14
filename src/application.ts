@@ -84,7 +84,7 @@ export default class Application extends EventEmitter {
     setConfig(key: "connector", value: I_connectorConfig): void
     setConfig(key: "encodeDecode", value: encodeDecode): void
     setConfig(key: "ssh", value: string[]): void
-    setConfig(key: "recognizeToken", value: { "serverToken": string, "cliToken": string }): void
+    setConfig(key: "recognizeToken", value: { "serverToken"?: string, "cliToken"?: string }): void
     setConfig(key: keyof I_someConfig, value: any): void {
         this.someconfig[key] = value;
     }

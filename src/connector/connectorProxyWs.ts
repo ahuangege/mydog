@@ -1,5 +1,5 @@
 import Application from "../application";
-import { SocketProxy, I_clientManager, I_clientSocket } from "../util/interfaceDefine";
+import { SocketProxy, I_clientManager, I_clientSocket, I_connectorConfig } from "../util/interfaceDefine";
 import { Session } from "../components/session";
 import * as define from "../util/define";
 import wsServer from "../components/wsServer";
@@ -13,16 +13,31 @@ export class ConnectorWs {
     public handshakeBuf: Buffer;        // 握手buffer
     public heartbeatBuf: Buffer;        // 心跳回应buffer
     public heartbeatTime: number = 0;   // 心跳时间
-    constructor(info: { app: Application, clientManager: I_clientManager, config: { "route": string[], "heartbeat": number, "maxLen": number, "noDelay": boolean }, startCb: () => void }) {
+    private maxConnectionNum: number = Number.POSITIVE_INFINITY;
+    public nowConnectionNum: number = 0;
+    public sendCache = false;
+    public interval: number = 0;
+
+    constructor(info: { app: Application, clientManager: I_clientManager, config: I_connectorConfig, startCb: () => void }) {
         this.app = info.app;
         this.clientManager = info.clientManager;
-        wsServer(info.app.clientPort, info.config.maxLen, info.startCb, this.newClientCb.bind(this));
 
-        // 心跳时间
-        this.heartbeatTime = info.config.heartbeat * 1000;
+        let connectorConfig = info.config || {};
+        let maxLen = connectorConfig.maxLen || define.some_config.SocketBufferMaxLen;
+        this.heartbeatTime = (connectorConfig.heartbeat || 0) * 1000;
+        if (connectorConfig.maxConnectionNum != null) {
+            this.maxConnectionNum = connectorConfig.maxConnectionNum;
+        }
+        let interval = Number(connectorConfig.interval) || 0;
+        if (interval >= 10) {
+            this.sendCache = true;
+            this.interval = interval;
+        }
+
+        wsServer(info.app.clientPort, maxLen, info.startCb, this.newClientCb.bind(this));
 
         // 握手buffer
-        let routeBuf = Buffer.from(JSON.stringify({ "route": info.config.route, "heartbeat": this.heartbeatTime / 1000 }));
+        let routeBuf = Buffer.from(JSON.stringify({ "route": this.app.routeConfig, "heartbeat": this.heartbeatTime / 1000 }));
         this.handshakeBuf = Buffer.alloc(routeBuf.length + 1);
         this.handshakeBuf.writeUInt8(define.Server_To_Client.handshake, 0);
         routeBuf.copy(this.handshakeBuf, 1);
@@ -33,7 +48,12 @@ export class ConnectorWs {
     }
 
     private newClientCb(socket: SocketProxy) {
-        new ClientSocket(this, this.clientManager, socket);
+        if (this.nowConnectionNum < this.maxConnectionNum) {
+            new ClientSocket(this, this.clientManager, socket);
+        } else {
+            console.warn("socket num has reached the maxConnectionNum, close it");
+            socket.close();
+        }
     }
 }
 
@@ -46,8 +66,16 @@ class ClientSocket implements I_clientSocket {
     private socket: SocketProxy;                            // socket
     private registerTimer: NodeJS.Timer = null as any;      // 握手超时计时
     private heartbeatTimer: NodeJS.Timer = null as any;     // 心跳超时计时
+    private sendCache = false;
+    private interval: number = 0;
+    private sendTimer: NodeJS.Timer = null as any;
+    private sendArr: Buffer[] = [];
+
     constructor(connector: ConnectorWs, clientManager: I_clientManager, socket: SocketProxy) {
         this.connector = connector;
+        this.connector.nowConnectionNum++;
+        this.sendCache = connector.sendCache;
+        this.interval = connector.interval;
         this.clientManager = clientManager;
         this.socket = socket;
         this.remoteAddress = socket.remoteAddress;
@@ -79,8 +107,10 @@ class ClientSocket implements I_clientSocket {
      * 关闭了
      */
     private onClose() {
+        this.connector.nowConnectionNum--;
         clearTimeout(this.registerTimer);
         clearTimeout(this.heartbeatTimer);
+        clearInterval(this.sendTimer);
         this.clientManager.removeClient(this);
     }
 
@@ -97,6 +127,9 @@ class ClientSocket implements I_clientSocket {
         clearTimeout(this.registerTimer);
         this.heartbeat();
         this.clientManager.addClient(this);
+        if (this.sendCache) {
+            this.sendTimer = setInterval(this.sendInterval.bind(this), this.interval);
+        }
     }
 
     /**
@@ -123,7 +156,21 @@ class ClientSocket implements I_clientSocket {
      * 发送数据
      */
     send(msg: Buffer) {
-        this.socket.send(msg);
+        if (this.sendCache) {
+            this.sendArr.push(msg);
+        } else {
+            this.socket.send(msg);
+        }
+    }
+
+    private sendInterval() {
+        if (this.sendArr.length > 0) {
+            let arr = this.sendArr;
+            for (let i = 0, len = arr.length; i < len; i++) {
+                this.socket.send(arr[i]);
+            }
+            this.sendArr = [];
+        }
     }
 
     /**

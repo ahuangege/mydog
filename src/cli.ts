@@ -309,14 +309,14 @@ function list(opts: any) {
                 titles.unshift("");
                 let endArr: string[][] = [];
                 endArr.push(titles);
-                serverTypes["master"][0].unshift(id.toString());
+                serverTypes["master"][0].unshift(" " + id.toString());
                 id++;
                 endArr.push(serverTypes["master"][0]);
                 delete serverTypes["master"];
 
                 for (let x in serverTypes) {
                     for (let one of serverTypes[x]) {
-                        one.unshift(id.toString());
+                        one.unshift(" " + id.toString());
                         id++;
                         endArr.push(one);
                     }
@@ -371,7 +371,7 @@ function remove(opts: any) {
 function mydogListPrint(appName: string, env: string, infoArr: string[][]) {
 
     let consoleMaxColumns = process.stdout.columns - 2;
-    let nameEnv = "appName: " + appName + "    env: " + env;
+    let nameEnv = "  appName: " + appName + "    env: " + env;
     console.log("\x1b[32m" + getRealStr(nameEnv) + "\x1b[0m");
 
     let widthArr: number[][] = [];  // 每个字段的控制台宽度

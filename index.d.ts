@@ -422,6 +422,10 @@ interface I_connectorConfig {
      * 是否开启Nagle算法（默认不开启）
      */
     "noDelay"?: boolean,
+    /**
+     * 消息发送频率（毫秒）
+     */
+    "interval"?: number
 }
 
 /**
@@ -461,18 +465,18 @@ interface I_recognizeTokenConfig {
     /**
      * 服务器内部认证密钥
      */
-    "serverToken": string,
+    "serverToken"?: string,
     /**
      * master与cli的认证密钥
      */
-    "cliToken": string,
+    "cliToken"?: string,
 }
 
 /**
  * 自定义connector类
  */
 export interface I_connectorConstructor {
-    new(info: { app: Application, clientManager: I_clientManager, config: { "route": string[], "heartbeat": number, "maxLen": number, "noDelay": boolean }, startCb: () => void }): void;
+    new(info: { app: Application, clientManager: I_clientManager, config: I_connectorConfig, startCb: () => void }): void;
 }
 
 /**

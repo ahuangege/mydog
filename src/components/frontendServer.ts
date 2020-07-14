@@ -46,17 +46,10 @@ export class FrontendServer {
         this.app.protoDecode = encodeDecodeConfig.protoDecode || defaultEncodeDecode.protoDecode;
         this.app.msgDecode = encodeDecodeConfig.msgDecode || defaultEncodeDecode.msgDecode;
 
-        let heartbeat = connectorConfig.heartbeat || 0;
-        let noDelay = connectorConfig.noDelay === false ? false : true;
         new connectorConstructor({
             "app": this.app,
-            "config": {
-                "route": this.app.routeConfig,
-                "heartbeat": heartbeat,
-                "maxLen": connectorConfig.maxLen || define.some_config.SocketBufferMaxLen,
-                "noDelay": noDelay
-            },
             "clientManager": new ClientManager(this.app),
+            "config": this.app.someconfig.connector,
             "startCb": startCb
         });
     }
@@ -94,17 +87,12 @@ export class FrontendServer {
 class ClientManager implements I_clientManager {
     private app: Application;
     private msgHandler: { [filename: string]: any } = {};
-    private maxConnectionNum: number = Number.POSITIVE_INFINITY;
     private serverType: string = "";
     private router: { [serverType: string]: routeFunc };
     constructor(app: Application) {
         this.app = app;
         this.serverType = app.serverType;
         this.router = this.app.router;
-        let connectorConfig = this.app.someconfig.connector || {};
-        if (connectorConfig.maxConnectionNum && connectorConfig.maxConnectionNum > 0) {
-            this.maxConnectionNum = connectorConfig.maxConnectionNum;
-        }
         this.loadHandler();
     }
 
@@ -133,11 +121,6 @@ class ClientManager implements I_clientManager {
     addClient(client: I_clientSocket) {
         if (!!client.session) {
             this.app.logger(loggerType.error, concatStr("the I_client has already been added, close it"));
-            client.close();
-            return;
-        }
-        if (this.app.clientNum >= this.maxConnectionNum) {
-            this.app.logger(loggerType.error, concatStr("socket num has reached the Max ", this.app.clientNum, ", close it"));
             client.close();
             return;
         }
