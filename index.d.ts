@@ -229,6 +229,14 @@ export interface Application {
     sendMsgByUidSid(cmd: string, msg: any, uidsid: { "uid": number, "sid": string }[]): void;
 
     /**
+     * 向客户端发送消息  《后端专用》
+     * @param cmd   路由
+     * @param msg   消息
+     * @param group   {sid:uid[]}
+     */
+    sendMsgByGroup(cmd: string, msg: any, group: { [sid: string]: number[] }): void;
+
+    /**
      * 配置服务器执行函数
      * @param type 服务器类型   "all" 或者 "gate|connector"形式
      * @param cb 
@@ -240,12 +248,6 @@ export interface Application {
      * @param cb 回调函数
      */
     onLog(cb: (level: "info" | "warn" | "error", info: string) => void): void;
-
-
-    /**
-     * 获取bind的socket连接数
-     */
-    getBindClientNum(): number;
 
     /**
      * 监听事件（添加服务器，移除服务器）
@@ -287,6 +289,12 @@ export interface Session {
      * @param value 值
      */
     set<T = any>(key: number | string, value: T): T;
+
+    /**
+     * 设置键值对
+     * @param value 键值对
+     */
+    setSome(value: { [key: string]: any }): void;
 
     /**
      * 获取键值对

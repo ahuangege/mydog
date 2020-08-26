@@ -8,7 +8,7 @@ import { encodeRemoteData } from "./msgCoder";
 import * as path from "path";
 import * as fs from "fs";
 import define = require("../util/define");
-import { sessionApplyJson, encodeDecode, I_connectorConstructor } from "../util/interfaceDefine";
+import { encodeDecode, I_connectorConstructor } from "../util/interfaceDefine";
 import { Session, initSessionApp } from "./session";
 
 import * as protocol from "../connector/protocol";
@@ -96,13 +96,12 @@ export class BackendServer {
     /**
      * 后端session同步到前端
      */
-    sendSession(session: sessionApplyJson) {
-        let msgBuf = Buffer.from(JSON.stringify(session));
-        let buf = Buffer.allocUnsafe(5 + msgBuf.length);
-        buf.writeUInt32BE(1 + msgBuf.length, 0);
+    sendSession(sid: string, sessionBuf: Buffer) {
+        let buf = Buffer.allocUnsafe(5 + sessionBuf.length);
+        buf.writeUInt32BE(1 + sessionBuf.length, 0);
         buf.writeUInt8(define.Rpc_Msg.applySession, 4);
-        msgBuf.copy(buf, 5);
-        this.app.rpcPool.sendMsg(session.sid, buf);
+        sessionBuf.copy(buf, 5);
+        this.app.rpcPool.sendMsg(sid, buf);
     }
 
     /**
@@ -126,6 +125,21 @@ export class BackendServer {
         let msgBuf: Buffer = app.protoEncode(cmdIndex, msg);
         for (let sid in groups) {
             let buf = encodeRemoteData(groups[sid], msgBuf);
+            app.rpcPool.sendMsg(sid, buf);
+        }
+    }
+
+    /**
+     * 后端服务器给客户端发消息
+     */
+    sendMsgByGroup(cmdIndex: number, msg: any, group: { [sid: string]: number[] }) {
+        let app = this.app;
+        let msgBuf: Buffer = app.protoEncode(cmdIndex, msg);
+        for (let sid in group) {
+            if (group[sid].length === 0) {
+                continue;
+            }
+            let buf = encodeRemoteData(group[sid], msgBuf);
             app.rpcPool.sendMsg(sid, buf);
         }
     }

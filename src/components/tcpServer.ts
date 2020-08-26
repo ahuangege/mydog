@@ -16,6 +16,7 @@ export default function tcpServer(port: number, maxLen: number, noDelay: boolean
 
     svr.on("error", (err) => {
         console.log(err);
+        process.exit();
     });
     svr.on("close", () => { });
 }

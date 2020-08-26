@@ -32,9 +32,11 @@ export default class Handler {
                 return;
             }
             if (data.status === 0) {
-                session.set("chatServerId", data.serverId);
-                session.set("roomId", data.roomId);
-                session.set("playerId", data.playerId);
+                session.setSome({
+                    "chatServerId": data.serverId,
+                    "roomId": data.roomId,
+                    "playerId": data.playerId,
+                });
             }
             next(data);
         });
@@ -50,9 +52,11 @@ export default class Handler {
                 return;
             }
             if (data.status === 0) {
-                session.set("chatServerId", data.serverId);
-                session.set("roomId", data.roomId);
-                session.set("playerId", data.playerId);
+                session.setSome({
+                    "chatServerId": data.serverId,
+                    "roomId": data.roomId,
+                    "playerId": data.playerId,
+                });
             }
             next(data);
         });

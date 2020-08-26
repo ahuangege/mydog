@@ -19,7 +19,6 @@ export default class remote {
     }
 
 
-
     getRooms(cb: (err: rpcErr, data: Proto.connector_main_getChatInfo_rsp) => void) {
         cb(rpcErr.ok, this.roomMgr.getRooms());
     };

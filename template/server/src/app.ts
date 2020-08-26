@@ -13,7 +13,7 @@ app.configure("connector", function () {
 });
 
 app.setConfig("connector", { "connector": connector.connectorWs });
-app.setConfig("encodeDecode", { "msgDecode": msgDecode });
+app.setConfig("encodeDecode", { "msgDecode": msgDecode, "msgEncode": msgEncode });
 app.setConfig("rpc", { "interval": 30 });
 
 app.configure("chat", function () {
@@ -23,7 +23,6 @@ app.configure("chat", function () {
 app.on_mydoglist(() => {
     return [{ "title": "cpu(%)", "value": getCpuUsage() }];
 });
-
 
 app.onLog(function (level, info) {
     // console.log(app.serverId, info)
@@ -37,6 +36,14 @@ process.on("uncaughtException", function (err: any) {
 
 
 function msgDecode(cmdId: number, msgBuf: Buffer) {
-    console.log(app.routeConfig[cmdId]);
-    return JSON.parse(msgBuf.toString());
+    let msgStr = msgBuf.toString();
+    console.log("--->>>", app.routeConfig[cmdId], msgStr);
+    return JSON.parse(msgStr);
 }
+
+function msgEncode(cmdId: number, msg: any): Buffer {
+    let msgStr = JSON.stringify(msg);
+    console.log("---<<<", app.routeConfig[cmdId], msgStr);
+    return Buffer.from(msgStr);
+}
+

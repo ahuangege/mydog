@@ -126,8 +126,7 @@ class ClientManager implements I_clientManager {
         }
         this.app.clientNum++;
 
-        let session = new Session();
-        session.sid = this.app.serverId;
+        let session = new Session(this.app.serverId);
         session.socket = client;
         client.session = session;
     }
@@ -199,7 +198,7 @@ class ClientManager implements I_clientManager {
                 this.app.logger(loggerType.warn, concatStr("cannot send msg to frontendServer ", id, ", ", session.socket.remoteAddress));
                 return;
             }
-            let sessionBuf = Buffer.from(JSON.stringify(session.getAll()));
+            let sessionBuf = session.sessionBuf;
             let buf = Buffer.allocUnsafe(9 + sessionBuf.length + msgBuf.length);
             buf.writeUInt32BE(5 + sessionBuf.length + msgBuf.length, 0);
             buf.writeUInt8(define.Rpc_Msg.clientMsgIn, 4);

@@ -5,7 +5,8 @@ export default [
     "connector.connectorMain.joinRoom",
     "chat.chatMain.send",
     "chat.chatMain.leaveRoom",
-    "onChat",
+    // fdsafd
+    "onChat",   //聊天
     "onLeave",
     "onNewPlayer"
 ]

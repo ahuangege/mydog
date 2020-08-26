@@ -159,7 +159,7 @@ export default class Application extends EventEmitter {
     /**
      * 配置部分session         》前端专用
      */
-    applySession(uid: number, some: any) {
+    applySession(uid: number, some: { [key: string]: any }) {
         let client = this.clients[uid];
         if (client) {
             client.session.setSome(some);
@@ -174,12 +174,12 @@ export default class Application extends EventEmitter {
      */
     sendMsgByUid(cmd: string, msg: any, uids: number[]) {
         if (!this.frontend) {
-            console.error("app.sendMsgByUid() --- backend server cannot use this method");
+            console.error("app.sendMsgByUid() --- backend server cannot use this method", cmd);
             return;
         }
         let cmdIndex = this.routeConfig.indexOf(cmd);
         if (cmdIndex === -1) {
-            console.error("app.sendMsgByUid() --- no such route : " + cmd);
+            console.error("app.sendMsgByUid() --- no such route", cmd);
             return;
         }
         if (msg === undefined) {
@@ -202,12 +202,12 @@ export default class Application extends EventEmitter {
      */
     sendAll(cmd: string, msg: any) {
         if (!this.frontend) {
-            console.error("app.sendAll() --- backend server cannot use this method");
+            console.error("app.sendAll() --- backend server cannot use this method", cmd);
             return;
         }
         let cmdIndex = this.routeConfig.indexOf(cmd);
         if (cmdIndex === -1) {
-            console.error("app.sendAll() --- no such route : " + cmd);
+            console.error("app.sendAll() --- no such route", cmd);
             return;
         }
         if (msg === undefined) {
@@ -227,18 +227,40 @@ export default class Application extends EventEmitter {
      */
     sendMsgByUidSid(cmd: string, msg: any, uidsid: { "uid": number, "sid": string }[]) {
         if (this.frontend) {
-            console.error("app.sendMsgByUidSid() --- frontend server cannot use this method");
+            console.error("app.sendMsgByUidSid() --- frontend server cannot use this method", cmd);
             return;
         }
         let cmdIndex = this.routeConfig.indexOf(cmd);
         if (cmdIndex === -1) {
-            console.error("app.sendMsgByUidSid() --- no such route : " + cmd);
+            console.error("app.sendMsgByUidSid() --- no such route", cmd);
             return;
         }
         if (msg === undefined) {
             msg = null;
         }
         this.backendServer.sendMsgByUidSid(cmdIndex, msg, uidsid);
+    }
+
+    /**
+     * 向客户端发送消息     》后端专用
+     * @param cmd   路由
+     * @param msg   消息
+     * @param group   { sid : uid[] }
+     */
+    sendMsgByGroup(cmd: string, msg: any, group: { [sid: string]: number[] }) {
+        if (this.frontend) {
+            console.error("app.sendMsgByGroup() --- frontend server cannot use this method", cmd);
+            return;
+        }
+        let cmdIndex = this.routeConfig.indexOf(cmd);
+        if (cmdIndex === -1) {
+            console.error("app.sendMsgByGroup() --- no such route", cmd);
+            return;
+        }
+        if (msg === undefined) {
+            msg = null;
+        }
+        this.backendServer.sendMsgByGroup(cmdIndex, msg, group);
     }
 
     /**
@@ -270,18 +292,6 @@ export default class Application extends EventEmitter {
             return;
         }
         this.logger = cb;
-    }
-
-
-    /**
-     * 获取bind的socket连接数
-     */
-    getBindClientNum() {
-        let num = 0;
-        for (let x in this.clients) {
-            num++;
-        }
-        return num;
     }
 
     /**

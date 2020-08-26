@@ -93,7 +93,7 @@ export interface sessionApplyJson {
 /**
  * 内部框架日志级别
  */
-export enum loggerType {
+export const enum loggerType {
     info = "info",
     warn = "warn",
     error = "error"

@@ -16,10 +16,27 @@ export function initSessionApp(_app: Application) {
 export class Session {
     uid: number = 0;                                // 绑定的uid，玩家唯一标识
     sid: string = "";                               // 前端服务器id
-    settings: { [key: string]: any } = {};          // 用户set,get
+    private settings: { [key: string]: any } = {};          // 用户set,get
+    sessionBuf: Buffer = null as any;  // buff
 
     socket: I_clientSocket = null as any;              // 玩家的socket连接
     _onclosed: (app: Application, session: Session) => void = null as any;              // socket断开回调
+
+
+    constructor(sid: string = "") {
+        this.sid = sid;
+        this.resetBuf();
+    }
+
+    private resetBuf() {
+        if (app.frontend) {
+            this.sessionBuf = Buffer.from(JSON.stringify({
+                "uid": this.uid,
+                "sid": this.sid,
+                "settings": this.settings
+            }));
+        }
+    }
 
     /**
      * 绑定session     》前端专用
@@ -34,14 +51,23 @@ export class Session {
         }
         app.clients[_uid] = this.socket;
         this.uid = _uid;
+        this.resetBuf();
         return true;
     }
 
-
     set(key: string | number, value: any) {
         this.settings[key] = value;
+        this.resetBuf();
         return value;
     }
+
+    setSome(_settings: { [key: string]: any }) {
+        for (let f in _settings) {
+            this.settings[f] = _settings[f];
+        }
+        this.resetBuf();
+    }
+
 
     get(key: string | number) {
         return this.settings[key];
@@ -49,36 +75,19 @@ export class Session {
 
     delete(key: string | number) {
         delete this.settings[key];
+        this.resetBuf();
     }
 
     /**
-     * 获取所有session  》用户不要调用
-     */
-    getAll(): sessionApplyJson {
-        return {
-            "uid": this.uid,
-            "sid": this.sid,
-            "settings": this.settings
-        };
-    }
-
-    /**
-     * 设置所有session    》用户不要调用
+     * 设置所有session 
      */
     setAll(_session: sessionApplyJson) {
         this.uid = _session.uid;
         this.sid = _session.sid;
         this.settings = _session.settings;
+        this.resetBuf();
     }
 
-    /**
-     * 设置部分setting  》用户不要调用
-     */
-    setSome(_settings: any) {
-        for (let f in _settings) {
-            this.settings[f] = _settings[f];
-        }
-    }
 
     /**
      * 关闭连接      》前端专用
@@ -95,8 +104,7 @@ export class Session {
      */
     apply() {
         if (!app.frontend) {
-            let tmpSession = this.getAll();
-            app.backendServer.sendSession(tmpSession);
+            app.backendServer.sendSession(this.sid, this.sessionBuf);
         }
     }
 

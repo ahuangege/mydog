@@ -14,6 +14,7 @@ export default function wsServer(port: number, maxLen: number, startCb: () => vo
     });
     server.on("error", (err) => {
         console.log(err);
+        process.exit();
     });
     server.on("close", () => { });
 }

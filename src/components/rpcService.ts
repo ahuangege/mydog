@@ -4,7 +4,7 @@
 
 
 import Application from "../application";
-import { rpcTimeout, rpcErr, rpcMsg } from "../util/interfaceDefine";
+import { rpcTimeout, rpcErr, rpcMsg, loggerType } from "../util/interfaceDefine";
 import * as path from "path";
 import * as fs from "fs";
 import define = require("../util/define");
@@ -154,7 +154,11 @@ class rpc_create {
         }
 
         if (!app.rpcPool.hasSocket(sid)) {
-            cb && cb(rpcErr.noServer);
+            if (cb) {
+                process.nextTick(() => {
+                    cb(rpcErr.noServer);
+                });
+            }
             return;
         }
 
@@ -181,12 +185,16 @@ class rpc_create {
         }
         let endTo: string[] = [];
         let servers = app.getServersByType(serverType);
-        for (let i = 0; i < servers.length; i++) {
-            endTo.push(servers[i].id);
+        for (let one of servers) {
+            endTo.push(one.id);
         }
 
         if (endTo.length === 0) {
-            cb && cb({});
+            if (cb) {
+                process.nextTick(() => {
+                    cb({});
+                });
+            }
             return;
         }
 
@@ -215,7 +223,7 @@ class rpc_create {
 
         function send(toId: string, callback: Function) {
             if (toId === app.serverId) {
-                let tmp_args = [...JSON.parse(JSON.stringify(args))];
+                let tmp_args = JSON.parse(JSON.stringify(args));
                 if (callback) {
                     let timeout = {
                         "id": getRpcId(),
@@ -230,7 +238,11 @@ class rpc_create {
             }
 
             if (!app.rpcPool.hasSocket(toId)) {
-                callback && callback(rpcErr.noServer);
+                if (callback) {
+                    process.nextTick(() => {
+                        callback(rpcErr.noServer);
+                    });
+                }
                 return;
             }
             let rpcInvoke: rpcMsg = {
@@ -292,9 +304,13 @@ function sendRpcMsg(sid: string, msg: any) {
  */
 function sendRpcMsgToSelf(route: string, msg: any[]) {
     process.nextTick(() => {
-        let cmd = route.split('.');
-        let file = msgHandler[cmd[0]];
-        file[cmd[1]].apply(file, msg);
+        try {
+            let cmd = route.split('.');
+            let file = msgHandler[cmd[0]];
+            file[cmd[1]].apply(file, msg);
+        } catch (e) {
+            app.logger(loggerType.error, e.stack);
+        }
     });
 }
 
