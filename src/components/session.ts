@@ -104,7 +104,11 @@ export class Session {
      */
     apply() {
         if (!app.frontend) {
-            app.backendServer.sendSession(this.sid, this.sessionBuf);
+            app.backendServer.sendSession(this.sid, Buffer.from(JSON.stringify({
+                "uid": this.uid,
+                "sid": this.sid,
+                "settings": this.settings
+            })));
         }
     }
 
