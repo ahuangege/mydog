@@ -285,7 +285,7 @@ export interface Session {
      * 设置键值对
      * @param value 键值对
      */
-    setSome(value: { [key: string]: any }): void;
+    set(value: { [key: string]: any }): void;
 
     /**
      * 获取键值对

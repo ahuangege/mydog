@@ -52,7 +52,7 @@ export class Session {
         return true;
     }
 
-    setSome(_settings: { [key: string]: any }) {
+    set(_settings: { [key: string]: any }) {
         for (let f in _settings) {
             this.settings[f] = _settings[f];
         }

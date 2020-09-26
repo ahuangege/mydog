@@ -166,7 +166,7 @@ export default class Application extends EventEmitter {
     applySession(uid: number, some: { [key: string]: any }) {
         let client = this.clients[uid];
         if (client) {
-            client.session.setSome(some);
+            client.session.set(some);
         }
     }
 
