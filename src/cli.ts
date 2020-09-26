@@ -143,6 +143,17 @@ program.command('remove')
         remove(opts);
     });
 
+program.command('removeT')
+    .description('remove some serverTypes')
+    .option('-h, --host <master-host>', 'master server host', DEFAULT_MASTER_HOST)
+    .option('-p, --port <master-port>', 'master server port', DEFAULT_MASTER_PORT)
+    .option('-t, --token <cli-token>', ' cli token', define.some_config.Cli_Token)
+    .action(function (opts) {
+        let args = [].slice.call(arguments, 0);
+        opts = args[args.length - 1];
+        opts.serverTypes = args.slice(0, -1);
+        removeT(opts);
+    });
 
 program.command('*')
     .action(function () {
@@ -173,8 +184,7 @@ function init() {
 
 
 function createApplicationAt(ph: string) {
-    copy(path.join(__dirname, '../template/server'), ph);
-    copy(path.join(__dirname, '../template/client'), ph);
+    copy(path.join(__dirname, '../template'), ph);
 }
 
 
@@ -366,6 +376,21 @@ function remove(opts: any) {
         });
     });
 }
+
+function removeT(opts: any) {
+    if (opts.serverTypes.length === 0) {
+        return abort("no serverType input, please use `mydog removeT gate connector` ")
+    }
+    connectToMaster(opts.host, opts.port, opts.token, function (client) {
+        client.request({ "func": "removeT", "args": opts.serverTypes }, function (err) {
+            if (err) {
+                return abort(err);
+            }
+            abort("the serverTypes have been removed, please confirm!");
+        });
+    });
+}
+
 
 
 function mydogListPrint(appName: string, env: string, infoArr: string[][]) {

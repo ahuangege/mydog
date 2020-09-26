@@ -4,6 +4,7 @@ import { Session } from "../components/session";
 import * as define from "../util/define";
 import wsServer from "../components/wsServer";
 
+let maxLen = 0;
 /**
  * connector  ws
  */
@@ -23,7 +24,7 @@ export class ConnectorWs {
         this.clientManager = info.clientManager;
 
         let connectorConfig = info.config || {};
-        let maxLen = connectorConfig.maxLen || define.some_config.SocketBufferMaxLen;
+        maxLen = connectorConfig.maxLen || define.some_config.SocketBufferMaxLen;
         this.heartbeatTime = (connectorConfig.heartbeat || 0) * 1000;
         if (connectorConfig.maxConnectionNum != null) {
             this.maxConnectionNum = connectorConfig.maxConnectionNum;
@@ -34,7 +35,7 @@ export class ConnectorWs {
             this.interval = interval;
         }
 
-        wsServer(info.app.clientPort, maxLen, info.startCb, this.newClientCb.bind(this));
+        wsServer(info.app.clientPort, info.startCb, this.newClientCb.bind(this));
 
         // 握手buffer
         let routeBuf = Buffer.from(JSON.stringify({ "route": this.app.routeConfig, "heartbeat": this.heartbeatTime / 1000 }));
@@ -79,11 +80,21 @@ class ClientSocket implements I_clientSocket {
         this.clientManager = clientManager;
         this.socket = socket;
         this.remoteAddress = socket.remoteAddress;
-        socket.on('data', this.onData.bind(this));
+        this.socket.socket._receiver._maxPayload = 5;   // 未注册时最多5字节数据
+        socket.once('data', this.onRegister.bind(this));
         socket.on('close', this.onClose.bind(this));
         this.registerTimer = setTimeout(() => {
             this.close();
         }, 10000);
+    }
+
+    private onRegister(data: Buffer) {
+        let type = data.readUInt8(0);
+        if (type === define.Client_To_Server.handshake) {        // 握手
+            this.handshake();
+        } else {
+            this.close();
+        }
     }
 
     /**
@@ -96,8 +107,6 @@ class ClientSocket implements I_clientSocket {
         } else if (type === define.Client_To_Server.heartbeat) {        // 心跳
             this.heartbeat();
             this.heartbeatResponse();
-        } else if (type === define.Client_To_Server.handshake) {        // 握手
-            this.handshake();
         } else {
             this.close();
         }
@@ -130,6 +139,8 @@ class ClientSocket implements I_clientSocket {
         if (this.sendCache) {
             this.sendTimer = setInterval(this.sendInterval.bind(this), this.interval);
         }
+        this.socket.socket._receiver._maxPayload = maxLen;
+        this.socket.on('data', this.onData.bind(this));
     }
 
     /**

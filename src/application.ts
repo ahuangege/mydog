@@ -59,7 +59,6 @@ export default class Application extends EventEmitter {
     someconfig: I_someConfig = {} as any;   // 部分开放的配置
     frontendServer: FrontendServer = null as any;
     backendServer: BackendServer = null as any;
-    mydoglistFunc: () => { "title": string, "value": string }[] = null as any;  // mydog list 监控获取数据
 
     constructor() {
         super();
@@ -85,8 +84,13 @@ export default class Application extends EventEmitter {
     setConfig(key: "encodeDecode", value: encodeDecode): void
     setConfig(key: "ssh", value: string[]): void
     setConfig(key: "recognizeToken", value: { "serverToken"?: string, "cliToken"?: string }): void
+    setConfig(key: "logger", value: (level: loggerType, msg: string) => void): void
+    setConfig(key: "mydogList", value: () => { "title": string, "value": string }[]): void
     setConfig(key: keyof I_someConfig, value: any): void {
         this.someconfig[key] = value;
+        if (key === "logger") {
+            this.logger = value;
+        }
     }
 
     /**
@@ -282,22 +286,4 @@ export default class Application extends EventEmitter {
         }
     }
 
-    /**
-     * 设置内部日志输出
-     * @param cb  回调函数
-     */
-    onLog(cb: (level: loggerType, msg: string) => void) {
-        if (typeof cb !== "function") {
-            console.error("app.onLog() --- cb must be a function");
-            return;
-        }
-        this.logger = cb;
-    }
-
-    /**
-     * mydog list 监控时，获取用户自定义数据
-     */
-    on_mydoglist(func: () => { "title": string, "value": string }[]) {
-        this.mydoglistFunc = func;
-    }
 }

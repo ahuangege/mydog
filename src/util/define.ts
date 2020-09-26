@@ -17,6 +17,7 @@ export let some_config = {
     },
     Server_Token: "hi,i am inner server",
     Cli_Token: "hi,i am cli",
+    SocketBufferMaxLenUnregister: 1024, // 未注册的socket，消息最大长度
     SocketBufferMaxLen: 10 * 1024 * 1024
 }
 

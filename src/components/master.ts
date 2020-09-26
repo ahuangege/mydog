@@ -30,7 +30,7 @@ export function start(_app: Application, cb?: Function) {
 
 function startServer(cb?: Function) {
 
-    tcpServer(app.port, define.some_config.SocketBufferMaxLen, true, startCb, newClientCb);
+    tcpServer(app.port, true, startCb, newClientCb);
 
     function startCb() {
         let str = concatStr("listening at [", app.host, ":", app.port, "]  ", app.serverId);
@@ -70,12 +70,13 @@ class UnregSocket_proxy {
         this.registerTimer = setTimeout(function () {
             app.logger(loggerType.error, concatStr("register timeout, close it, " + self.socket.remoteAddress));
             self.socket.close();
-        }, 10000);
+        }, 5000);
 
     }
 
     private onData(_data: Buffer) {
         let socket = this.socket;
+
         let data: monitor_reg_master;
         try {
             data = JSON.parse(_data.toString());
@@ -148,7 +149,7 @@ class UnregSocket_proxy {
 export class Master_ServerProxy {
     private socket: SocketProxy;
     private sid: string = "";
-    private serverType: string = "";
+    public serverType: string = "";
     private heartbeatTimeoutTimer: NodeJS.Timeout = null as any;
     constructor(data: monitor_reg_master, socket: SocketProxy) {
         this.socket = socket;
@@ -163,6 +164,7 @@ export class Master_ServerProxy {
             socket.close();
             return;
         }
+        socket.maxLen = define.some_config.SocketBufferMaxLen;
 
         this.heartbeatTimeout();
         socket.on('data', this.onData.bind(this));
@@ -275,6 +277,8 @@ export class Master_ClientProxy {
 
     private init() {
         let socket = this.socket;
+        socket.maxLen = define.some_config.SocketBufferMaxLen;
+
         this.heartbeatTimeOut();
 
         socket.on('data', this.onData.bind(this));

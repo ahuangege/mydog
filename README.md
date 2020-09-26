@@ -22,7 +22,6 @@ npm install mydog -g
 * 开发者自定义服务器：前端服务器，（frontend: true）通常负责承载用户的连接；后端服务器， 通常处理游戏逻辑。
 * 服务器组可以横向扩展，只需修改配置文件即可。
 * 开发方便，进程调用如同本地调用。
-* [源码讲解视频传送门](https://www.bilibili.com/video/BV1ny4y1y7XH/)
 * 详细请见Wiki文档（<https://github.com/ahuangege/mydog/wiki>）。
 
 ## QQ群

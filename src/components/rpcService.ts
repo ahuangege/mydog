@@ -13,7 +13,10 @@ let app: Application;
 let msgHandler: { [filename: string]: any } = {};
 let rpcId = 1;  // 必须从1开始，不可为0
 let rpcRequest: { [id: number]: rpcTimeout } = {};
-let rpcTimeMax: number = 10 * 1000;
+let rpcTimeMax: number = 10 * 1000; //超时时间
+let outTime = 0;    // 当前时刻 + 超时时间
+
+
 
 /**
  * 初始化
@@ -26,6 +29,13 @@ export function init(_app: Application) {
     if (timeout >= 5) {
         rpcTimeMax = timeout * 1000;
     }
+
+    outTime = Date.now() + rpcTimeMax;
+    setInterval(() => {
+        outTime = Date.now() + rpcTimeMax;
+    }, 100);
+    setInterval(checkTimeout, 3000);
+
     new rpc_create();
 }
 
@@ -39,8 +49,7 @@ export function handleMsg(id: string, msg: Buffer) {
     if (!rpcInvoke.route) {
         let timeout = rpcRequest[rpcInvoke.id as number];
         if (timeout) {
-            delRequest(rpcInvoke.id as number);
-            clearTimeout(timeout.timer);
+            delete rpcRequest[rpcInvoke.id as number];
             timeout.cb.apply(null, data);
         }
     } else {
@@ -141,13 +150,9 @@ class rpc_create {
         if (sid === app.serverId) {
             args = JSON.parse(JSON.stringify(args));
             if (cb) {
-                let timeout = {
-                    "id": getRpcId(),
-                    "cb": cb,
-                    "timer": null as any
-                }
-                createRpcTimeout(timeout);
-                args.push(getCallBackFuncSelf(timeout.id));
+                let id = getRpcId();
+                rpcRequest[id] = { "cb": cb, "time": outTime };
+                args.push(getCallBackFuncSelf(id));
             }
             sendRpcMsgToSelf(file_method, args);
             return;
@@ -166,13 +171,9 @@ class rpc_create {
             "route": file_method
         };
         if (cb) {
-            let timeout = {
-                "id": getRpcId(),
-                "cb": cb,
-                "timer": null as any
-            }
-            createRpcTimeout(timeout);
-            rpcInvoke.id = timeout.id;
+            let id = getRpcId();
+            rpcRequest[id] = { "cb": cb, "time": outTime };
+            rpcInvoke.id = id;
         }
         args.push(rpcInvoke)
         sendRpcMsg(sid, args);
@@ -225,13 +226,9 @@ class rpc_create {
             if (toId === app.serverId) {
                 let tmp_args = JSON.parse(JSON.stringify(args));
                 if (callback) {
-                    let timeout = {
-                        "id": getRpcId(),
-                        "cb": callback,
-                        "timer": null as any
-                    }
-                    createRpcTimeout(timeout);
-                    tmp_args.push(getCallBackFuncSelf(timeout.id));
+                    let id = getRpcId();
+                    rpcRequest[id] = { "cb": callback, "time": outTime };
+                    tmp_args.push(getCallBackFuncSelf(id));
                 }
                 sendRpcMsgToSelf(file_method, tmp_args);
                 return;
@@ -249,31 +246,18 @@ class rpc_create {
                 "route": file_method
             };
             if (callback) {
-                let timeout = {
-                    "id": getRpcId(),
-                    "cb": callback,
-                    "timer": null as any
-                }
-                createRpcTimeout(timeout);
-                rpcInvoke.id = timeout.id;
+                let id = getRpcId();
+                rpcRequest[id] = { "cb": callback, "time": outTime };
+                rpcInvoke.id = id;
             }
-            sendRpcMsg(toId, [...args, rpcInvoke]);
+            args.push(rpcInvoke);
+            sendRpcMsg(toId, args);
+            args.pop();
         }
     }
 }
 
 
-/**
- * rpc超时计时器
- * @param timeout 
- */
-function createRpcTimeout(timeout: rpcTimeout) {
-    rpcRequest[timeout.id] = timeout;
-    timeout.timer = setTimeout(function () {
-        delRequest(timeout.id);
-        timeout.cb(rpcErr.timeout);
-    }, rpcTimeMax);
-}
 
 /**
  * 获取rpcId
@@ -284,6 +268,28 @@ function getRpcId() {
         rpcId = 1;
     }
     return id;
+}
+
+/**
+ * rpc超时检测
+ */
+function checkTimeout() {
+    let now = Date.now();
+    for (let id in rpcRequest) {
+        if (rpcRequest[id].time < now) {
+            let cb = rpcRequest[id].cb;
+            delete rpcRequest[id];
+            timeoutCb(cb);
+        }
+    }
+}
+
+function timeoutCb(cb: Function) {
+    try {
+        cb(rpcErr.timeout);
+    } catch (e) {
+        app.logger(loggerType.warn, e.stack);
+    }
 }
 
 
@@ -304,23 +310,12 @@ function sendRpcMsg(sid: string, msg: any) {
  */
 function sendRpcMsgToSelf(route: string, msg: any[]) {
     process.nextTick(() => {
-        try {
-            let cmd = route.split('.');
-            let file = msgHandler[cmd[0]];
-            file[cmd[1]].apply(file, msg);
-        } catch (e) {
-            app.logger(loggerType.error, e.stack);
-        }
+        let cmd = route.split('.');
+        let file = msgHandler[cmd[0]];
+        file[cmd[1]].apply(file, msg);
     });
 }
 
-
-/**
- * 删除rpc计时
- */
-function delRequest(id: number) {
-    delete rpcRequest[id];
-}
 
 
 /**
@@ -343,8 +338,7 @@ function getCallBackFuncSelf(id: number) {
     return function (...args: any[]) {
         let timeout = rpcRequest[id];
         if (timeout) {
-            delRequest(id);
-            clearTimeout(timeout.timer);
+            delete rpcRequest[id];
             timeout.cb.apply(null, args);
         }
     }

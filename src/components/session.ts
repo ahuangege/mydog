@@ -30,11 +30,8 @@ export class Session {
 
     private resetBuf() {
         if (app.frontend) {
-            this.sessionBuf = Buffer.from(JSON.stringify({
-                "uid": this.uid,
-                "sid": this.sid,
-                "settings": this.settings
-            }));
+            let tmpBuf = Buffer.from(JSON.stringify({ "uid": this.uid, "sid": this.sid, "settings": this.settings }));
+            this.sessionBuf = Buffer.alloc(tmpBuf.length).fill(tmpBuf); // 复制原因： Buffer.from可能从内部buffer池分配
         }
     }
 
@@ -55,12 +52,6 @@ export class Session {
         return true;
     }
 
-    set(key: string | number, value: any) {
-        this.settings[key] = value;
-        this.resetBuf();
-        return value;
-    }
-
     setSome(_settings: { [key: string]: any }) {
         for (let f in _settings) {
             this.settings[f] = _settings[f];
@@ -73,8 +64,10 @@ export class Session {
         return this.settings[key];
     }
 
-    delete(key: string | number) {
-        delete this.settings[key];
+    delete(keys: (string | number)[]) {
+        for (let one of keys) {
+            delete this.settings[one];
+        }
         this.resetBuf();
     }
 

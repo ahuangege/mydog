@@ -1,8 +1,8 @@
 {
   "_from": "mydog",
-  "_id": "mydog@2.0.2",
+  "_id": "mydog@2.0.6",
   "_inBundle": false,
-  "_integrity": "sha512-8/jZDckCcdUOqsDfQKavZwhzyuuKnd4qhv9IUbommvw2vXZL5Kuz1qqH8dvSrsADGiUEpMvCV67F5pZvbPF1FQ==",
+  "_integrity": "sha512-VfFh18jkXmfhAhPNQxiCETu3DUyPwAGV43SmAL+5qsCAF5wY3BC3x6hKZbY+NdVsx8/PQkluAgjqHSRff7Ti9g==",
   "_location": "/mydog",
   "_phantomChildren": {},
   "_requested": {
@@ -19,10 +19,10 @@
     "#USER",
     "/"
   ],
-  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-2.0.2.tgz",
-  "_shasum": "2129c8176850301266068db8a6f80997b64699da",
+  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-2.0.6.tgz",
+  "_shasum": "d734c5ab194a8cde340fd812c54ad6f1d5049947",
   "_spec": "mydog",
-  "_where": "E:\\mydogNew",
+  "_where": "E:\\mydog",
   "author": {
     "name": "ahuang"
   },

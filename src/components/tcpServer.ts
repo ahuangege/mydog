@@ -7,11 +7,12 @@ import * as net from "net";
 import { EventEmitter } from "events";
 import { SocketProxy } from "../util/interfaceDefine";
 import { decode } from "./msgCoder";
+import { some_config } from "../util/define";
 
-export default function tcpServer(port: number, maxLen: number, noDelay: boolean, startCb: () => void, newClientCb: (socket: SocketProxy) => void) {
+export default function tcpServer(port: number, noDelay: boolean, startCb: () => void, newClientCb: (socket: SocketProxy) => void) {
     let svr = net.createServer(function (socket) {
         socket.setNoDelay(noDelay);
-        newClientCb(new NetSocket(socket, maxLen));
+        newClientCb(new NetSocket(socket));
     }).listen(port, startCb);
 
     svr.on("error", (err) => {
@@ -28,10 +29,10 @@ class NetSocket extends EventEmitter implements SocketProxy {
     maxLen: number;
     len: number = 0;
     buffer: Buffer = Buffer.allocUnsafe(0);
-    constructor(socket: net.Socket, maxLen: number) {
+    constructor(socket: net.Socket) {
         super();
         this.socket = socket;
-        this.maxLen = maxLen;
+        this.maxLen = some_config.SocketBufferMaxLenUnregister;
         this.remoteAddress = socket.remoteAddress as string;
         socket.on("close", (err) => {
             if (!this.die) {

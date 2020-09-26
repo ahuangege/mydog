@@ -6,11 +6,12 @@
 import { EventEmitter } from "events";
 import { SocketProxy } from "../util/interfaceDefine";
 import * as ws from "ws";
+import { some_config } from "../util/define";
 
-export default function wsServer(port: number, maxLen: number, startCb: () => void, newClientCb: (socket: SocketProxy) => void) {
-    let server = new ws.Server({ "port": port }, startCb);
+export default function wsServer(port: number, startCb: () => void, newClientCb: (socket: SocketProxy) => void) {
+    let server = new ws.Server({ "port": port, "maxPayload": some_config.SocketBufferMaxLenUnregister }, startCb);
     server.on("connection", function (socket, req) {
-        newClientCb(new WsSocket(socket, req.connection.remoteAddress as string, maxLen));
+        newClientCb(new WsSocket(socket, req.connection.remoteAddress as string));
     });
     server.on("error", (err) => {
         console.log(err);
@@ -23,13 +24,12 @@ class WsSocket extends EventEmitter implements SocketProxy {
     die: boolean = false;
     remoteAddress: string = "";
     socket: any;
-    maxLen: number;
+    maxLen: number = 0;
     len: number = 0;
     buffer: Buffer = Buffer.allocUnsafe(0);
-    constructor(socket: any, remoteAddress: string, maxLen: number) {
+    constructor(socket: any, remoteAddress: string) {
         super();
         this.socket = socket;
-        this.maxLen = maxLen;
         this.remoteAddress = remoteAddress;
         socket.on("close", (err: any) => {
             if (!this.die) {

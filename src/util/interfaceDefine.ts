@@ -112,9 +112,8 @@ export interface rpcMsg {
  * rpc请求超时
  */
 export interface rpcTimeout {
-    id: number;
     cb: Function;
-    timer: NodeJS.Timeout;
+    time: number;
 }
 
 /**
@@ -237,7 +236,9 @@ export interface I_someConfig {
     "connector": I_connectorConfig, // 前端connector连接服配置
     "encodeDecode": encodeDecode,   // 编码解码配置
     "ssh": string[],                // ssh配置
-    "recognizeToken": { "serverToken": string, "cliToken": string }
+    "recognizeToken": { "serverToken": string, "cliToken": string },    // 认证密钥
+    "logger": (level: loggerType, msg: string) => void,           // 内部日志输出
+    "mydogList": () => { "title": string, "value": string }[],      // 自定义监控
 }
 
 /**

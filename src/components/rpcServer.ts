@@ -6,11 +6,13 @@ import * as rpcService from "./rpcService";
 import { concatStr } from "../util/appUtil";
 
 let serverToken: string = "";
+let maxLen = 0;
 
 export function start(app: Application, cb: () => void) {
     let rpcConfig = app.someconfig.rpc || {};
+    maxLen = rpcConfig.maxLen || define.some_config.SocketBufferMaxLen
     let noDelay = rpcConfig.noDelay === false ? false : true;
-    tcpServer(app.port, rpcConfig.maxLen || define.some_config.SocketBufferMaxLen, noDelay, startCb, newClientCb);
+    tcpServer(app.port, noDelay, startCb, newClientCb);
 
     function startCb() {
         let str = concatStr("listening at [", app.host, ":", app.port, "]  ", app.serverId);
@@ -40,7 +42,7 @@ class RpcServerSocket {
     constructor(app: Application, socket: SocketProxy) {
         this.app = app;
         this.socket = socket;
-        socket.on("data", this.onData.bind(this));
+        socket.once("data", this.onRegisterData.bind(this));
         socket.on("close", this.onClose.bind(this));
         this.registerTimer = setTimeout(function () {
             app.logger(loggerType.error, concatStr("register timeout, close rpc socket, ", socket.remoteAddress));
@@ -54,6 +56,21 @@ class RpcServerSocket {
         }
     }
 
+    // 首条消息是注册
+    private onRegisterData(data: Buffer) {
+        try {
+            let type = data.readUInt8(0);
+            if (type === define.Rpc_Msg.register) {
+                this.registerHandle(data);
+            } else {
+                this.app.logger(loggerType.error, concatStr("illegal rpc register, close the rpc socket, ", this.socket.remoteAddress));
+                this.socket.close();
+            }
+        } catch (e) {
+            this.app.logger(loggerType.error, e.stack);
+        }
+    }
+
     /**
      * socket收到数据了
      * @param data
@@ -62,26 +79,18 @@ class RpcServerSocket {
         try {
             let type = data.readUInt8(0);
             if (type === define.Rpc_Msg.clientMsgIn) {
-                if (!this.registered) return this.socket.close();
                 this.app.backendServer.handleMsg(this.id, data);
             }
             else if (type === define.Rpc_Msg.clientMsgOut) {
-                if (!this.registered) return this.socket.close();
                 this.app.frontendServer.sendMsgByUids(data);
             }
             else if (type === define.Rpc_Msg.rpcMsg) {
-                if (!this.registered) return this.socket.close();
                 rpcService.handleMsg(this.id, data);
             }
             else if (type === define.Rpc_Msg.applySession) {
-                if (!this.registered) return this.socket.close();
                 this.app.frontendServer.applySession(data);
             }
-            else if (type === define.Rpc_Msg.register) {
-                this.registerHandle(data);
-            }
             else if (type === define.Rpc_Msg.heartbeat) {
-                if (!this.registered) return this.socket.close();
                 this.heartbeatHandle();
                 this.heartbeatResponse();
             }
@@ -137,6 +146,9 @@ class RpcServerSocket {
             return;
         }
         this.registered = true;
+        this.socket.maxLen = maxLen;
+        this.socket.on("data", this.onData.bind(this));
+
         this.id = data.id;
         this.app.rpcPool.addSocket(this.id, this);
 
@@ -148,6 +160,7 @@ class RpcServerSocket {
         buffer.writeUInt8(define.Rpc_Msg.register, 4);
         this.socket.send(buffer);
         this.heartbeatHandle();
+
 
     }
 

@@ -146,7 +146,14 @@ export interface Application {
      * 认证密钥配置
      */
     setConfig(key: "recognizeToken", value: I_recognizeTokenConfig): void;
-
+    /**
+     * 内部日志输出
+     */
+    setConfig(key: "logger", value: (level: "info" | "warn" | "error", msg: string) => void): void;
+    /**
+     * 自定义监控
+     */
+    setConfig(key: "mydogList", value: () => { "title": string, "value": string }[]): void;
 
     /**
      * 设置键值对
@@ -243,11 +250,6 @@ export interface Application {
      */
     configure(type: string, cb: () => void): void;
 
-    /**
-     * 内部日志输出
-     * @param cb 回调函数
-     */
-    onLog(cb: (level: "info" | "warn" | "error", info: string) => void): void;
 
     /**
      * 监听事件（添加服务器，移除服务器）
@@ -255,11 +257,6 @@ export interface Application {
      * @param cb 回调
      */
     on(event: "onAddServer" | "onRemoveServer", cb: (serverType: string, id: string) => void): void;
-
-    /**
-     * mydog list 监控时，获取用户自定义数据
-     */
-    on_mydoglist(func: () => { "title": string, "value": string }[]): void;
 
 }
 
@@ -283,12 +280,6 @@ export interface Session {
      */
     bind(uid: number): boolean;
 
-    /**
-     * 设置键值对
-     * @param key 键
-     * @param value 值
-     */
-    set<T = any>(key: number | string, value: T): T;
 
     /**
      * 设置键值对
@@ -306,7 +297,7 @@ export interface Session {
      * 删除键值对
      * @param key 键
      */
-    delete(key: number | string): void;
+    delete(keys: (number | string)[]): void;
 
     /**
      * 将后端session同步到前端  《后端专用》
