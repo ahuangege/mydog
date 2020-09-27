@@ -16,7 +16,6 @@ npm install mydog -g
 
 ## 简介
 
-* Homepage: <https://github.com/ahuangege/mydog>
 * master服务器，负责启动并管理所有服务器的增加和移除。
 * 开发者自定义服务器：前端服务器，（frontend: true）通常负责承载用户的连接；后端服务器， 通常处理游戏逻辑。
 * 服务器组可以横向扩展，只需修改配置文件即可。
