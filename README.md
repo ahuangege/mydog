@@ -12,7 +12,6 @@ npm install mydog -g
 
 * typescript编写。
 * 在cmd窗口运行 mydog init 初始化项目。
-* 有一个聊天示例，并附有unity和cocos creator的客户端代码。可用于简单了解。
 * 源代码量极少，可阅读，熟悉相关api。
 
 ## 简介
