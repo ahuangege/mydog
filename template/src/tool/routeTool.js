@@ -2,8 +2,8 @@
 exports.__esModule = true;
 var routePath = "../config/sys/route.ts";
 var serverPath = "../config/cmd.ts";
-var clientPathCs = "../config/Route.cs";
-var clientPathTs = "../config/route.ts";
+var clientPathCs = "../config/CmdClient.cs";
+var clientPathTs = "../config/cmdClient.ts";
 var fs = require("fs");
 var readline = require("readline");
 var path = require("path");
@@ -47,8 +47,8 @@ read_l.on("close", function () {
     console.log("build route ok!");
 });
 function clientCmd() {
-    var endStrCs = 'public class Route\n{\n';
-    var endStrTs = 'export const enum route {\n';
+    var endStrCs = 'public class Cmd\n{\n';
+    var endStrTs = 'export const enum cmd {\n';
     for (var _i = 0, cmdObjArr_1 = cmdObjArr; _i < cmdObjArr_1.length; _i++) {
         var one = cmdObjArr_1[_i];
         if (one.note) {

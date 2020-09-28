@@ -17,7 +17,7 @@ declare global {
 }
 
 export default class Application extends EventEmitter {
-    appName: string = "myApp";                                                                               // 应用名称
+    appName: string = "hello world";                                                                         // 应用名称
     hasStarted: boolean = false;                                                                             // 是否已经启动
     main: string = "";                                                                                       // 启动文件
     base: string = path.dirname((require.main as any).filename);                                             // 根路径

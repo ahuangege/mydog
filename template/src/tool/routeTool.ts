@@ -1,7 +1,7 @@
 let routePath = "../config/sys/route.ts";
 let serverPath = "../config/cmd.ts";
-let clientPathCs = "../config/Route.cs"
-let clientPathTs = "../config/route.ts"
+let clientPathCs = "../config/CmdClient.cs"
+let clientPathTs = "../config/cmdClient.ts"
 
 
 import * as fs from "fs";
@@ -54,8 +54,8 @@ read_l.on("close", function () {
 
 
 function clientCmd() {
-    let endStrCs = 'public class Route\n{\n'
-    let endStrTs = 'export const enum route {\n'
+    let endStrCs = 'public class Cmd\n{\n'
+    let endStrTs = 'export const enum cmd {\n'
     for (let one of cmdObjArr) {
         if (one.note) {
             endStrCs += "    /// <summary>\n    /// " + one.note + "\n    /// </summary>\n";
