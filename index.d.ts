@@ -73,7 +73,7 @@ export interface Application {
     readonly env: string;
 
     /**
-     * ip
+     * host
      */
     readonly host: string;
 
@@ -109,12 +109,12 @@ export interface Application {
     /**
      * 消息编码函数
      */
-    readonly msgEncode: (cmdId: number, msg: any) => Buffer;
+    readonly msgEncode: I_encodeDecodeConfig["msgEncode"];
 
     /**
      * 消息解码函数
      */
-    readonly msgDecode: (cmdId: number, msg: Buffer) => any;
+    readonly msgDecode: I_encodeDecodeConfig["msgDecode"];
 
     /**
      * rpc
@@ -122,7 +122,7 @@ export interface Application {
     readonly rpc: (serverId: string) => Rpc;
 
     /**
-     * 服务器启动
+     * 启动服务器
      */
     start(): void;
 
@@ -187,66 +187,66 @@ export interface Application {
     getServerById(serverId: string): ServerInfo;
 
     /**
-     * 路由配置   《前端专用》
+     * 路由配置    [注：前端服调用]
      * @param serverType 服务器类型
      * @param routeFunc 路由函数
      */
-    route(serverType: string, routeFunc: (app: Application, session: Session, serverType: string, cb: (serverId: string) => void) => void): void;
+    route(serverType: string, routeFunc: (session: Session) => string): void;
 
     /**
-     * 是否有该客户端   《前端专用》
+     * 是否有该客户端    [注：前端服调用]
      * @param uid 标识uid
      */
     hasClient(uid: number): boolean;
 
     /**
-     * 关闭绑定的客户端     《前端专用》
+     * 关闭绑定的客户端    [注：前端服调用]
      * @param uid 标识uid
      */
     closeClient(uid: number): void;
 
     /**
-     * 配置部分session   《前端专用》
+     * 配置部分session    [注：前端服调用]
      * @param uid 标识uid
      * @param settings session里的部分配置
      */
     applySession(uid: number, settings: { [key: string]: any }): void;
 
     /**
-     * 向客户端发送消息  《前端专用》
+     * 向客户端发送消息    [注：前端服调用]
      * @param cmd 路由
      * @param msg 消息
      * @param uids uid数组
      */
-    sendMsgByUid(cmd: string, msg: any, uids: number[]): void;
+    sendMsgByUid(cmd: number, msg: any, uids: number[]): void;
 
     /**
-     * 向所有的客户端发送消息  《前端专用》
+     * 向所有的客户端发送消息    [注：前端服调用]
      * @param cmd 路由
      * @param msg 消息
      */
-    sendAll(cmd: string, msg: any): void;
+    sendAll(cmd: number, msg: any): void;
 
     /**
-     * 向客户端发送消息  《后端专用》
+     * 向客户端发送消息    [注：后端服调用]
      * @param cmd 路由
      * @param msg 消息
      * @param uidsid uidsid数组
      */
-    sendMsgByUidSid(cmd: string, msg: any, uidsid: { "uid": number, "sid": string }[]): void;
+    sendMsgByUidSid(cmd: number, msg: any, uidsid: { "uid": number, "sid": string }[]): void;
 
     /**
-     * 向客户端发送消息  《后端专用》
+     * 向客户端发送消息    [注：后端服调用]
      * @param cmd   路由
      * @param msg   消息
      * @param group   {sid:uid[]}
      */
-    sendMsgByGroup(cmd: string, msg: any, group: { [sid: string]: number[] }): void;
+    sendMsgByGroup(cmd: number, msg: any, group: { [sid: string]: number[] }): void;
 
     /**
      * 配置服务器执行函数
      * @param type 服务器类型   "all" 或者 "gate|connector"形式
-     * @param cb 
+     * @param cb 执行函数
      */
     configure(type: string, cb: () => void): void;
 
@@ -275,11 +275,10 @@ export interface Session {
     readonly sid: string;
 
     /**
-     * 绑定uid   《前端专用》
+     * 绑定uid    [注：前端服调用]
      * @param uid 标识uid
      */
     bind(uid: number): boolean;
-
 
     /**
      * 设置键值对
@@ -300,18 +299,18 @@ export interface Session {
     delete(keys: (number | string)[]): void;
 
     /**
-     * 将后端session同步到前端  《后端专用》
+     * 将后端session同步到前端    [注：后端服调用]
      */
     apply(): void;
 
     /**
-     * 客户端断开连接的回调   《前端专用》
+     * 客户端断开连接的回调    [注：前端服调用]
      * @param cb 回调
      */
-    setCloseCb(cb: (app: Application, session: Session) => void): void;
+    setCloseCb(cb: (session: Session) => void): void;
 
     /**
-     * 关闭连接   《前端专用》
+     * 关闭连接    [注：前端服调用]
      */
     close(): void;
 }
@@ -344,16 +343,12 @@ export interface ServerInfo {
     [key: string]: any;
 }
 
+/**
+ * rpc声明
+ */
 declare global {
     interface Rpc {
     }
-}
-
-/**
- * rpc 构造器
- */
-export type RpcClass<T> = {
-    [K in keyof T]: T[K]
 }
 
 /**
@@ -381,19 +376,19 @@ interface I_encodeDecodeConfig {
     /**
      * 协议编码
      */
-    "protoEncode"?: (cmdId: number, msg: any) => Buffer,
+    "protoEncode"?: (cmd: number, msg: any) => Buffer,
     /**
      * 消息编码
      */
-    "msgEncode"?: (cmdId: number, msg: any) => Buffer,
+    "msgEncode"?: (cmd: number, msg: any) => Buffer,
     /**
      * 协议解码
      */
-    "protoDecode"?: (data: Buffer) => { "cmdId": number, "msg": Buffer },
+    "protoDecode"?: (data: Buffer) => { "cmd": number, "msg": Buffer },
     /**
      * 消息解码
      */
-    "msgDecode"?: (cmdId: number, msg: Buffer) => any,
+    "msgDecode"?: (cmd: number, msg: Buffer) => any,
 }
 
 
@@ -492,13 +487,9 @@ export interface I_clientManager {
  */
 export interface I_clientSocket {
     /**
-     * session（由框架内部赋值）
+     * session（注：由框架内部赋值，开发者不可使用此字段）
      */
     session: Session;
-    /**
-     * ip
-     */
-    remoteAddress: string;
     /**
      * 发送消息
      */

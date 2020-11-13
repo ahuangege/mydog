@@ -4,8 +4,7 @@
 
 
 import Application from "../application";
-import * as backendServer from "./backendServer";
-import { sessionApplyJson, I_clientSocket } from "../util/interfaceDefine";
+import { I_clientSocket, sessionCopyJson } from "../util/interfaceDefine";
 
 let app: Application;
 
@@ -14,13 +13,13 @@ export function initSessionApp(_app: Application) {
 }
 
 export class Session {
-    uid: number = 0;                                // 绑定的uid，玩家唯一标识
-    sid: string = "";                               // 前端服务器id
+    uid: number = 0;                                        // 绑定的uid，玩家唯一标识
+    private sid: string = "";                               // 前端服务器id
     private settings: { [key: string]: any } = {};          // 用户set,get
-    sessionBuf: Buffer = null as any;  // buff
+    sessionBuf: Buffer = null as any;                       // buff
 
-    socket: I_clientSocket = null as any;              // 玩家的socket连接
-    _onclosed: (app: Application, session: Session) => void = null as any;              // socket断开回调
+    socket: I_clientSocket = null as any;                   // 玩家的socket连接
+    _onclosed: (session: Session) => void = null as any;    // socket断开回调
 
 
     constructor(sid: string = "") {
@@ -31,16 +30,15 @@ export class Session {
     private resetBuf() {
         if (app.frontend) {
             let tmpBuf = Buffer.from(JSON.stringify({ "uid": this.uid, "sid": this.sid, "settings": this.settings }));
-            this.sessionBuf = Buffer.alloc(tmpBuf.length).fill(tmpBuf); // 复制原因： Buffer.from可能从内部buffer池分配
+            this.sessionBuf = Buffer.alloc(tmpBuf.length).fill(tmpBuf); // 复制原因： Buffer.from可能从内部buffer池分配，而sessionBuf几乎常驻不变
         }
     }
 
     /**
-     * 绑定session     》前端专用
-     * @param _uid 用户唯一标识
+     * 绑定session [注：前端调用]
      */
     bind(_uid: number): boolean {
-        if (!app.frontend) {
+        if (!app.frontend || !this.socket) {
             return false;
         }
         if (app.clients[_uid]) {
@@ -74,42 +72,46 @@ export class Session {
     /**
      * 设置所有session 
      */
-    setAll(_session: sessionApplyJson) {
+    setAll(_session: sessionCopyJson) {
         this.uid = _session.uid;
         this.sid = _session.sid;
         this.settings = _session.settings;
-        this.resetBuf();
     }
 
 
     /**
-     * 关闭连接      》前端专用
+     * 关闭连接 [注：前端调用]
      */
     close() {
-        if (!app.frontend) {
-            return;
+        if (app.frontend && this.socket) {
+            this.socket.close();
         }
-        this.socket.close();
     }
 
     /**
-     * 将后端session推送到前端    》后端调用
+     * 将后端session推送到前端  [注：后端调用]
      */
     apply() {
         if (!app.frontend) {
             app.backendServer.sendSession(this.sid, Buffer.from(JSON.stringify({
                 "uid": this.uid,
-                "sid": this.sid,
                 "settings": this.settings
             })));
         }
     }
+    /**
+     * 后端调用apply后，前端接收到的处理
+     */
+    applySession(settings: { [key: string]: any }) {
+        this.settings = settings;
+        this.resetBuf();
+    }
 
 
     /**
-     * 客户端断开连接的回调      》前端调用
+     * 客户端断开连接的回调    [注：前端调用]
      */
-    setCloseCb(cb: (app: Application, session: Session) => void) {
+    setCloseCb(cb: (session: Session) => void) {
         this._onclosed = cb;
     }
 

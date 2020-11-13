@@ -10,22 +10,16 @@ import tcpServer from "./tcpServer";
 import { runServers } from "../util/starter";
 import define = require("../util/define");
 import * as msgCoder from "./msgCoder";
-import { concatStr } from "../util/appUtil";
 
 let servers: { [id: string]: Master_ServerProxy } = {};
 let serversDataTmp: monitor_get_new_server = { "T": define.Master_To_Monitor.addServer, "serverInfoIdMap": {} };
 let masterCli: MasterCli;
 let app: Application;
-let serverToken: string = "";
-let cliToken: string = "";
 
 export function start(_app: Application, cb?: Function) {
     app = _app;
     masterCli = new MasterCli(_app, servers);
     startServer(cb);
-    let tokenConfig = app.someconfig.recognizeToken || {};
-    serverToken = tokenConfig.serverToken || define.some_config.Server_Token;
-    cliToken = tokenConfig.cliToken || define.some_config.Cli_Token;
 }
 
 function startServer(cb?: Function) {
@@ -33,7 +27,7 @@ function startServer(cb?: Function) {
     tcpServer(app.port, true, startCb, newClientCb);
 
     function startCb() {
-        let str = concatStr("listening at [", app.host, ":", app.port, "]  ", app.serverId);
+        let str = `listening at [${app.host}:${app.port}]  ${app.serverId}`;
         console.log(str);
         app.logger(loggerType.info, str);
         cb && cb();
@@ -68,7 +62,7 @@ class UnregSocket_proxy {
     private registerTimeout() {
         let self = this;
         this.registerTimer = setTimeout(function () {
-            app.logger(loggerType.error, concatStr("register timeout, close it, " + self.socket.remoteAddress));
+            app.logger(loggerType.error, `register timeout, close it: ${self.socket.remoteAddress}`);
             self.socket.close();
         }, 5000);
 
@@ -81,27 +75,29 @@ class UnregSocket_proxy {
         try {
             data = JSON.parse(_data.toString());
         } catch (err) {
-            app.logger(loggerType.error, concatStr("unregistered socket, JSON parse error, close it, ", socket.remoteAddress));
+            app.logger(loggerType.error, `unregistered socket, JSON parse error, close it: ${socket.remoteAddress}`);
             socket.close();
             return;
         }
 
         // 第一个数据包必须是注册
         if (!data || data.T !== define.Monitor_To_Master.register) {
-            app.logger(loggerType.error, concatStr("unregistered socket, illegal data, close it, ", socket.remoteAddress));
+            app.logger(loggerType.error, `unregistered socket, illegal data, close it: ${socket.remoteAddress}`);
             socket.close();
             return;
         }
 
         // 是服务器？
         if (data.serverToken) {
+            let tokenConfig = app.someconfig.recognizeToken || {};
+            let serverToken = tokenConfig.serverToken || define.some_config.Server_Token;
             if (data.serverToken !== serverToken) {
-                app.logger(loggerType.error, concatStr("illegal serverToken, close it, ", socket.remoteAddress));
+                app.logger(loggerType.error, `illegal serverToken, close it: ${socket.remoteAddress}`);
                 socket.close();
                 return;
             }
             if (!data.serverType || !data.serverInfo || !data.serverInfo.id || !data.serverInfo.host || !data.serverInfo.port) {
-                app.logger(loggerType.error, concatStr("illegal serverInfo, close it, ", socket.remoteAddress));
+                app.logger(loggerType.error, `illegal serverInfo, close it: ${socket.remoteAddress}`);
                 socket.close();
                 return;
             }
@@ -112,8 +108,10 @@ class UnregSocket_proxy {
 
         // 是cli？
         if (data.cliToken) {
+            let tokenConfig = app.someconfig.recognizeToken || {};
+            let cliToken = tokenConfig.cliToken || define.some_config.Cli_Token;
             if (data.cliToken !== cliToken) {
-                app.logger(loggerType.error, concatStr("illegal cliToken, close it, ", socket.remoteAddress));
+                app.logger(loggerType.error, `illegal cliToken, close it: ${socket.remoteAddress}`);
                 socket.close();
                 return;
             }
@@ -122,13 +120,13 @@ class UnregSocket_proxy {
             return;
         }
 
-        app.logger(loggerType.error, concatStr("illegal socket, close it, " + socket.remoteAddress));
+        app.logger(loggerType.error, `illegal socket, close it: ${socket.remoteAddress}`);
         socket.close();
     }
 
     private onClose() {
         clearTimeout(this.registerTimer);
-        app.logger(loggerType.error, concatStr("unregistered socket closed, ", this.socket.remoteAddress));
+        app.logger(loggerType.error, `unregistered socket closed: ${this.socket.remoteAddress}`);
     }
 
     private registerOk() {
@@ -160,7 +158,7 @@ export class Master_ServerProxy {
         let socket = this.socket;
 
         if (!!servers[data.serverInfo.id]) {
-            app.logger(loggerType.error, concatStr("already has a monitor named ", data.serverInfo.id, ", close it, ", socket.remoteAddress));
+            app.logger(loggerType.error, `already has a monitor named: ${data.serverInfo.id}, close it: ${socket.remoteAddress}`);
             socket.close();
             return;
         }
@@ -201,14 +199,14 @@ export class Master_ServerProxy {
             "serverInfo": data.serverInfo
         };
 
-        app.logger(loggerType.info, concatStr("get a new monitor named ", this.sid, ", ", this.socket.remoteAddress));
+        app.logger(loggerType.info, `get a new monitor named: ${this.sid}, ${this.socket.remoteAddress}`);
     }
 
     private heartbeatTimeout() {
         let self = this;
         clearTimeout(this.heartbeatTimeoutTimer);
         this.heartbeatTimeoutTimer = setTimeout(function () {
-            app.logger(loggerType.error, concatStr("heartbeat timeout, close the monitor named ", self.sid, ", " + self.socket.remoteAddress));
+            app.logger(loggerType.error, `heartbeat timeout, close the monitor named: ${self.sid}, ${self.socket.remoteAddress}`);
             self.socket.close();
         }, define.some_config.Time.Monitor_Heart_Beat_Time * 1000 * 2);
     }
@@ -229,7 +227,7 @@ export class Master_ServerProxy {
         try {
             data = JSON.parse(_data.toString());
         } catch (err) {
-            app.logger(loggerType.error, concatStr("JSON parse error，close the monitor named ", this.sid, ", ", this.socket.remoteAddress));
+            app.logger(loggerType.error, `JSON parse error，close the monitor named: ${this.sid}, ${this.socket.remoteAddress}`);
             this.socket.close();
             return;
         }
@@ -242,7 +240,7 @@ export class Master_ServerProxy {
                 masterCli.deal_monitor_msg(data);
             }
         } catch (err) {
-            app.logger(loggerType.error, concatStr("handle msg error, close it, ", this.sid, ", ", this.socket.remoteAddress, "\n", err.stack));
+            app.logger(loggerType.error, `handle msg error, close it: ${this.sid}, ${this.socket.remoteAddress}\n${err.stack}`);
             this.socket.close();
         }
     }
@@ -260,7 +258,7 @@ export class Master_ServerProxy {
         for (let sid in servers) {
             servers[sid].socket.send(serverInfoBuf);
         }
-        app.logger(loggerType.error, concatStr("a monitor disconnected  ", this.sid, ", ", this.socket.remoteAddress));
+        app.logger(loggerType.error, `a monitor disconnected: ${this.sid}, ${this.socket.remoteAddress}`);
     }
 }
 
@@ -284,14 +282,14 @@ export class Master_ClientProxy {
         socket.on('data', this.onData.bind(this));
         socket.on('close', this.onClose.bind(this));
 
-        app.logger(loggerType.info, concatStr("get a new cli, ", socket.remoteAddress));
+        app.logger(loggerType.info, `get a new cli: ${socket.remoteAddress}`);
     }
 
     private heartbeatTimeOut() {
         let self = this;
         clearTimeout(this.heartbeatTimer);
         this.heartbeatTimer = setTimeout(function () {
-            app.logger(loggerType.error, concatStr("heartbeat timeout, close the cli, " + self.socket.remoteAddress));
+            app.logger(loggerType.error, `heartbeat timeout, close the cli: ${self.socket.remoteAddress}`);
             self.socket.close();
         }, define.some_config.Time.Monitor_Heart_Beat_Time * 1000 * 2);
     }
@@ -301,7 +299,7 @@ export class Master_ClientProxy {
         try {
             data = JSON.parse(_data.toString());
         } catch (err) {
-            app.logger(loggerType.error, concatStr("JSON parse error，close the cli, " + this.socket.remoteAddress));
+            app.logger(loggerType.error, `JSON parse error，close the cli: ${this.socket.remoteAddress}`);
             this.socket.close();
             return;
         }
@@ -310,14 +308,14 @@ export class Master_ClientProxy {
             if (data.T === define.Cli_To_Master.heartbeat) {
                 this.heartbeatTimeOut();
             } else if (data.T === define.Cli_To_Master.cliMsg) {
-                app.logger(loggerType.info, concatStr("master get command from the cli, " + this.socket.remoteAddress + " ==> " + JSON.stringify(data)));
+                app.logger(loggerType.info, `master get command from the cli: ${this.socket.remoteAddress} ==> ${JSON.stringify(data)}`);
                 masterCli.deal_cli_msg(this, data);
             } else {
-                app.logger(loggerType.error, concatStr("the cli illegal data type close it, " + this.socket.remoteAddress));
+                app.logger(loggerType.error, `the cli illegal data type close it: ${this.socket.remoteAddress}`);
                 this.socket.close();
             }
         } catch (e) {
-            app.logger(loggerType.error, concatStr("cli handle msg err, close it " + this.socket.remoteAddress + "\n" + e.stack));
+            app.logger(loggerType.error, `cli handle msg err, close it: ${this.socket.remoteAddress}\n ${e.stack}`);
             this.socket.close();
         }
     }
@@ -328,6 +326,6 @@ export class Master_ClientProxy {
 
     private onClose() {
         clearTimeout(this.heartbeatTimer);
-        app.logger(loggerType.info, concatStr("a cli disconnected, " + this.socket.remoteAddress));
+        app.logger(loggerType.info, `a cli disconnected: ${this.socket.remoteAddress}`);
     }
 }

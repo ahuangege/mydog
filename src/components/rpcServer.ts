@@ -3,7 +3,6 @@ import tcpServer from "../components/tcpServer";
 import { SocketProxy, loggerType } from "../util/interfaceDefine";
 import * as define from "../util/define";
 import * as rpcService from "./rpcService";
-import { concatStr } from "../util/appUtil";
 
 let serverToken: string = "";
 let maxLen = 0;
@@ -15,7 +14,7 @@ export function start(app: Application, cb: () => void) {
     tcpServer(app.port, noDelay, startCb, newClientCb);
 
     function startCb() {
-        let str = concatStr("listening at [", app.host, ":", app.port, "]  ", app.serverId);
+        let str = `listening at [${app.host}:${app.port}]  ${app.serverId}`;
         console.log(str);
         app.logger(loggerType.info, str);
         cb();
@@ -45,9 +44,9 @@ class RpcServerSocket {
         socket.once("data", this.onRegisterData.bind(this));
         socket.on("close", this.onClose.bind(this));
         this.registerTimer = setTimeout(function () {
-            app.logger(loggerType.error, concatStr("register timeout, close rpc socket, ", socket.remoteAddress));
+            app.logger(loggerType.error, `register timeout, close the rpc socket: ${socket.remoteAddress}`);
             socket.close();
-        }, 10000);
+        }, 5000);
         let rpcConfig = app.someconfig.rpc || {};
         let interval = Number(rpcConfig.interval) || 0;
         if (interval >= 10) {
@@ -63,10 +62,11 @@ class RpcServerSocket {
             if (type === define.Rpc_Msg.register) {
                 this.registerHandle(data);
             } else {
-                this.app.logger(loggerType.error, concatStr("illegal rpc register, close the rpc socket, ", this.socket.remoteAddress));
+                this.app.logger(loggerType.error, `illegal rpc register, close the rpc socket: ${this.socket.remoteAddress}`);
                 this.socket.close();
             }
         } catch (e) {
+            this.socket.close();
             this.app.logger(loggerType.error, e.stack);
         }
     }
@@ -95,7 +95,7 @@ class RpcServerSocket {
                 this.heartbeatResponse();
             }
             else {
-                this.app.logger(loggerType.error, concatStr("illegal data type, close rpc client named " + this.id));
+                this.app.logger(loggerType.error, `illegal data type, close rpc client named: ${this.id}`);
                 this.socket.close();
             }
         } catch (e) {
@@ -114,7 +114,7 @@ class RpcServerSocket {
         if (this.registered) {
             this.app.rpcPool.removeSocket(this.id);
         }
-        this.app.logger(loggerType.error, concatStr("a rpc client disconnected, ", this.id, ", ", this.socket.remoteAddress));
+        this.app.logger(loggerType.error, `a rpc client disconnected: ${this.id}, ${this.socket.remoteAddress}`);
     }
 
     /**
@@ -126,18 +126,18 @@ class RpcServerSocket {
         try {
             data = JSON.parse(msg.slice(1).toString());
         } catch (err) {
-            this.app.logger(loggerType.error, concatStr("JSON parse error，close the rpc socket, ", this.socket.remoteAddress));
+            this.app.logger(loggerType.error, `JSON parse error，close the rpc socket: ${this.socket.remoteAddress}`);
             this.socket.close();
             return;
         }
 
         if (data.serverToken !== serverToken) {
-            this.app.logger(loggerType.error, concatStr("illegal serverToken, close the rpc socket, ", this.socket.remoteAddress));
+            this.app.logger(loggerType.error, `illegal serverToken, close the rpc socket: ${this.socket.remoteAddress}`);
             this.socket.close();
             return;
         }
         if (this.app.rpcPool.hasSocket(data.id)) {
-            this.app.logger(loggerType.error, concatStr("already has a rpc client named ", data.id, ", close it, ", this.socket.remoteAddress));
+            this.app.logger(loggerType.error, `already has a rpc client named: ${data.id}, close it, ${this.socket.remoteAddress}`);
             this.socket.close();
             return;
         }
@@ -152,7 +152,7 @@ class RpcServerSocket {
         this.id = data.id;
         this.app.rpcPool.addSocket(this.id, this);
 
-        this.app.logger(loggerType.info, concatStr("get new rpc client named ", this.id));
+        this.app.logger(loggerType.info, `get new rpc client named: ${this.id}`);
 
         // 注册成功，回应
         let buffer = Buffer.allocUnsafe(5);
@@ -176,7 +176,7 @@ class RpcServerSocket {
             heartbeat = 5;
         }
         this.heartbeatTimer = setTimeout(function () {
-            self.app.logger(loggerType.warn, concatStr("heartBeat time out, close it, " + self.id));
+            self.app.logger(loggerType.warn, `heartBeat time out, close it: ${self.id}`);
             self.socket.close();
         }, heartbeat * 1000 * 2);
     }
@@ -202,7 +202,9 @@ class RpcServerSocket {
     private sendInterval() {
         if (this.sendArr.length > 0) {
             let arr = this.sendArr;
-            for (let i = 0, len = arr.length; i < len; i++) {
+            let i: number;
+            let len = arr.length;
+            for (i = 0; i < len; i++) {
                 this.socket.send(arr[i]);
             }
             this.sendArr = [];

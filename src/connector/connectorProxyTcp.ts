@@ -1,8 +1,9 @@
 import Application from "../application";
 import tcpServer from "../components/tcpServer";
-import { SocketProxy, I_clientManager, I_clientSocket, I_connectorConfig } from "../util/interfaceDefine";
-import { Session } from "../components/session";
+import { I_clientManager, I_clientSocket, SocketProxy } from "../util/interfaceDefine";
 import * as define from "../util/define";
+import { I_connectorConfig } from "../..";
+import { Session } from "../components/session";
 
 let maxLen = 0;
 /**
@@ -124,6 +125,7 @@ class ClientSocket implements I_clientSocket {
         clearTimeout(this.registerTimer);
         clearTimeout(this.heartbeatTimer);
         clearInterval(this.sendTimer);
+        this.sendArr = [];
         this.clientManager.removeClient(this);
     }
 
@@ -181,7 +183,9 @@ class ClientSocket implements I_clientSocket {
     private sendInterval() {
         if (this.sendArr.length > 0) {
             let arr = this.sendArr;
-            for (let i = 0, len = arr.length; i < len; i++) {
+            let i: number;
+            let len = arr.length;
+            for (i = 0; i < len; i++) {
                 this.socket.send(arr[i]);
             }
             this.sendArr = [];

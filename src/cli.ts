@@ -397,7 +397,7 @@ function mydogListPrint(appName: string, env: string, infoArr: string[][]) {
 
     let consoleMaxColumns = process.stdout.columns - 2;
     let nameEnv = "  appName: " + appName + "    env: " + env;
-    console.log("\x1b[32m" + getRealStr(nameEnv) + "\x1b[0m");
+    console.log("\x1b[35m" + getRealStr(nameEnv) + "\x1b[0m");
 
     let widthArr: number[][] = [];  // 每个字段的控制台宽度
     let columnWidth: number[] = []; // 每列的最大宽度

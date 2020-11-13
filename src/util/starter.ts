@@ -3,7 +3,7 @@ import Application from "../application";
 import * as cp from "child_process"
 import * as util from "util"
 import * as os from "os"
-import { ServerInfo } from "./interfaceDefine";
+import { ServerInfo } from "../..";
 
 let app: Application = null as any;
 
@@ -103,12 +103,7 @@ let isLocal = function (host: string) {
 };
 
 let inLocal = function (host: string) {
-    for (let index in localIps) {
-        if (host === localIps[index]) {
-            return true;
-        }
-    }
-    return false;
+    return localIps.indexOf(host) !== -1;
 };
 
 let localIps = function () {

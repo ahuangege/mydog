@@ -8,10 +8,10 @@ import { encodeRemoteData } from "./msgCoder";
 import * as path from "path";
 import * as fs from "fs";
 import define = require("../util/define");
-import { encodeDecode, I_connectorConstructor } from "../util/interfaceDefine";
+import { I_connectorConstructor } from "../util/interfaceDefine";
 import { Session, initSessionApp } from "./session";
-
 import * as protocol from "../connector/protocol";
+import { I_encodeDecodeConfig } from "../..";
 
 
 export class BackendServer {
@@ -27,7 +27,7 @@ export class BackendServer {
         let mydog = require("../mydog");
         let connectorConfig = this.app.someconfig.connector || {};
         let connectorConstructor: I_connectorConstructor = connectorConfig.connector || mydog.connector.connectorTcp;
-        let defaultEncodeDecode: encodeDecode;
+        let defaultEncodeDecode: Required<I_encodeDecodeConfig>;
         if (connectorConstructor === mydog.connector.connectorTcp) {
             defaultEncodeDecode = protocol.Tcp_EncodeDecode;
         } else if (connectorConstructor === mydog.connector.connectorWs) {
@@ -74,20 +74,20 @@ export class BackendServer {
         let sessionBuf = msg.slice(3, 3 + sessionLen);
         let session = new Session();
         session.setAll(JSON.parse(sessionBuf.toString()));
-        let cmdId = msg.readUInt16BE(3 + sessionLen);
-        let cmdArr = this.app.routeConfig[cmdId].split('.');
-        let data = this.app.msgDecode(cmdId, msg.slice(5 + sessionLen));
-        this.msgHandler[cmdArr[1]][cmdArr[2]](data, session, this.callback(id, cmdId, session.uid));
+        let cmd = msg.readUInt16BE(3 + sessionLen);
+        let cmdArr = this.app.routeConfig[cmd].split('.');
+        let data = this.app.msgDecode(cmd, msg.slice(5 + sessionLen));
+        this.msgHandler[cmdArr[1]][cmdArr[2]](data, session, this.callback(id, cmd, session.uid));
     }
 
 
-    private callback(id: string, cmdId: number, uid: number) {
+    private callback(id: string, cmd: number, uid: number) {
         let self = this;
         return function (msg: any) {
             if (msg === undefined) {
                 msg = null;
             }
-            let msgBuf = self.app.protoEncode(cmdId, msg);
+            let msgBuf = self.app.protoEncode(cmd, msg);
             let buf = encodeRemoteData([uid], msgBuf);
             self.app.rpcPool.sendMsg(id, buf);
         };
@@ -107,10 +107,11 @@ export class BackendServer {
     /**
      * 后端服务器给客户端发消息
      */
-    sendMsgByUidSid(cmdIndex: number, msg: any, uidsid: { "uid": number, "sid": string }[]) {
+    sendMsgByUidSid(cmd: number, msg: any, uidsid: { "uid": number, "sid": string }[]) {
         let groups: { [sid: string]: number[] } = {};
         let group: number[];
-        for (let one of uidsid) {
+        let one: { "uid": number, "sid": string };
+        for (one of uidsid) {
             if (!one.sid) {
                 continue;
             }
@@ -122,9 +123,11 @@ export class BackendServer {
             group.push(one.uid);
         }
         let app = this.app;
-        let msgBuf: Buffer = app.protoEncode(cmdIndex, msg);
-        for (let sid in groups) {
-            let buf = encodeRemoteData(groups[sid], msgBuf);
+        let msgBuf: Buffer = app.protoEncode(cmd, msg);
+        let sid: string;
+        let buf: Buffer;
+        for (sid in groups) {
+            buf = encodeRemoteData(groups[sid], msgBuf);
             app.rpcPool.sendMsg(sid, buf);
         }
     }
@@ -132,14 +135,16 @@ export class BackendServer {
     /**
      * 后端服务器给客户端发消息
      */
-    sendMsgByGroup(cmdIndex: number, msg: any, group: { [sid: string]: number[] }) {
+    sendMsgByGroup(cmd: number, msg: any, group: { [sid: string]: number[] }) {
         let app = this.app;
-        let msgBuf: Buffer = app.protoEncode(cmdIndex, msg);
-        for (let sid in group) {
+        let msgBuf: Buffer = app.protoEncode(cmd, msg);
+        let sid: string;
+        let buf: Buffer;
+        for (sid in group) {
             if (group[sid].length === 0) {
                 continue;
             }
-            let buf = encodeRemoteData(group[sid], msgBuf);
+            buf = encodeRemoteData(group[sid], msgBuf);
             app.rpcPool.sendMsg(sid, buf);
         }
     }

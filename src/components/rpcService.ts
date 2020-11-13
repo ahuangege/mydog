@@ -4,10 +4,11 @@
 
 
 import Application from "../application";
-import { rpcTimeout, rpcErr, rpcMsg, loggerType } from "../util/interfaceDefine";
+import { rpcTimeout, rpcMsg, loggerType } from "../util/interfaceDefine";
 import * as path from "path";
 import * as fs from "fs";
 import define = require("../util/define");
+import { rpcErr } from "../..";
 
 let app: Application;
 let msgHandler: { [filename: string]: any } = {};
@@ -117,28 +118,28 @@ class rpc_create {
     }
 
 
-    initFunc(serverName: string, filename: string, func: any, funcFields: string[]) {
+    initFunc(serverType: string, filename: string, func: any, funcFields: string[]) {
         let res: { [method: string]: Function } = {};
         for (let field of funcFields) {
             if (field !== "constructor" && typeof func[field] === "function") {
-                res[field] = this.proxyCb(serverName, filename + "." + field);
+                res[field] = this.proxyCb({ "serverType": serverType, "file_method": filename + "." + field });
             }
         }
         return res;
     }
 
-    proxyCb(serverName: string, file_method: string) {
+    proxyCb(cmd: { "serverType": string, "file_method": string }) {
         let self = this;
         let func = function (...args: any[]) {
-            self.proxyCbSendToServer(self.toId, serverName, file_method, args);
+            self.proxyCbSendToServer(self.toId, cmd, args);
             self.toId = null;
         }
         return func;
     }
 
-    proxyCbSendToServer(sid: string, serverType: string, file_method: string, args: any[]) {
+    proxyCbSendToServer(sid: string, cmd: { "serverType": string, "file_method": string }, args: any[]) {
         if (sid === "*") {
-            this.proxyCbSendToServerType(serverType, file_method, args);
+            this.proxyCbSendToServerType(cmd, args);
             return;
         }
 
@@ -154,7 +155,7 @@ class rpc_create {
                 rpcRequest[id] = { "cb": cb, "time": outTime };
                 args.push(getCallBackFuncSelf(id));
             }
-            sendRpcMsgToSelf(file_method, args);
+            sendRpcMsgToSelf(cmd.file_method, args);
             return;
         }
 
@@ -168,7 +169,7 @@ class rpc_create {
         }
 
         let rpcInvoke: rpcMsg = {
-            "route": file_method
+            "route": cmd.file_method
         };
         if (cb) {
             let id = getRpcId();
@@ -179,13 +180,13 @@ class rpc_create {
         sendRpcMsg(sid, args);
     }
 
-    proxyCbSendToServerType(serverType: string, file_method: string, args: any[]) {
+    proxyCbSendToServerType(cmd: { "serverType": string, "file_method": string }, args: any[]) {
         let cb: Function = null as any;
         if (typeof args[args.length - 1] === "function") {
             cb = args.pop();
         }
         let endTo: string[] = [];
-        let servers = app.getServersByType(serverType);
+        let servers = app.getServersByType(cmd.serverType);
         for (let one of servers) {
             endTo.push(one.id);
         }
@@ -230,7 +231,7 @@ class rpc_create {
                     rpcRequest[id] = { "cb": callback, "time": outTime };
                     tmp_args.push(getCallBackFuncSelf(id));
                 }
-                sendRpcMsgToSelf(file_method, tmp_args);
+                sendRpcMsgToSelf(cmd.file_method, tmp_args);
                 return;
             }
 
@@ -243,7 +244,7 @@ class rpc_create {
                 return;
             }
             let rpcInvoke: rpcMsg = {
-                "route": file_method
+                "route": cmd.file_method
             };
             if (callback) {
                 let id = getRpcId();
@@ -288,7 +289,7 @@ function timeoutCb(cb: Function) {
     try {
         cb(rpcErr.timeout);
     } catch (e) {
-        app.logger(loggerType.warn, e.stack);
+        app.logger(loggerType.error, e.stack);
     }
 }
 

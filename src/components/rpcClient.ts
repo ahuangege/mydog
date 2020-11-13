@@ -1,9 +1,9 @@
 import Application from "../application";
-import { SocketProxy, ServerInfo, loggerType } from "../util/interfaceDefine";
+import { SocketProxy, loggerType } from "../util/interfaceDefine";
 import { TcpClient } from "../components/tcpClient";
 import * as define from "../util/define";
 import * as rpcService from "./rpcService";
-import { concatStr } from "../util/appUtil";
+import { ServerInfo } from "../..";
 
 /**
  * 是否建立socket连接
@@ -70,7 +70,7 @@ export class RpcClientSocket {
         let self = this;
         this.connectTimer = setTimeout(() => {
             let connectCb = function () {
-                self.app.logger(loggerType.info, concatStr("connect to rpc server ", self.id, " success"));
+                self.app.logger(loggerType.info, `connect to rpc server success: ${self.id}`);
 
                 // 注册
                 let registerBuf = Buffer.from(JSON.stringify({
@@ -92,7 +92,7 @@ export class RpcClientSocket {
             self.socket = new TcpClient(self.port, self.host, rpcConfig.maxLen || define.some_config.SocketBufferMaxLen, noDelay, connectCb);
             self.socket.on("data", self.onData.bind(self));
             self.socket.on("close", self.onClose.bind(self));
-            self.app.logger(loggerType.info, concatStr("try to connect to rpc server ", self.id));
+            self.app.logger(loggerType.info, `try to connect to rpc server: ${self.id}`);
         }, delay);
     }
 
@@ -105,7 +105,7 @@ export class RpcClientSocket {
         this.sendArr = [];
         this.heartbeatTimeoutTimer = null as any;
         this.socket = null as any;
-        this.app.logger(loggerType.error, concatStr("socket closed, reconnect the rpc server ", this.id, " later"));
+        this.app.logger(loggerType.error, `socket closed, reconnect the rpc server later: ${this.id}`);
         let rpcConfig = this.app.someconfig.rpc || {};
         let delay = rpcConfig.reconnectDelay || define.some_config.Time.Rpc_Reconnect_Time;
         this.doConnect(delay * 1000);
@@ -149,7 +149,7 @@ export class RpcClientSocket {
         }
         let self = this;
         this.heartbeatTimeoutTimer = setTimeout(function () {
-            self.app.logger(loggerType.error, concatStr("heartbeat timeout, close the rpc socket " + self.id));
+            self.app.logger(loggerType.error, `heartbeat timeout, close the rpc socket: ${self.id}`);
             self.socket.close();
         }, define.some_config.Time.Rpc_Heart_Beat_Timeout_Time * 1000);
 
@@ -212,7 +212,9 @@ export class RpcClientSocket {
     private sendInterval() {
         if (this.sendArr.length > 0) {
             let arr = this.sendArr;
-            for (let i = 0, len = arr.length; i < len; i++) {
+            let i: number;
+            let len = arr.length;
+            for (i = 0; i < len; i++) {
                 this.socket.send(arr[i]);
             }
             this.sendArr = [];

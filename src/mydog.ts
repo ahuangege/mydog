@@ -5,7 +5,7 @@ import { ConnectorWs } from "./connector/connectorProxyWs";
 
 interface I_mydog {
     version: string,
-    createApp: () => Application | undefined,
+    createApp: () => Application,
     app: Application,
     connector: {
         connectorTcp: I_connectorConstructor,
@@ -20,7 +20,7 @@ mydog.version = require("../package.json").version;
 mydog.createApp = function () {
     if (hasCreated) {
         console.error("the app has already been created");
-        return;
+        return mydog.app;
     }
     hasCreated = true;
     mydog.app = new Application();

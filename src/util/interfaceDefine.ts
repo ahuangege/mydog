@@ -1,35 +1,7 @@
 import { EventEmitter } from "events";
+import { I_connectorConfig, I_encodeDecodeConfig, I_rpcConfig, ServerInfo } from "../..";
 import Application from "../application";
 import { Session } from "../components/session";
-
-/**
- * 服务器配置
- */
-export interface ServerInfo {
-    /**
-     * 服务器id
-     */
-    id: string;
-    /**
-     * host
-     */
-    host: string;
-    /**
-     * port
-     */
-    port: number;
-    /**
-     * clientPort
-     */
-    clientPort?: number;
-    /**
-     * 是否是前端服务器
-     */
-    frontend?: boolean;
-
-
-    [key: string]: any;
-}
 
 /**
  * socket连接代理
@@ -74,17 +46,9 @@ export interface monitor_reg_master {
 }
 
 /**
- * 前端到后端消息的路由函数
+ * 前端复制到后端的的session
  */
-export interface routeFunc {
-    (app: Application, session: Session, serverType: string, cb: (serverId: string) => void): void;
-}
-
-
-/**
- * 后端同步到前端的session
- */
-export interface sessionApplyJson {
+export interface sessionCopyJson {
     uid: number;
     sid: string;
     settings: { [key: string]: any };
@@ -116,125 +80,11 @@ export interface rpcTimeout {
     time: number;
 }
 
-/**
- * rpc调用，内部错误码
- */
-export const enum rpcErr {
-    /**
-     * 没有目标服务器
-     */
-    noServer = 1,
-    /**
-     * rpc超时
-     */
-    timeout = 2
-}
-
-
-/**
- * 编码解码
- */
-export interface encodeDecode {
-    "protoEncode": protoEncodeFunc,
-    "msgEncode": msgEncodeFunc,
-    "protoDecode": protoDecodeFunc,
-    "msgDecode": msgDecodeFunc
-}
-
-
-/**
- * 协议编码函数
- */
-export interface protoEncodeFunc {
-    (cmdId: number, msg: any): Buffer
-}
-/**
- * 消息编码函数
- */
-export interface msgEncodeFunc {
-    (cmdId: number, msg: any): Buffer
-}
-
-/**
- * 协议解码函数
- */
-export interface protoDecodeFunc {
-    (data: Buffer): { "cmdId": number, "msg": Buffer }
-}
-/**
- * 消息解码函数
- */
-export interface msgDecodeFunc {
-    (cmdId: number, msg: Buffer): any
-}
-
-
-/**
- * 前端connector配置
- */
-export interface I_connectorConfig {
-    /**
-     * 自定义connector类
-     */
-    "connector"?: I_connectorConstructor,
-    /**
-     * 心跳（秒）
-     */
-    "heartbeat"?: number,
-    /**
-     * 最大连接数
-     */
-    "maxConnectionNum"?: number,
-    /**
-     * 消息包最大长度
-     */
-    "maxLen"?: number
-    /**
-     * 是否开启Nagle算法（默认不开启）
-     */
-    "noDelay"?: boolean,
-    /**
-     * 消息发送频率（毫秒）
-     */
-    "interval"?: number
-
-}
-
-
-/**
- * rpc配置
- */
-export interface I_rpcConfig {
-    /**
-     * 超时时间（秒）
-     */
-    "timeout"?: number,
-    /**
-     * 消息包最大长度
-     */
-    "maxLen"?: number,
-    /**
-     * 消息发送频率（毫秒）
-     */
-    "interval"?: number,
-    /**
-     * 是否开启Nagle算法（默认不开启）
-     */
-    "noDelay"?: boolean,
-    /**
-     * 心跳（秒）
-     */
-    "heartbeat"?: number,
-    /**
-     * 重连间隔（秒）
-     */
-    "reconnectDelay"?: number,
-}
 
 export interface I_someConfig {
     "rpc": I_rpcConfig,             // rpc配置
     "connector": I_connectorConfig, // 前端connector连接服配置
-    "encodeDecode": encodeDecode,   // 编码解码配置
+    "encodeDecode": I_encodeDecodeConfig,   // 编码解码配置
     "ssh": string[],                // ssh配置
     "recognizeToken": { "serverToken": string, "cliToken": string },    // 认证密钥
     "logger": (level: loggerType, msg: string) => void,           // 内部日志输出
@@ -262,7 +112,6 @@ export interface I_connectorConstructor {
  */
 export interface I_clientSocket {
     session: Session;
-    remoteAddress: string;
     send(msg: Buffer): void;
     close(): void;
 }

@@ -7,9 +7,10 @@ import Application from "../application";
 import { MonitorCli } from "./cliUtil";
 import { TcpClient } from "./tcpClient";
 import define = require("../util/define");
-import { SocketProxy, ServerInfo, monitor_get_new_server, monitor_remove_server, loggerType, monitor_reg_master } from "../util/interfaceDefine";
+import { SocketProxy, monitor_get_new_server, monitor_remove_server, loggerType, monitor_reg_master } from "../util/interfaceDefine";
 import { encodeInnerData } from "./msgCoder";
 import * as rpcClient from "./rpcClient";
+import { ServerInfo } from "../..";
 
 
 export function start(_app: Application) {
@@ -27,13 +28,10 @@ export class monitor_client_proxy {
     private removeDiffServers: { [id: string]: string } = {}; // monitor重连后，待对比移除的server集合
     private needDiff: boolean = false; // 是否需要对比
     private diffTimer: NodeJS.Timeout = null as any;    // 对比倒计时
-    private serverToken: string = "";
 
     constructor(app: Application) {
         this.app = app;
         this.monitorCli = new MonitorCli(app);
-        let tokenConfig = app.someconfig.recognizeToken || {};
-        this.serverToken = tokenConfig.serverToken || define.some_config.Server_Token;
         this.doConnect(0);
     }
 
@@ -63,11 +61,14 @@ export class monitor_client_proxy {
      * 注册
      */
     private register() {
+        let tokenConfig = this.app.someconfig.recognizeToken || {};
+        let serverToken = tokenConfig.serverToken || define.some_config.Server_Token;
+
         let loginInfo: monitor_reg_master = {
             T: define.Monitor_To_Master.register,
             serverType: this.app.serverType,
             serverInfo: this.app.serverInfo,
-            serverToken: this.serverToken
+            serverToken: serverToken
         };
         this.send(loginInfo);
     }
@@ -218,7 +219,11 @@ export class monitor_client_proxy {
         }, 5000);     // 5秒后对比
     }
 
-
+    /**
+     * 比对原因：与master断开连接期间，如果另一台逻辑服挂了，本服不能断定该服是否移除，
+     * 因为添加和删除统一由master通知，所以与master断开期间，不可更改与其他服的关系，
+     * 待本服重新连接上master后，通过比对，移除无效服务器
+     */
     private diffFunc() {
         this.needDiff = false;
         let servers = this.app.servers;
@@ -243,22 +248,18 @@ export class monitor_client_proxy {
      * 发射添加服务器事件
      */
     private emitAddServer(serverType: string, id: string) {
-        try {
+        process.nextTick(() => {
             this.app.emit("onAddServer", serverType, id);
-        } catch (e) {
-            this.app.logger(loggerType.error, e.stack);
-        }
+        });
     }
 
     /**
      * 发射移除服务器事件
      */
     private emitRemoveServer(serverType: string, id: string) {
-        try {
+        process.nextTick(() => {
             this.app.emit("onRemoveServer", serverType, id);
-        } catch (e) {
-            this.app.logger(loggerType.error, e.stack);
-        }
+        });
     }
 }
 

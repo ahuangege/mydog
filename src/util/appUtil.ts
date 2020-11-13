@@ -7,13 +7,13 @@ import * as path from "path";
 import * as fs from "fs";
 import Application from "../application";
 import { some_config } from "./define";
-import { ServerInfo } from "./interfaceDefine";
 import * as master from "../components/master";
 import * as monitor from "../components/monitor";
 import * as rpcServer from "../components/rpcServer";
 import * as rpcService from "../components/rpcService";
 import { FrontendServer } from "../components/frontendServer";
 import { BackendServer } from "../components/backendServer";
+import { ServerInfo } from "../..";
 
 
 /**
@@ -147,11 +147,12 @@ let processArgs = function (app: Application, args: any) {
         app.frontend = !!serverConfig.frontend;
         app.clientPort = serverConfig.clientPort || 0;
 
+        let tmpServerConfig = JSON.parse(JSON.stringify(serverConfig));
         let servers: { [serverType: string]: ServerInfo[] } = {};
         servers[app.serverType] = [];
-        servers[app.serverType].push(serverConfig);
+        servers[app.serverType].push(tmpServerConfig);
         app.servers = servers;
-        app.serversIdMap[serverConfig.id] = serverConfig;
+        app.serversIdMap[tmpServerConfig.id] = tmpServerConfig;
     }
 };
 
@@ -188,12 +189,4 @@ function startPng(app: Application) {
     }
     console.log("  ");
     console.log("  ");
-}
-
-export function concatStr(...args: (string | number)[]) {
-    let str = "";
-    for (let one of args) {
-        str += one
-    }
-    return str;
 }

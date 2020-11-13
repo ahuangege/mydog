@@ -9,6 +9,7 @@ import { SocketProxy } from "../util/interfaceDefine";
 import { decode } from "./msgCoder";
 import { some_config } from "../util/define";
 
+
 export default function tcpServer(port: number, noDelay: boolean, startCb: () => void, newClientCb: (socket: SocketProxy) => void) {
     let svr = net.createServer(function (socket) {
         socket.setNoDelay(noDelay);
