@@ -33,54 +33,9 @@ export interface Application {
     appName: string;
 
     /**
-     * 配置：route.ts
-     */
-    readonly routeConfig: string[];
-
-    /**
-     * 配置：master.ts
-     */
-    readonly masterConfig: ServerInfo;
-
-    /**
-     * 配置：servers.ts
-     */
-    readonly serversConfig: { readonly [serverType: string]: ServerInfo[] };
-
-    /**
-     * 前端服务器，所有的socket连接数
-     */
-    readonly clientNum: number;
-
-    /**
-     * 服务器信息
-     */
-    readonly servers: { readonly [serverType: string]: ServerInfo[] };
-
-    /**
-     * 服务器信息（id格式）
-     */
-    readonly serversIdMap: { readonly [id: string]: ServerInfo };
-
-    /**
-     * 本服务器的配置
-     */
-    readonly serverInfo: ServerInfo;
-
-    /**
      * env
      */
     readonly env: string;
-
-    /**
-     * host
-     */
-    readonly host: string;
-
-    /**
-     * port
-     */
-    readonly port: number;
 
     /**
      * 服务器id
@@ -88,18 +43,19 @@ export interface Application {
     readonly serverId: string;
 
     /**
-     * 是否是前端服
-     */
-    readonly frontend: boolean;
-
-    /**
-     * 前端服的监听端口
-     */
-    readonly clientPort: number;
-    /**
      * 服务器类型
      */
     readonly serverType: string;
+
+    /**
+     * 本服务器的配置
+     */
+    readonly serverInfo: ServerInfo;
+
+    /**
+     * 配置：route.ts
+     */
+    readonly routeConfig: string[];
 
     /**
      * 服务器启动时刻
@@ -107,14 +63,9 @@ export interface Application {
     readonly startTime: number;
 
     /**
-     * 消息编码函数
+     * 前端服务器，所有的socket连接数
      */
-    readonly msgEncode: I_encodeDecodeConfig["msgEncode"];
-
-    /**
-     * 消息解码函数
-     */
-    readonly msgDecode: I_encodeDecodeConfig["msgDecode"];
+    readonly clientNum: number;
 
     /**
      * rpc
@@ -334,11 +285,15 @@ export interface ServerInfo {
     /**
      * 是否是前端服务器
      */
-    readonly frontend?: boolean;
+    readonly frontend: boolean;
     /**
      * clientPort
      */
     readonly clientPort: number;
+    /**
+     * 服务器类型 [注：由框架内部赋值]
+     */
+    readonly serverType: string;
 
     [key: string]: any;
 }
@@ -474,7 +429,7 @@ export interface I_connectorConstructor {
 }
 
 /**
- * 用户socket管理代理
+ * 用户socket管理
  */
 export interface I_clientManager {
     addClient(client: I_clientSocket): void;

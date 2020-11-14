@@ -37,7 +37,7 @@ export class ConnectorTcp {
             this.interval = interval;
         }
 
-        tcpServer(info.app.clientPort, noDelay, info.startCb, this.newClientCb.bind(this));
+        tcpServer(info.app.serverInfo.clientPort, noDelay, info.startCb, this.newClientCb.bind(this));
 
 
         // 握手buffer

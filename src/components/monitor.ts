@@ -66,7 +66,6 @@ export class monitor_client_proxy {
 
         let loginInfo: monitor_reg_master = {
             T: define.Monitor_To_Master.register,
-            serverType: this.app.serverType,
             serverInfo: this.app.serverInfo,
             serverToken: serverToken
         };
@@ -80,7 +79,7 @@ export class monitor_client_proxy {
         let data: any = JSON.parse(_data.toString());
 
         if (data.T === define.Master_To_Monitor.addServer) {
-            this.addServer((data as monitor_get_new_server).serverInfoIdMap);
+            this.addServer((data as monitor_get_new_server).servers);
         } else if (data.T === define.Master_To_Monitor.removeServer) {
             this.removeServer(data as monitor_remove_server);
         } else if (data.T === define.Master_To_Monitor.cliMsg) {
@@ -143,40 +142,38 @@ export class monitor_client_proxy {
     /**
      * 新增服务器
      */
-    private addServer(servers: { [id: string]: { "serverType": string, "serverInfo": ServerInfo } }) {
+    private addServer(servers: { [id: string]: ServerInfo }) {
         if (this.needDiff) {
             this.diffTimerStart();
         }
         let serversApp = this.app.servers;
         let serversIdMap = this.app.serversIdMap;
-        let server: { "serverType": string, "serverInfo": ServerInfo };
         let serverInfo: ServerInfo;
         for (let sid in servers) {
-            server = servers[sid];
-            serverInfo = server.serverInfo;
+            serverInfo = servers[sid];
             if (this.needDiff) {
-                this.addOrRemoveDiffServer(serverInfo.id, true, server.serverType);
+                this.addOrRemoveDiffServer(serverInfo.id, true, serverInfo.serverType);
             }
             let tmpServer: ServerInfo = serversIdMap[serverInfo.id];
             if (tmpServer && tmpServer.host === serverInfo.host && tmpServer.port === serverInfo.port) {    // 如果已经存在且ip配置相同，则忽略（不考虑其他配置，请开发者自己保证）
                 continue;
             }
-            if (!serversApp[server.serverType]) {
-                serversApp[server.serverType] = [];
+            if (!serversApp[serverInfo.serverType]) {
+                serversApp[serverInfo.serverType] = [];
             }
             if (!!tmpServer) {
-                for (let i = serversApp[server.serverType].length - 1; i >= 0; i--) {
-                    if (serversApp[server.serverType][i].id === tmpServer.id) {
-                        serversApp[server.serverType].splice(i, 1);
+                for (let i = serversApp[serverInfo.serverType].length - 1; i >= 0; i--) {
+                    if (serversApp[serverInfo.serverType][i].id === tmpServer.id) {
+                        serversApp[serverInfo.serverType].splice(i, 1);
                         rpcClient.removeSocket(tmpServer.id);
-                        this.emitRemoveServer(server.serverType, tmpServer.id);
+                        this.emitRemoveServer(serverInfo.serverType, tmpServer.id);
                         break;
                     }
                 }
             }
-            serversApp[server.serverType].push(serverInfo);
+            serversApp[serverInfo.serverType].push(serverInfo);
             serversIdMap[serverInfo.id] = serverInfo;
-            this.emitAddServer(server.serverType, serverInfo.id);
+            this.emitAddServer(serverInfo.serverType, serverInfo.id);
             rpcClient.ifCreateRpcClient(this.app, serverInfo)
         }
     }

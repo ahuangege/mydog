@@ -22,7 +22,7 @@ export class FrontendServer {
 
         let self = this;
         let startCb = function () {
-            let str = `listening at [${self.app.host}:${self.app.clientPort}]  ${self.app.serverId} (clientPort)`;
+            let str = `listening at [${self.app.serverInfo.host}:${self.app.serverInfo.clientPort}]  ${self.app.serverId} (clientPort)`;
             console.log(str);
             self.app.logger(loggerType.info, str);
             cb && cb();
@@ -187,7 +187,12 @@ class ClientManager implements I_clientManager {
     private doRemote(msg: { "cmd": number, "msg": Buffer }, session: Session, cmdArr: string[]) {
         let id = this.router[cmdArr[0]](session);
         if (!this.app.rpcPool.hasSocket(id)) {
-            this.app.logger(loggerType.warn, `has no backend server named: ${id}`);
+            this.app.logger(loggerType.warn, "doRemote: has no socket");
+            return;
+        }
+        let svr = this.app.serversIdMap[id];
+        if (svr.frontend || svr.serverType !== cmdArr[0]) {
+            this.app.logger(loggerType.warn, "doRemote: illegal remote");
             return;
         }
         let sessionBuf = session.sessionBuf;

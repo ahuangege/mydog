@@ -38,9 +38,6 @@ export default class Application extends EventEmitter {
     serverInfo: ServerInfo = {} as ServerInfo;                                                               // 本服务器的配置
     isDaemon: boolean = false;                                                                               // 是否后台运行
     env: string = "";                                                                                        // 环境
-    host: string = "";                                                                                       // ip
-    port: number = 0;                                                                                        // port
-    clientPort: number = 0;                                                                                  // clientPort
     serverId: string = "";                                                                                   // 服务器名字id， 服务器唯一标识
     serverType: string = "";                                                                                 // 服务器类型
     frontend: boolean = false;                                                                               // 是否是前端服务器
@@ -138,10 +135,6 @@ export default class Application extends EventEmitter {
      * @param routeFunc 配置函数
      */
     route(serverType: string, routeFunc: (session: Session) => string) {
-        if (typeof routeFunc !== "function") {
-            console.error("app.route() --- cb must be a function");
-            return;
-        }
         this.router[serverType] = routeFunc;
     }
 
@@ -179,10 +172,6 @@ export default class Application extends EventEmitter {
      * @param uids  uid数组 [1,2]
      */
     sendMsgByUid(cmd: number, msg: any, uids: number[]) {
-        if (!this.frontend) {
-            console.error("app.sendMsgByUid() --- backend server cannot use this method", cmd);
-            return;
-        }
         if (msg === undefined) {
             msg = null;
         }
@@ -203,10 +192,6 @@ export default class Application extends EventEmitter {
      * @param msg 消息
      */
     sendAll(cmd: number, msg: any) {
-        if (!this.frontend) {
-            console.error("app.sendAll() --- backend server cannot use this method", cmd);
-            return;
-        }
         if (msg === undefined) {
             msg = null;
         }
@@ -224,10 +209,6 @@ export default class Application extends EventEmitter {
      * @param uidsid  uidsid 数组
      */
     sendMsgByUidSid(cmd: number, msg: any, uidsid: { "uid": number, "sid": string }[]) {
-        if (this.frontend) {
-            console.error("app.sendMsgByUidSid() --- frontend server cannot use this method", cmd);
-            return;
-        }
         if (msg === undefined) {
             msg = null;
         }
@@ -241,10 +222,6 @@ export default class Application extends EventEmitter {
      * @param group   { sid : uid[] }
      */
     sendMsgByGroup(cmd: number, msg: any, group: { [sid: string]: number[] }) {
-        if (this.frontend) {
-            console.error("app.sendMsgByGroup() --- frontend server cannot use this method", cmd);
-            return;
-        }
         if (msg === undefined) {
             msg = null;
         }

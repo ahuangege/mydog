@@ -36,7 +36,7 @@ export class ConnectorWs {
             this.interval = interval;
         }
 
-        wsServer(info.app.clientPort, info.startCb, this.newClientCb.bind(this));
+        wsServer(info.app.serverInfo.clientPort, info.startCb, this.newClientCb.bind(this));
 
         // 握手buffer
         let routeBuf = Buffer.from(JSON.stringify({ "route": this.app.routeConfig, "heartbeat": this.heartbeatTime / 1000 }));

@@ -10,13 +10,9 @@ import program = require("commander");
 import { TcpClient } from "./components/tcpClient";
 
 let version = require('../package.json').version;
-
-
 let DEFAULT_MASTER_HOST = '127.0.0.1';
 let DEFAULT_MASTER_PORT = 3005;
-
 let FILEREAD_ERROR = 'Fail to read the file, please check if the application is started legally.';
-
 
 
 class clientProxy {
@@ -155,6 +151,12 @@ program.command('removeT')
         removeT(opts);
     });
 
+program.command('cmd')
+    .description('build cmd file')
+    .action(function () {
+        cmd();
+    });
+
 program.command('*')
     .action(function () {
         console.log('Illegal command format. Use `mydog --help` to get more info.\n');
@@ -207,6 +209,7 @@ function init() {
 
     function createApplicationAt(ph: string) {
         copy(path.join(__dirname, '../template'), ph);
+
         function copy(origin: string, target: string) {
             if (!fs.existsSync(origin)) {
                 abort(origin + 'does not exist.');
@@ -243,9 +246,6 @@ function init() {
     }
 
 }
-
-
-
 
 
 function start(opts: { "env": string, "daemon": boolean, "serverIds": string }) {
@@ -286,7 +286,6 @@ function start(opts: { "env": string, "daemon": boolean, "serverIds": string }) 
     }
 
 }
-
 
 function list(opts: any) {
     let interval = Number(opts.interval) || 5;
@@ -429,7 +428,6 @@ function list(opts: any) {
 
 }
 
-
 function stop(opts: any) {
     connectToMaster(opts.host, opts.port, opts.token, function (client) {
         client.request({ "func": "stop" }, function (err) {
@@ -470,12 +468,17 @@ function removeT(opts: any) {
 }
 
 
-
 function cmd() {
-    let routePath = "../config/sys/route.ts";
-    let serverPath = "../config/cmd.ts";
-
-    let readStream = fs.createReadStream(path.join(__dirname, routePath));
+    let routePath = "config/sys/route.ts";
+    let serverPath = "config/cmd.ts";
+    let clientPathCs = "config/CmdClient.cs"
+    let clientPathTs = "config/cmdClient.ts"
+    let nowPath = process.cwd();
+    let filepath = path.join(nowPath, routePath);
+    if (!fs.existsSync(filepath)) {
+        abort("  ->  Not find the script: " + filepath);
+    }
+    let readStream = fs.createReadStream(filepath);
     let read_l = readline.createInterface({ "input": readStream });
 
     let hasStart = false;
@@ -492,6 +495,7 @@ function cmd() {
         }
         if (line.indexOf("]") === 0) {
             serverCmd();
+            clientCmd();
             read_l.close();
             return;
         }
@@ -514,7 +518,7 @@ function cmd() {
     });
 
     read_l.on("close", function () {
-        console.log("build route ok!");
+        console.log("build cmd ok!");
     });
 
 
@@ -522,19 +526,46 @@ function cmd() {
         let endStr = `export const enum cmd {\n`
         let index = 0;
         for (let one of cmdObjArr) {
-            if (one.cmd.indexOf('.') === -1) {
-                if (one.note) {
-                    endStr += `\t/**\n\t * ${one.note}\n\t */\n`;
-                }
-                endStr += `\t${one.cmd} = ${index},\n`;
+            if (one.note) {
+                endStr += `\t/**\n\t * ${one.note}\n\t */\n`;
             }
+            let oneStr = one.cmd;
+            if (one.cmd.indexOf('.') !== -1) {
+                let tmpArr = one.cmd.split('.');
+                oneStr = tmpArr[0] + '_' + tmpArr[1] + '_' + tmpArr[2];
+            }
+            endStr += `\t${oneStr} = ${index},\n`;
             index++;
         }
         endStr += '}';
 
-        let csFilename = path.join(__dirname, serverPath);
+        let csFilename = path.join(nowPath, serverPath);
         fs.writeFileSync(csFilename, endStr);
     }
+
+    function clientCmd() {
+        let endStrCs = 'public class Cmd\n{\n'
+        let endStrTs = 'export const enum cmd {\n'
+        for (let one of cmdObjArr) {
+            if (one.note) {
+                endStrCs += `\t/// <summary>\n\t/// ${one.note}\n\t/// </summary>\n`;
+                endStrTs += `\t/**\n\t * ${one.note}\n\t */\n`;
+            }
+            let oneStr = one.cmd;
+            if (one.cmd.indexOf('.') !== -1) {
+                let tmpArr = one.cmd.split('.');
+                oneStr = tmpArr[0] + '_' + tmpArr[1] + '_' + tmpArr[2];
+            }
+            endStrCs += `\tpublic const string ${oneStr} = "${one.cmd}";\n`;
+            endStrTs += `\t${oneStr} = "${one.cmd}",\n`;
+        }
+
+        endStrCs += '}';
+        endStrTs += '}';
+        fs.writeFileSync(path.join(nowPath, clientPathCs), endStrCs);
+        fs.writeFileSync(path.join(nowPath, clientPathTs), endStrTs);
+    }
+
 }
 
 

@@ -12,7 +12,7 @@ import define = require("../util/define");
 import * as msgCoder from "./msgCoder";
 
 let servers: { [id: string]: Master_ServerProxy } = {};
-let serversDataTmp: monitor_get_new_server = { "T": define.Master_To_Monitor.addServer, "serverInfoIdMap": {} };
+let serversDataTmp: monitor_get_new_server = { "T": define.Master_To_Monitor.addServer, "servers": {} };
 let masterCli: MasterCli;
 let app: Application;
 
@@ -24,10 +24,10 @@ export function start(_app: Application, cb?: Function) {
 
 function startServer(cb?: Function) {
 
-    tcpServer(app.port, true, startCb, newClientCb);
+    tcpServer(app.serverInfo.port, true, startCb, newClientCb);
 
     function startCb() {
-        let str = `listening at [${app.host}:${app.port}]  ${app.serverId}`;
+        let str = `listening at [${app.serverInfo.host}:${app.serverInfo.port}]  ${app.serverId}`;
         console.log(str);
         app.logger(loggerType.info, str);
         cb && cb();
@@ -96,7 +96,7 @@ class UnregSocket_proxy {
                 socket.close();
                 return;
             }
-            if (!data.serverType || !data.serverInfo || !data.serverInfo.id || !data.serverInfo.host || !data.serverInfo.port) {
+            if (!data.serverInfo || !data.serverInfo.id || !data.serverInfo.host || !data.serverInfo.port || !data.serverInfo.serverType) {
                 app.logger(loggerType.error, `illegal serverInfo, close it: ${socket.remoteAddress}`);
                 socket.close();
                 return;
@@ -170,17 +170,14 @@ export class Master_ServerProxy {
 
 
         this.sid = data.serverInfo.id;
-        this.serverType = data.serverType;
+        this.serverType = data.serverInfo.serverType;
 
         // 构造新增服务器的消息
         let socketInfo: monitor_get_new_server = {
             "T": define.Master_To_Monitor.addServer,
-            "serverInfoIdMap": {}
+            "servers": {}
         };
-        socketInfo.serverInfoIdMap[this.sid] = {
-            "serverType": data.serverType,
-            "serverInfo": data.serverInfo
-        };
+        socketInfo.servers[this.sid] = data.serverInfo;
         let socketInfoBuf: Buffer = msgCoder.encodeInnerData(socketInfo);
 
         // 向其他服务器通知,有新的服务器
@@ -194,10 +191,7 @@ export class Master_ServerProxy {
 
 
         servers[this.sid] = this;
-        serversDataTmp.serverInfoIdMap[this.sid] = {
-            "serverType": data.serverType,
-            "serverInfo": data.serverInfo
-        };
+        serversDataTmp.servers[this.sid] = data.serverInfo;
 
         app.logger(loggerType.info, `get a new monitor named: ${this.sid}, ${this.socket.remoteAddress}`);
     }
@@ -248,7 +242,7 @@ export class Master_ServerProxy {
     private onClose() {
         clearTimeout(this.heartbeatTimeoutTimer);
         delete servers[this.sid];
-        delete serversDataTmp.serverInfoIdMap[this.sid];
+        delete serversDataTmp.servers[this.sid];
         let serverInfo: monitor_remove_server = {
             "T": define.Master_To_Monitor.removeServer,
             "id": this.sid,

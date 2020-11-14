@@ -120,15 +120,14 @@ let processArgs = function (app: Application, args: any) {
         app.serverInfo = app.masterConfig;
         app.serverType = "master";
         app.startMode = startAlone ? "alone" : "all";
-        app.host = app.masterConfig.host;
-        app.port = app.masterConfig.port;
     } else {
         app.startMode = args.startMode === "all" ? "all" : "alone";
         let serverConfig: ServerInfo = null as any;
         for (let serverType in app.serversConfig) {
             for (let one of app.serversConfig[serverType]) {
                 if (one.id === app.serverId) {
-                    serverConfig = one;
+                    serverConfig = JSON.parse(JSON.stringify(one));
+                    (serverConfig as any).serverType = serverType;
                     app.serverType = serverType;
                     break;
                 }
@@ -142,17 +141,13 @@ let processArgs = function (app: Application, args: any) {
             process.exit();
         }
         app.serverInfo = serverConfig;
-        app.host = serverConfig.host;
-        app.port = serverConfig.port;
         app.frontend = !!serverConfig.frontend;
-        app.clientPort = serverConfig.clientPort || 0;
 
-        let tmpServerConfig = JSON.parse(JSON.stringify(serverConfig));
         let servers: { [serverType: string]: ServerInfo[] } = {};
         servers[app.serverType] = [];
-        servers[app.serverType].push(tmpServerConfig);
+        servers[app.serverType].push(serverConfig);
         app.servers = servers;
-        app.serversIdMap[tmpServerConfig.id] = tmpServerConfig;
+        app.serversIdMap[serverConfig.id] = serverConfig;
     }
 };
 

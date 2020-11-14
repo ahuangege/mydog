@@ -11,10 +11,10 @@ export function start(app: Application, cb: () => void) {
     let rpcConfig = app.someconfig.rpc || {};
     maxLen = rpcConfig.maxLen || define.some_config.SocketBufferMaxLen
     let noDelay = rpcConfig.noDelay === false ? false : true;
-    tcpServer(app.port, noDelay, startCb, newClientCb);
+    tcpServer(app.serverInfo.port, noDelay, startCb, newClientCb);
 
     function startCb() {
-        let str = `listening at [${app.host}:${app.port}]  ${app.serverId}`;
+        let str = `listening at [${app.serverInfo.host}:${app.serverInfo.port}]  ${app.serverId}`;
         console.log(str);
         app.logger(loggerType.info, str);
         cb();

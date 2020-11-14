@@ -22,7 +22,9 @@ export interface SocketProxy extends EventEmitter {
  */
 export interface monitor_get_new_server {
     "T": number;
-    "serverInfoIdMap": { [id: string]: { "serverType": string, "serverInfo": ServerInfo } };
+    "servers": {
+        [id: string]: ServerInfo
+    };
 }
 
 /**
@@ -39,7 +41,6 @@ export interface monitor_remove_server {
  */
 export interface monitor_reg_master {
     T: number,
-    serverType: string,
     serverToken?: string,
     cliToken?: string,
     serverInfo: ServerInfo
