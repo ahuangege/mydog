@@ -226,12 +226,6 @@ export interface Session {
     readonly sid: string;
 
     /**
-     * 绑定uid    [注：前端服调用]
-     * @param uid 标识uid
-     */
-    bind(uid: number): boolean;
-
-    /**
      * 设置键值对
      * @param value 键值对
      */
@@ -250,20 +244,21 @@ export interface Session {
     delete(keys: (number | string)[]): void;
 
     /**
-     * 将后端session同步到前端    [注：后端服调用]
+     * 绑定uid    [注：前端服调用]
+     * @param uid 标识uid
      */
-    apply(): void;
-
-    /**
-     * 客户端断开连接的回调    [注：前端服调用]
-     * @param cb 回调
-     */
-    setCloseCb(cb: (session: Session) => void): void;
+    bind(uid: number): boolean;
 
     /**
      * 关闭连接    [注：前端服调用]
      */
     close(): void;
+
+    /**
+     * 将后端session同步到前端    [注：后端服调用]
+     */
+    apply(): void;
+
 }
 
 /**
@@ -374,7 +369,15 @@ interface I_connectorConfig {
     /**
      * 消息发送频率（毫秒）
      */
-    "interval"?: number
+    "interval"?: number,
+    /**
+     * 客户端连接通知
+     */
+    "clientOnCb"?: (session: Session) => void,
+    /**
+     * 客户端离开通知
+     */
+    "clientOffCb"?: (session: Session) => void,
 }
 
 /**
@@ -442,13 +445,15 @@ export interface I_clientManager {
  */
 export interface I_clientSocket {
     /**
-     * session（注：由框架内部赋值，开发者不可使用此字段）
+     * session （注：框架内部赋值）
      */
     session: Session;
+
     /**
      * 发送消息
      */
     send(msg: Buffer): void;
+
     /**
      * 关闭
      */

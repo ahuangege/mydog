@@ -6,9 +6,8 @@ export default class Handler {
         this.app = app;
     }
 
-    ping(msg: any, session: Session, next: Function) {
-        next("hello!");
-        this.app.rpc("*").connector.main.test(msg);
+    ping(msg: { "msg": string }, session: Session, next: Function) {
+        next({ "msg": "pong" });
+        this.app.rpc("*").connector.main.test(msg.msg);
     }
 }
-

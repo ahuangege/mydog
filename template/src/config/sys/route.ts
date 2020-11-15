@@ -1,3 +1,3 @@
 export default [
-    "connector.main.ping",
+    "connector.main.ping",  // ping测试
 ]

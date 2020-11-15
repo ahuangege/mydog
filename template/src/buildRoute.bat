@@ -1,1 +1,0 @@
-node ./tool/routeTool.js

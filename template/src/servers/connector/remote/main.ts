@@ -1,9 +1,9 @@
-import { Application, RpcClass } from "mydog";
+import { Application } from "mydog";
 
 declare global {
     interface Rpc {
         connector: {
-            main: RpcClass<Remote>,
+            main: Remote,
         }
     }
 }
@@ -13,7 +13,7 @@ export default class Remote {
     constructor(app: Application) {
     }
 
-    test(msg: any) {
-        console.log(msg);
+    test(msg: string) {
+        console.log("rpcMsg", msg);
     }
 }

@@ -6,7 +6,7 @@ import * as fs from "fs";
 import { loggerType, sessionCopyJson, I_clientSocket, I_clientManager, I_connectorConstructor } from "../util/interfaceDefine";
 import { Session, initSessionApp } from "./session";
 import * as protocol from "../connector/protocol";
-import { I_encodeDecodeConfig } from "../..";
+import * as indexDts from "../..";
 
 export class FrontendServer {
     private app: Application;
@@ -31,7 +31,7 @@ export class FrontendServer {
         let mydog = require("../mydog");
         let connectorConfig = this.app.someconfig.connector || {};
         let connectorConstructor: I_connectorConstructor = connectorConfig.connector || mydog.connector.connectorTcp;
-        let defaultEncodeDecode: Required<I_encodeDecodeConfig>;
+        let defaultEncodeDecode: Required<indexDts.I_encodeDecodeConfig>;
         if (connectorConstructor === mydog.connector.connectorTcp) {
             defaultEncodeDecode = protocol.Tcp_EncodeDecode;
         } else if (connectorConstructor === mydog.connector.connectorWs) {
@@ -83,16 +83,24 @@ export class FrontendServer {
 
 }
 
+function clientOnOffCb() {
+
+}
 
 class ClientManager implements I_clientManager {
     private app: Application;
     private msgHandler: { [filename: string]: any } = {};
     private serverType: string = "";
     private router: { [serverType: string]: (session: Session) => string };
+    private clientOnCb: (session: indexDts.Session) => void = null as any;
+    private clientOffCb: (session: indexDts.Session) => void = null as any;
     constructor(app: Application) {
         this.app = app;
         this.serverType = app.serverType;
         this.router = this.app.router;
+        let connectorConfig = this.app.someconfig.connector || {};
+        this.clientOnCb = connectorConfig.clientOnCb || clientOnOffCb;
+        this.clientOffCb = connectorConfig.clientOffCb || clientOnOffCb;
         this.loadHandler();
     }
 
@@ -120,7 +128,7 @@ class ClientManager implements I_clientManager {
 
     addClient(client: I_clientSocket) {
         if (client.session) {
-            this.app.logger(loggerType.warn, "the I_client has already been added, close it");
+            this.app.logger(loggerType.warn, "frontendServer -> the I_client has already been added, close it");
             client.close();
             return;
         }
@@ -129,6 +137,7 @@ class ClientManager implements I_clientManager {
         let session = new Session(this.app.serverId);
         session.socket = client;
         client.session = session;
+        this.clientOnCb(session as any);
     }
 
     removeClient(client: I_clientSocket) {
@@ -136,21 +145,19 @@ class ClientManager implements I_clientManager {
         if (!session) {
             return;
         }
-        client.session = null as any;
-        session.socket = null as any;
 
         delete this.app.clients[session.uid];
         this.app.clientNum--;
 
-        if (session._onclosed) {
-            session._onclosed(session);
-        }
+        client.session = null as any;
+        session.socket = null as any;
+        this.clientOffCb(session as any);
     }
 
     handleMsg(client: I_clientSocket, msgBuf: Buffer) {
         try {
             if (!client.session) {
-                this.app.logger(loggerType.warn, "cannot handle msg before registered, close it");
+                this.app.logger(loggerType.warn, "frontendServer -> cannot handle msg before added, close it");
                 client.close();
                 return;
             }
@@ -187,12 +194,12 @@ class ClientManager implements I_clientManager {
     private doRemote(msg: { "cmd": number, "msg": Buffer }, session: Session, cmdArr: string[]) {
         let id = this.router[cmdArr[0]](session);
         if (!this.app.rpcPool.hasSocket(id)) {
-            this.app.logger(loggerType.warn, "doRemote: has no socket");
+            this.app.logger(loggerType.warn, "frontendServer -> no remote socket");
             return;
         }
         let svr = this.app.serversIdMap[id];
-        if (svr.frontend || svr.serverType !== cmdArr[0]) {
-            this.app.logger(loggerType.warn, "doRemote: illegal remote");
+        if (svr.serverType !== cmdArr[0] || svr.frontend) {
+            this.app.logger(loggerType.warn, "frontendServer -> illegal remote");
             return;
         }
         let sessionBuf = session.sessionBuf;

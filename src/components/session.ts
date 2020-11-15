@@ -19,8 +19,6 @@ export class Session {
     sessionBuf: Buffer = null as any;                       // buff
 
     socket: I_clientSocket = null as any;                   // 玩家的socket连接
-    _onclosed: (session: Session) => void = null as any;    // socket断开回调
-
 
     constructor(sid: string = "") {
         this.sid = sid;
@@ -106,13 +104,4 @@ export class Session {
         this.settings = settings;
         this.resetBuf();
     }
-
-
-    /**
-     * 客户端断开连接的回调    [注：前端调用]
-     */
-    setCloseCb(cb: (session: Session) => void) {
-        this._onclosed = cb;
-    }
-
 }
