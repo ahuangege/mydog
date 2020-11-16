@@ -58,6 +58,16 @@ export interface Application {
     readonly routeConfig: string[];
 
     /**
+     * 配置：master.ts
+     */
+    readonly masterConfig: ServerInfo;
+
+    /**
+     * 配置：servers.ts
+     */
+    readonly serversConfig: { [serverType: string]: ServerInfo[] };
+
+    /**
      * 服务器启动时刻
      */
     readonly startTime: number;
