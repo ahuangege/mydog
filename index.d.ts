@@ -115,6 +115,10 @@ export interface Application {
      * 自定义监控
      */
     setConfig(key: "mydogList", value: () => { "title": string, "value": string }[]): void;
+    /**
+     * 服务器间不建立socket连接的矩阵
+     */
+    setConfig(key: "serverTypeSocketOff", value: { [serverType: string]: string[] }): void;
 
     /**
      * 设置键值对
@@ -388,6 +392,7 @@ interface I_connectorConfig {
      * 客户端离开通知
      */
     "clientOffCb"?: (session: Session) => void,
+    [key: string]: any,
 }
 
 /**

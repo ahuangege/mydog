@@ -56,6 +56,7 @@ export default class Application extends EventEmitter {
     protoDecode: Required<I_encodeDecodeConfig>["protoDecode"] = null as any;
 
     someconfig: I_someConfig = {} as any;   // 部分开放的配置
+    serverTypeSocketOffConfig: { [svrT_svrT: string]: boolean } = {};       // 服务器间不建立socket连接的配置
     frontendServer: FrontendServer = null as any;
     backendServer: BackendServer = null as any;
 
@@ -83,12 +84,20 @@ export default class Application extends EventEmitter {
     setConfig(key: "encodeDecode", value: Partial<I_encodeDecodeConfig>): void
     setConfig(key: "ssh", value: string[]): void
     setConfig(key: "recognizeToken", value: { "serverToken"?: string, "cliToken"?: string }): void
+    setConfig(key: "serverTypeSocketOff", value: { [serverType: string]: string[] }): void
     setConfig(key: "logger", value: (level: loggerType, msg: string) => void): void
     setConfig(key: "mydogList", value: () => { "title": string, "value": string }[]): void
     setConfig(key: keyof I_someConfig, value: any): void {
         this.someconfig[key] = value;
         if (key === "logger") {
             this.logger = value;
+        } else if (key === "serverTypeSocketOff") {
+            for (let svrT1 in value) {
+                let arr = value[svrT1];
+                for (let svrT2 of arr) {
+                    this.serverTypeSocketOffConfig[appUtil.getServerTypeSocketOffKey(svrT1, svrT2)] = true;
+                }
+            }
         }
     }
 

@@ -55,6 +55,14 @@ export function startServer(app: Application) {
 };
 
 
+export function getServerTypeSocketOffKey(t1: string, t2: string) {
+    if (t1 <= t2) {
+        return t1 + "_" + t2;
+    } else {
+        return t2 + "_" + t1;
+    }
+}
+
 let parseArgs = function (args: any[]) {
     let argsMap = {} as any;
     let mainPos = 1;

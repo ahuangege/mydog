@@ -4,13 +4,14 @@ import { TcpClient } from "../components/tcpClient";
 import * as define from "../util/define";
 import * as rpcService from "./rpcService";
 import { ServerInfo } from "../..";
+import * as appUtil from "../util/appUtil";
 
 /**
  * 是否建立socket连接
  */
 export function ifCreateRpcClient(app: Application, server: ServerInfo) {
     // 两个服务器之间，只建立一个socket连接
-    if (app.serverId < server.id) {
+    if (app.serverId < server.id && !app.serverTypeSocketOffConfig[appUtil.getServerTypeSocketOffKey(app.serverType, server.serverType)]) {
         removeSocket(server.id);
         new RpcClientSocket(app, server);
     }
