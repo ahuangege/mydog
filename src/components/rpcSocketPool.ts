@@ -27,12 +27,20 @@ export class RpcSocketPool {
      * 发送消息
      */
     sendMsg(id: string, msg: Buffer) {
-        if (this.rpcSockets[id]) {
-            this.rpcSockets[id].send(msg);
+        let socket = this.rpcSockets[id];
+        if (socket) {
+            socket.send(msg);
         }
+    }
+
+    /**
+     * 获取socket
+     */
+    getSocket(id: string) {
+        return this.rpcSockets[id];
     }
 }
 
-interface I_RpcSocket {
+export interface I_RpcSocket {
     send(data: Buffer): void;
 }

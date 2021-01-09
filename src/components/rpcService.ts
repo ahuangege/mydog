@@ -4,16 +4,17 @@
 
 
 import Application from "../application";
-import { rpcTimeout, rpcMsg, loggerType } from "../util/interfaceDefine";
+import { I_rpcTimeout, I_rpcMsg, loggerType } from "../util/interfaceDefine";
 import * as path from "path";
 import * as fs from "fs";
 import define = require("../util/define");
-import { rpcErr } from "../..";
+import { rpcErr, ServerInfo } from "../..";
+import { I_RpcSocket } from "./rpcSocketPool";
 
 let app: Application;
 let msgHandler: { [filename: string]: any } = {};
 let rpcId = 1;  // 必须从1开始，不可为0
-let rpcRequest: { [id: number]: rpcTimeout } = {};
+let rpcRequest: { [id: number]: I_rpcTimeout } = {};
 let rpcTimeMax: number = 10 * 1000; //超时时间
 let outTime = 0;    // 当前时刻 + 超时时间
 
@@ -43,23 +44,34 @@ export function init(_app: Application) {
 
 /**
  * 处理rpc消息
+ * 
+ *     [1]         [1]      [...]    [...]      [...]
+ *   消息类型   rpcBufLen   rpcBuf   msgBuf   bufLast
  */
-export function handleMsg(id: string, msg: Buffer) {
-    let data = JSON.parse(msg.slice(1).toString());
-    let rpcInvoke: rpcMsg = data.pop();
-    if (!rpcInvoke.route) {
-        let timeout = rpcRequest[rpcInvoke.id as number];
+export function handleMsg(sid: string, bufAll: Buffer) {
+    let rpcBufLen = bufAll.readUInt8(1);
+    let rpcMsg: I_rpcMsg = JSON.parse(bufAll.slice(2, 2 + rpcBufLen).toString());
+    let msg: any[];
+    if (rpcMsg.len === undefined) {
+        msg = JSON.parse(bufAll.slice(2 + rpcBufLen).toString());
+    } else {
+        msg = JSON.parse(bufAll.slice(2 + rpcBufLen, bufAll.length - rpcMsg.len).toString());
+        msg.push(bufAll.slice(bufAll.length - rpcMsg.len));
+    }
+
+    if (!rpcMsg.cmd) {
+        let timeout = rpcRequest[rpcMsg.id as number];
         if (timeout) {
-            delete rpcRequest[rpcInvoke.id as number];
-            timeout.cb.apply(null, data);
+            delete rpcRequest[rpcMsg.id as number];
+            timeout.cb.apply(null, msg);
         }
     } else {
-        let cmd = (rpcInvoke.route as string).split('.');
-        if (rpcInvoke.id) {
-            data.push(getCallBackFunc(id, rpcInvoke.id));
+        let cmd = (rpcMsg.cmd as string).split('.');
+        if (rpcMsg.id) {
+            msg.push(getCallBackFunc(sid, rpcMsg.id));
         }
         let file = msgHandler[cmd[0]];
-        file[cmd[1]].apply(file, data);
+        file[cmd[1]].apply(file, msg);
     }
 }
 
@@ -147,19 +159,18 @@ class rpc_create {
         if (typeof args[args.length - 1] === "function") {
             cb = args.pop();
         }
+        let bufLast: Buffer = null as any;
+        if (args[args.length - 1] instanceof Uint8Array) {
+            bufLast = args.pop();
+        }
 
         if (sid === app.serverId) {
-            args = JSON.parse(JSON.stringify(args));
-            if (cb) {
-                let id = getRpcId();
-                rpcRequest[id] = { "cb": cb, "time": outTime };
-                args.push(getCallBackFuncSelf(id));
-            }
-            sendRpcMsgToSelf(cmd.file_method, args);
+            sendRpcMsgToSelf(cmd, Buffer.from(JSON.stringify(args)), bufLast, cb);
             return;
         }
 
-        if (!app.rpcPool.hasSocket(sid)) {
+        let socket = app.rpcPool.getSocket(sid);
+        if (!socket) {
             if (cb) {
                 process.nextTick(() => {
                     cb(rpcErr.noServer);
@@ -168,16 +179,15 @@ class rpc_create {
             return;
         }
 
-        let rpcInvoke: rpcMsg = {
-            "route": cmd.file_method
+        let rpcMsg: I_rpcMsg = {
+            "cmd": cmd.file_method
         };
         if (cb) {
             let id = getRpcId();
             rpcRequest[id] = { "cb": cb, "time": outTime };
-            rpcInvoke.id = id;
+            rpcMsg.id = id;
         }
-        args.push(rpcInvoke)
-        sendRpcMsg(sid, args);
+        sendRpcMsg(socket, rpcMsg, Buffer.from(JSON.stringify(args)), bufLast);
     }
 
     proxyCbSendToServerType(cmd: { "serverType": string, "file_method": string }, args: any[]) {
@@ -185,13 +195,13 @@ class rpc_create {
         if (typeof args[args.length - 1] === "function") {
             cb = args.pop();
         }
-        let endTo: string[] = [];
-        let servers = app.getServersByType(cmd.serverType);
-        for (let one of servers) {
-            endTo.push(one.id);
+        let bufLast: Buffer = null as any;
+        if (args[args.length - 1] instanceof Uint8Array) {
+            bufLast = args.pop();
         }
 
-        if (endTo.length === 0) {
+        let servers = app.getServersByType(cmd.serverType);
+        if (servers.length === 0) {
             if (cb) {
                 process.nextTick(() => {
                     cb({});
@@ -200,9 +210,9 @@ class rpc_create {
             return;
         }
 
-        let nums: number = endTo.length;
+        let nums: number = servers.length;
         let bindCb: Function = null as any;
-        let msgObj = {} as any;
+        let msgObj: any = {};
         if (cb) {
             bindCb = function (id: string) {
                 return function (...msg: any[]) {
@@ -215,27 +225,23 @@ class rpc_create {
             };
         }
 
+        let msgBuf = Buffer.from(JSON.stringify(args));
         let tmpCb: Function = null as any;
-        for (let i = 0; i < endTo.length; i++) {
+        for (let one of servers) {
             if (cb) {
-                tmpCb = bindCb(endTo[i]);
+                tmpCb = bindCb(one.id);
             }
-            send(endTo[i], tmpCb);
+            send(one, tmpCb);
         }
 
-        function send(toId: string, callback: Function) {
-            if (toId === app.serverId) {
-                let tmp_args = JSON.parse(JSON.stringify(args));
-                if (callback) {
-                    let id = getRpcId();
-                    rpcRequest[id] = { "cb": callback, "time": outTime };
-                    tmp_args.push(getCallBackFuncSelf(id));
-                }
-                sendRpcMsgToSelf(cmd.file_method, tmp_args);
+        function send(svr: ServerInfo, callback: Function) {
+            if (svr.id === app.serverId) {
+                sendRpcMsgToSelf(cmd, msgBuf, bufLast, callback);
                 return;
             }
 
-            if (!app.rpcPool.hasSocket(toId)) {
+            let socket = app.rpcPool.getSocket(svr.id);
+            if (!socket) {
                 if (callback) {
                     process.nextTick(() => {
                         callback(rpcErr.noServer);
@@ -243,17 +249,15 @@ class rpc_create {
                 }
                 return;
             }
-            let rpcInvoke: rpcMsg = {
-                "route": cmd.file_method
+            let rpcMsg: I_rpcMsg = {
+                "cmd": cmd.file_method
             };
             if (callback) {
                 let id = getRpcId();
                 rpcRequest[id] = { "cb": callback, "time": outTime };
-                rpcInvoke.id = id;
+                rpcMsg.id = id;
             }
-            args.push(rpcInvoke);
-            sendRpcMsg(toId, args);
-            args.pop();
+            sendRpcMsg(socket, rpcMsg, msgBuf, bufLast);
         }
     }
 }
@@ -295,25 +299,48 @@ function timeoutCb(cb: Function) {
 
 
 /**
- * 发送rpc消息
+ *  发送rpc消息
+ * 
+ *    [4]       [1]         [1]      [...]    [...]      [...]
+ *  allMsgLen  消息类型   rpcBufLen   rpcBuf   msgBuf   bufLast
  */
-function sendRpcMsg(sid: string, msg: any) {
-    let msgBuf = Buffer.from(JSON.stringify(msg));
-    let buf = Buffer.allocUnsafe(5 + msgBuf.length);
-    buf.writeUInt32BE(1 + msgBuf.length, 0);
-    buf.writeUInt8(define.Rpc_Msg.rpcMsg, 4);
-    msgBuf.copy(buf, 5);
-    app.rpcPool.sendMsg(sid, buf);
+function sendRpcMsg(socket: I_RpcSocket, rpcMsg: I_rpcMsg, msgBuf: Buffer, bufLast: Buffer) {
+    let buffLastLen = 0;
+    if (bufLast) {
+        buffLastLen = bufLast.length;
+        rpcMsg.len = buffLastLen;
+    }
+    let rpcBuf = Buffer.from(JSON.stringify(rpcMsg));
+    let buffEnd = Buffer.allocUnsafe(6 + rpcBuf.length + msgBuf.length + buffLastLen);
+    buffEnd.writeUInt32BE(buffEnd.length - 4, 0);
+    buffEnd.writeUInt8(define.Rpc_Msg.rpcMsg, 4);
+    buffEnd.writeUInt8(rpcBuf.length, 5);
+    rpcBuf.copy(buffEnd, 6);
+    msgBuf.copy(buffEnd, 6 + rpcBuf.length);
+    if (bufLast) {
+        bufLast.copy(buffEnd, buffEnd.length - buffLastLen);
+    }
+    socket.send(buffEnd);
 }
 
 /**
  * 给本服务器发送rpc消息
  */
-function sendRpcMsgToSelf(route: string, msg: any[]) {
+function sendRpcMsgToSelf(cmd: { "serverType": string, "file_method": string }, msgBuf: Buffer, bufLast: Buffer, cb: Function) {
+    let args = JSON.parse(msgBuf.toString());
+    if (bufLast) {
+        args.push(bufLast);
+    }
+    if (cb) {
+        let id = getRpcId();
+        rpcRequest[id] = { "cb": cb, "time": outTime };
+        args.push(getCallBackFuncSelf(id));
+    }
+
     process.nextTick(() => {
-        let cmd = route.split('.');
-        let file = msgHandler[cmd[0]];
-        file[cmd[1]].apply(file, msg);
+        let route = cmd.file_method.split('.');
+        let file = msgHandler[route[0]];
+        file[route[1]].apply(file, args);
     });
 }
 
@@ -324,11 +351,14 @@ function sendRpcMsgToSelf(route: string, msg: any[]) {
  */
 function getCallBackFunc(sid: string, id: number) {
     return function (...args: any[]) {
-        let rpcInvoke: rpcMsg = {
-            "id": id
-        };
-        args.push(rpcInvoke);
-        sendRpcMsg(sid, args);
+        let bufLast: Buffer = null as any;
+        if (args[args.length - 1] instanceof Uint8Array) {
+            bufLast = args.pop();
+        }
+        let socket = app.rpcPool.getSocket(sid);
+        if (socket) {
+            sendRpcMsg(socket, { "id": id }, Buffer.from(JSON.stringify(args)), bufLast);
+        }
     }
 }
 
@@ -337,11 +367,23 @@ function getCallBackFunc(sid: string, id: number) {
  */
 function getCallBackFuncSelf(id: number) {
     return function (...args: any[]) {
-        let timeout = rpcRequest[id];
-        if (timeout) {
-            delete rpcRequest[id];
-            timeout.cb.apply(null, args);
+        let buf: Buffer = null as any;
+        if (args[args.length - 1] instanceof Uint8Array) {
+            buf = args.pop();
         }
+        args = JSON.parse(JSON.stringify(args));
+        if (buf) {
+            args.push(buf);
+        }
+
+        process.nextTick(() => {
+            let timeout = rpcRequest[id];
+            if (timeout) {
+                delete rpcRequest[id];
+                timeout.cb.apply(null, args);
+            }
+        });
+
     }
 }
 
