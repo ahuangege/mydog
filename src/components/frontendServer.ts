@@ -193,8 +193,8 @@ class ClientManager implements I_clientManager {
      */
     private doRemote(msg: { "cmd": number, "msg": Buffer }, session: Session, cmdArr: string[]) {
         let id = this.router[cmdArr[0]](session);
-        if (!this.app.rpcPool.hasSocket(id)) {
-            this.app.logger(loggerType.warn, "frontendServer -> no remote socket");
+        let socket = this.app.rpcPool.getSocket(id);
+        if (!socket) {
             return;
         }
         let svr = this.app.serversIdMap[id];
@@ -210,6 +210,6 @@ class ClientManager implements I_clientManager {
         sessionBuf.copy(buf, 7);
         buf.writeUInt16BE(msg.cmd, 7 + sessionBuf.length);
         msg.msg.copy(buf, 9 + sessionBuf.length);
-        this.app.rpcPool.sendMsg(id, buf);
+        socket.send(buf);
     }
 }

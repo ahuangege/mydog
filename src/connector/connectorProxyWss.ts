@@ -85,7 +85,7 @@ class ClientSocket implements I_clientSocket {
         this.clientManager = clientManager;
         this.socket = socket;
         this.remoteAddress = socket.remoteAddress;
-        this.socket.socket._receiver._maxPayload = 5;   // 未注册时最多5字节数据
+        this.socket.socket._receiver._maxPayload = 1;   // 未注册时最多1字节数据
         socket.once('data', this.onRegister.bind(this));
         socket.on('close', this.onClose.bind(this));
         this.registerTimer = setTimeout(() => {
@@ -214,6 +214,7 @@ class ClientSocket implements I_clientSocket {
  * websocket通用服务端
  */
 function wssServer(port: number, config: I_connectorConfig, startCb: () => void, newClientCb: (socket: SocketProxy) => void) {
+    console.log(config["cert"], config["key"])
     let httpServer = https.createServer({ "cert": config["cert"], "key": config["key"] }).listen(port);
     let server = new ws.Server({ "server": httpServer });
     server.on("connection", function (socket, req) {

@@ -55,7 +55,7 @@ export function startServer(app: Application) {
 };
 
 
-export function getServerTypeSocketOffKey(t1: string, t2: string) {
+export function getNoRpcKey(t1: string, t2: string) {
     if (t1 <= t2) {
         return t1 + "_" + t2;
     } else {

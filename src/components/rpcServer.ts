@@ -130,7 +130,7 @@ class RpcServerSocket {
             this.socket.close();
             return;
         }
-        if (this.app.rpcPool.hasSocket(data.id)) {
+        if (this.app.rpcPool.getSocket(data.id)) {
             this.app.logger(loggerType.error, `rpcServer -> already has a rpc client named: ${data.id}, close it, ${this.socket.remoteAddress}`);
             this.socket.close();
             return;

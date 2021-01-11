@@ -11,7 +11,7 @@ import * as appUtil from "../util/appUtil";
  */
 export function ifCreateRpcClient(app: Application, server: ServerInfo) {
     // 两个服务器之间，只建立一个socket连接
-    if (app.serverId < server.id && !app.serverTypeSocketOffConfig[appUtil.getServerTypeSocketOffKey(app.serverType, server.serverType)]) {
+    if (app.serverId < server.id && !app.noRpcMatrix[appUtil.getNoRpcKey(app.serverType, server.serverType)]) {
         removeSocket(server.id);
         new RpcClientSocket(app, server);
     }

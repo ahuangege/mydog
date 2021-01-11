@@ -15,11 +15,12 @@ export let app: Application;
 export let version: string;
 
 /**
- * 自带两类connector
+ * 自带三类connector
  */
 export let connector: {
     connectorTcp: I_connectorConstructor,
     connectorWs: I_connectorConstructor,
+    connectorWss: I_connectorConstructor,
 }
 
 /**
@@ -115,10 +116,6 @@ export interface Application {
      * 自定义监控
      */
     setConfig(key: "mydogList", value: () => { "title": string, "value": string }[]): void;
-    /**
-     * 服务器间不建立socket连接的矩阵
-     */
-    setConfig(key: "serverTypeSocketOff", value: { [serverType: string]: string[] }): void;
 
     /**
      * 设置键值对
@@ -392,6 +389,7 @@ interface I_connectorConfig {
      * 客户端离开通知
      */
     "clientOffCb"?: (session: Session) => void,
+
     [key: string]: any,
 }
 
@@ -423,6 +421,10 @@ interface I_rpcConfig {
      * 重连间隔（秒）
      */
     "reconnectDelay"?: number,
+    /**
+     * 不建立socket连接的矩阵
+     */
+    "noRpcMatrix"?: { [serverType: string]: string[] }
 }
 
 /**
