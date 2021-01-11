@@ -47,12 +47,6 @@ class RpcServerSocket {
             app.logger(loggerType.error, `rpcServer -> register timeout, close the rpc socket: ${socket.remoteAddress}`);
             socket.close();
         }, 5000);
-        let rpcConfig = app.someconfig.rpc || {};
-        let interval = Number(rpcConfig.interval) || 0;
-        if (interval >= 10) {
-            this.sendCache = true;
-            this.sendTimer = setInterval(this.sendInterval.bind(this), interval);
-        }
     }
 
     // 首条消息是注册
@@ -122,7 +116,7 @@ class RpcServerSocket {
      */
     private registerHandle(msg: Buffer) {
         clearTimeout(this.registerTimer);
-        let data: { "id": string, "serverToken": string };
+        let data: { "id": string, "serverType": string, "serverToken": string };
         try {
             data = JSON.parse(msg.slice(1).toString());
         } catch (err) {
@@ -153,6 +147,21 @@ class RpcServerSocket {
         this.app.rpcPool.addSocket(this.id, this);
 
         this.app.logger(loggerType.info, `rpcServer -> get new rpc client named: ${this.id}`);
+
+        // 判断是否定时发送消息
+        let rpcConfig = this.app.someconfig.rpc || {};
+        let interval = 0;
+        if (rpcConfig.interval) {
+            if (typeof rpcConfig.interval === "number") {
+                interval = rpcConfig.interval;
+            } else {
+                interval = rpcConfig.interval[data.serverType] || rpcConfig.interval.default || 0;
+            }
+        }
+        if (interval >= 10) {
+            this.sendCache = true;
+            this.sendTimer = setInterval(this.sendInterval.bind(this), interval);
+        }
 
         // 注册成功，回应
         let buffer = Buffer.allocUnsafe(5);

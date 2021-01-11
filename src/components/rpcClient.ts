@@ -53,11 +53,18 @@ export class RpcClientSocket {
         this.port = server.port;
         rpcClientSockets[this.id] = this;
         let rpcConfig = app.someconfig.rpc || {};
-        let interval = Number(rpcConfig.interval) || 0;
+        let interval = 0;
+        if (rpcConfig.interval) {
+            if (typeof rpcConfig.interval === "number") {
+                interval = rpcConfig.interval;
+            } else {
+                interval = rpcConfig.interval[server.serverType] || rpcConfig.interval.default || 0;
+            }
+        }
+
         if (interval >= 10) {
             this.sendCache = true;
             this.interval = interval;
-
         }
         let tokenConfig = app.someconfig.recognizeToken || {};
         this.serverToken = tokenConfig.serverToken || define.some_config.Server_Token;
@@ -76,6 +83,7 @@ export class RpcClientSocket {
                 // 注册
                 let registerBuf = Buffer.from(JSON.stringify({
                     "id": self.app.serverId,
+                    "serverType": self.app.serverType,
                     "serverToken": self.serverToken
                 }));
                 let buf = Buffer.allocUnsafe(registerBuf.length + 5);

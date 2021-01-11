@@ -9,6 +9,7 @@ import * as path from "path";
 import * as fs from "fs";
 import define = require("../util/define");
 import { rpcErr } from "../..";
+import * as appUtil from "../util/appUtil";
 
 let app: Application;
 let msgHandler: { [filename: string]: any } = {};
@@ -68,7 +69,7 @@ export function handleMsg(id: string, msg: Buffer) {
  * rpc构造
  */
 class rpc_create {
-    private toId: any = null;
+    private toId: string = "";
     private rpcObj: Rpc = {};
 
     constructor() {
@@ -86,6 +87,9 @@ class rpc_create {
         }
         let thisSvrHandler: { "filename": string, "con": any }[] = [];
         fs.readdirSync(dirName).forEach(function (serverName) {
+            if (app.serverTypeSocketOffConfig[appUtil.getServerTypeSocketOffKey(app.serverType, serverName)]) {
+                return;
+            }
             tmp_rpc_obj[serverName] = {};
             let remoteDirName = path.join(dirName, serverName, '/remote');
 
@@ -132,7 +136,6 @@ class rpc_create {
         let self = this;
         let func = function (...args: any[]) {
             self.proxyCbSendToServer(self.toId, cmd, args);
-            self.toId = null;
         }
         return func;
     }
@@ -176,7 +179,7 @@ class rpc_create {
             rpcRequest[id] = { "cb": cb, "time": outTime };
             rpcInvoke.id = id;
         }
-        args.push(rpcInvoke)
+        args.push(rpcInvoke);
         sendRpcMsg(sid, args);
     }
 
@@ -202,8 +205,9 @@ class rpc_create {
 
         let nums: number = endTo.length;
         let bindCb: Function = null as any;
-        let msgObj = {} as any;
+        let msgObj = null as any;
         if (cb) {
+            msgObj = {};
             bindCb = function (id: string) {
                 return function (...msg: any[]) {
                     nums--;
@@ -337,11 +341,15 @@ function getCallBackFunc(sid: string, id: number) {
  */
 function getCallBackFuncSelf(id: number) {
     return function (...args: any[]) {
-        let timeout = rpcRequest[id];
-        if (timeout) {
-            delete rpcRequest[id];
-            timeout.cb.apply(null, args);
-        }
+        args = JSON.parse(JSON.stringify(args));
+        process.nextTick(() => {
+            let timeout = rpcRequest[id];
+            if (timeout) {
+                delete rpcRequest[id];
+                timeout.cb.apply(null, args);
+            }
+        })
+
     }
 }
 

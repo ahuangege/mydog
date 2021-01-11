@@ -410,7 +410,7 @@ interface I_rpcConfig {
     /**
      * 消息发送频率（毫秒）
      */
-    "interval"?: number
+    "interval"?: number | { "default": number, [serverType: string]: number }
     /**
      * 是否开启Nagle算法（默认不开启）
      */
