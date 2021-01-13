@@ -2,6 +2,7 @@ import Application from "./application";
 import { I_connectorConstructor } from "./util/interfaceDefine";
 import { ConnectorTcp } from "./connector/connectorProxyTcp";
 import { ConnectorWs } from "./connector/connectorProxyWs";
+import { ConnectorWss } from "./connector/connectorProxyWss";
 
 interface I_mydog {
     version: string,
@@ -10,6 +11,7 @@ interface I_mydog {
     connector: {
         connectorTcp: I_connectorConstructor,
         connectorWs: I_connectorConstructor,
+        connectorWss: I_connectorConstructor,
     }
 }
 
@@ -29,7 +31,8 @@ mydog.createApp = function () {
 
 mydog.connector = {
     "connectorTcp": ConnectorTcp,
-    "connectorWs": ConnectorWs
+    "connectorWs": ConnectorWs,
+    "connectorWss": ConnectorWss
 };
 
 

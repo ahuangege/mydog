@@ -15,11 +15,12 @@ export let app: Application;
 export let version: string;
 
 /**
- * 自带两类connector
+ * 自带三类connector
  */
 export let connector: {
     connectorTcp: I_connectorConstructor,
     connectorWs: I_connectorConstructor,
+    connectorWss: I_connectorConstructor,
 }
 
 /**
@@ -388,6 +389,8 @@ interface I_connectorConfig {
      * 客户端离开通知
      */
     "clientOffCb"?: (session: Session) => void,
+
+    [key: string]: any,
 }
 
 /**
@@ -405,7 +408,7 @@ interface I_rpcConfig {
     /**
      * 消息发送频率（毫秒）
      */
-    "interval"?: number
+    "interval"?: number | { "default": number, [serverType: string]: number }
     /**
      * 是否开启Nagle算法（默认不开启）
      */
@@ -418,6 +421,10 @@ interface I_rpcConfig {
      * 重连间隔（秒）
      */
     "reconnectDelay"?: number,
+    /**
+     * 不建立socket连接的矩阵
+     */
+    "noRpcMatrix"?: { [serverType: string]: string[] }
 }
 
 /**

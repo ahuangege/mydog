@@ -66,17 +66,22 @@ export const enum loggerType {
 
 
 /**
- * rpc消息导向包（1、有route有id表示收到消息且需回调。2、有route无id表示收到消息无需回调。3、无route有id表示是回调的消息）
+ * rpc消息导向包
+ * 1、有cmd有id表示收到消息且需回调
+ * 2、有cmd无id表示收到消息无需回调
+ * 3、无cmd有id表示是回调的消息
+ * 4、len表示最后一个Buffer参数的长度
  */
-export interface rpcMsg {
-    route?: string;
+export interface I_rpcMsg {
+    cmd?: string;
     id?: number;
+    len?: number;
 }
 
 /**
  * rpc请求超时
  */
-export interface rpcTimeout {
+export interface I_rpcTimeout {
     cb: Function;
     time: number;
 }
@@ -90,6 +95,7 @@ export interface I_someConfig {
     "recognizeToken": { "serverToken": string, "cliToken": string },    // 认证密钥
     "logger": (level: loggerType, msg: string) => void,           // 内部日志输出
     "mydogList": () => { "title": string, "value": string }[],      // 自定义监控
+    "serverTypeSocketOff": { [serverType: string]: string[] },      // socket不连接矩阵
 }
 
 /**
