@@ -95,7 +95,6 @@ export interface I_someConfig {
     "recognizeToken": { "serverToken": string, "cliToken": string },    // 认证密钥
     "logger": (level: loggerType, msg: string) => void,           // 内部日志输出
     "mydogList": () => { "title": string, "value": string }[],      // 自定义监控
-    "serverTypeSocketOff": { [serverType: string]: string[] },      // socket不连接矩阵
 }
 
 /**

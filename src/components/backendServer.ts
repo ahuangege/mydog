@@ -27,13 +27,11 @@ export class BackendServer {
         let mydog = require("../mydog");
         let connectorConfig = this.app.someconfig.connector || {};
         let connectorConstructor: I_connectorConstructor = connectorConfig.connector || mydog.connector.connectorTcp;
-        let defaultEncodeDecode: Required<I_encodeDecodeConfig>;
+        let defaultEncodeDecode: Required<I_encodeDecodeConfig> = protocol.Tcp_EncodeDecode;
         if (connectorConstructor === mydog.connector.connectorTcp) {
             defaultEncodeDecode = protocol.Tcp_EncodeDecode;
-        } else if (connectorConstructor === mydog.connector.connectorWs) {
+        } else if (connectorConstructor === mydog.connector.connectorWs || connectorConstructor === mydog.connector.connectorWss) {
             defaultEncodeDecode = protocol.Ws_EncodeDecode;
-        } else {
-            defaultEncodeDecode = protocol.Tcp_EncodeDecode;
         }
         let encodeDecodeConfig = this.app.someconfig.encodeDecode || {};
         this.app.protoEncode = encodeDecodeConfig.protoEncode || defaultEncodeDecode.protoEncode;
