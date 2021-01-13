@@ -108,6 +108,9 @@ let loadBaseConfig = function (app: Application) {
                 }
                 file = file[env];
             }
+            if (key === "serversConfig") {
+                parseServersConfig(file);
+            }
 
             app[key] = file;
         } else {
@@ -117,6 +120,34 @@ let loadBaseConfig = function (app: Application) {
     }
 };
 
+/** 解析servers配置 */
+function parseServersConfig(info: { [serverType: string]: ServerInfo[] }) {
+    for (let svrT in info) {
+        let arr = info[svrT];
+        for (let i = 0; i < arr.length;) {
+            if ((arr[i].port as any) instanceof Array) {
+                let one = arr[i];
+                let newArr: ServerInfo[] = [];
+                let idStart = one.idStart || 0;
+                let port = (one.port as any)[0];
+                let len = (one.port as any)[1] - (one.port as any)[0] + 1;
+                for (let j = 0; j < len; j++) {
+                    let tmpOne: any = JSON.parse(JSON.stringify(one));
+                    tmpOne.id = one.id + (idStart + j).toString();
+                    tmpOne.port = port + j;
+                    if (one.clientPort) {
+                        tmpOne.clientPort = one.clientPort + j;
+                    }
+                    newArr.push(tmpOne);
+                }
+                arr.splice(i, 1, ...newArr);
+                i += len;
+            } else {
+                i++;
+            }
+        }
+    }
+}
 
 
 let processArgs = function (app: Application, args: any) {

@@ -207,15 +207,11 @@ class ClientSocket implements I_clientSocket {
 
 
 
-
-
-
 /**
  * websocket通用服务端
  */
 function wssServer(port: number, config: I_connectorConfig, startCb: () => void, newClientCb: (socket: SocketProxy) => void) {
-    console.log(config["cert"], config["key"])
-    let httpServer = https.createServer({ "cert": config["cert"], "key": config["key"] }).listen(port);
+    let httpServer = https.createServer({ "cert": config["cert"], "key": config["key"] });
     let server = new ws.Server({ "server": httpServer });
     server.on("connection", function (socket, req) {
         newClientCb(new WsSocket(socket, req.connection.remoteAddress as string));
@@ -225,6 +221,7 @@ function wssServer(port: number, config: I_connectorConfig, startCb: () => void,
         process.exit();
     });
     server.on("close", () => { });
+    httpServer.listen(port, startCb);
 }
 
 class WsSocket extends EventEmitter implements SocketProxy {
