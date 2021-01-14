@@ -28,13 +28,11 @@ export class FrontendServer {
             cb && cb();
         };
         protocol.init(this.app);
-        let mydog = require("../mydog");
+        let mydog: typeof indexDts = require("../mydog");
         let connectorConfig = this.app.someconfig.connector || {};
-        let connectorConstructor: I_connectorConstructor = connectorConfig.connector || mydog.connector.connectorTcp;
+        let connectorConstructor: I_connectorConstructor = connectorConfig.connector as any || mydog.connector.connectorTcp;
         let defaultEncodeDecode: Required<indexDts.I_encodeDecodeConfig> = protocol.Tcp_EncodeDecode;
-        if (connectorConstructor === mydog.connector.connectorTcp) {
-            defaultEncodeDecode = protocol.Tcp_EncodeDecode;
-        } else if (connectorConstructor === mydog.connector.connectorWs || connectorConstructor === mydog.connector.connectorWss) {
+        if (connectorConstructor === mydog.connector.connectorWs as any || connectorConstructor === mydog.connector.connectorWss as any) {
             defaultEncodeDecode = protocol.Ws_EncodeDecode;
         }
         let encodeDecodeConfig = this.app.someconfig.encodeDecode || {};
@@ -111,7 +109,7 @@ class ClientManager implements I_clientManager {
         if (exists) {
             let self = this;
             fs.readdirSync(dirName).forEach(function (filename) {
-                if (!/\.js$/.test(filename)) {
+                if (!filename.endsWith(".js")) {
                     return;
                 }
                 let name = path.basename(filename, '.js');
