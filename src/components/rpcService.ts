@@ -165,7 +165,7 @@ class rpc_create {
             cb = args.pop();
         }
         let bufLast: Buffer = null as any;
-        if (args[args.length - 1] instanceof Uint8Array) {
+        if (args[args.length - 1] instanceof Buffer) {
             bufLast = args.pop();
         }
 
@@ -201,7 +201,7 @@ class rpc_create {
             cb = args.pop();
         }
         let bufLast: Buffer = null as any;
-        if (args[args.length - 1] instanceof Uint8Array) {
+        if (args[args.length - 1] instanceof Buffer) {
             bufLast = args.pop();
         }
 
@@ -358,7 +358,7 @@ function sendRpcMsgToSelf(cmd: { "serverType": string, "file_method": string }, 
 function getCallBackFunc(sid: string, id: number) {
     return function (...args: any[]) {
         let bufLast: Buffer = null as any;
-        if (args[args.length - 1] instanceof Uint8Array) {
+        if (args[args.length - 1] instanceof Buffer) {
             bufLast = args.pop();
         }
         let socket = app.rpcPool.getSocket(sid);
@@ -374,7 +374,7 @@ function getCallBackFunc(sid: string, id: number) {
 function getCallBackFuncSelf(id: number) {
     return function (...args: any[]) {
         let buf: Buffer = null as any;
-        if (args[args.length - 1] instanceof Uint8Array) {
+        if (args[args.length - 1] instanceof Buffer) {
             buf = args.pop();
         }
         args = JSON.parse(JSON.stringify(args));
