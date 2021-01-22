@@ -250,9 +250,27 @@ export interface Session {
 
     /**
      * 删除键值对
-     * @param key 键
+     * @param keys 键
      */
     delete(keys: (number | string)[]): void;
+
+    /**
+     * 设置键值对（本地）
+     * @param value 键值对
+     */
+    setLocal(key: number | string, value: any): void;
+
+    /**
+     * 获取键值对（本地）
+     * @param key 键
+     */
+    getLocal<T = any>(key: number | string): T;
+
+    /**
+     * 删除键值对（本地）
+     * @param key 键
+     */
+    deleteLocal(key: number | string): void;
 
     /**
      * 绑定uid    [注：前端服调用]
@@ -269,6 +287,11 @@ export interface Session {
      * 将后端session同步到前端    [注：后端服调用]
      */
     apply(): void;
+
+    /**
+     * 获取ip   [注：前端服调用]
+     */
+    getIp(): string;
 
 }
 
@@ -389,6 +412,10 @@ interface I_connectorConfig {
      * 客户端离开通知
      */
     "clientOffCb"?: (session: Session) => void,
+    /**
+     * 消息过滤。返回true，则该消息会被丢弃。
+     */
+    "cmdFilter"?: (session: Session, cmd: number) => boolean,
 
     [key: string]: any,
 }
@@ -464,7 +491,12 @@ export interface I_clientSocket {
     /**
      * session （注：框架内部赋值）
      */
-    session: Session;
+    readonly session: Session;
+
+    /**
+     * ip（session是从这里拿到的ip）
+     */
+    remoteAddress: string;
 
     /**
      * 发送消息

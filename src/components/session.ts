@@ -16,6 +16,7 @@ export class Session {
     uid: number = 0;                                        // 绑定的uid，玩家唯一标识
     private sid: string = "";                               // 前端服务器id
     private settings: { [key: string]: any } = {};          // 用户set,get
+    private settingsLocal: { [key: string]: any } = {};     // 用户set,get（本地，不会存在buf里）
     sessionBuf: Buffer = null as any;                       // buff
 
     socket: I_clientSocket = null as any;                   // 玩家的socket连接
@@ -67,6 +68,21 @@ export class Session {
         this.resetBuf();
     }
 
+
+    setLocal(key: number | string, value: any) {
+        this.settingsLocal[key] = value;
+    }
+
+
+    getLocal(key: number | string) {
+        return this.settingsLocal[key];
+    }
+
+
+    deleteLocal(key: number | string) {
+        delete this.settingsLocal[key];
+    }
+
     /**
      * 设置所有session 
      */
@@ -103,5 +119,16 @@ export class Session {
     applySession(settings: { [key: string]: any }) {
         this.settings = settings;
         this.resetBuf();
+    }
+
+    /**
+     * 获取ip
+     */
+    getIp() {
+        if (this.socket) {
+            return this.socket.remoteAddress;
+        } else {
+            return "";
+        }
     }
 }

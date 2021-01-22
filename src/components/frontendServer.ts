@@ -90,6 +90,7 @@ class ClientManager implements I_clientManager {
     private router: { [serverType: string]: (session: Session) => string };
     private clientOnCb: (session: indexDts.Session) => void = null as any;
     private clientOffCb: (session: indexDts.Session) => void = null as any;
+    private cmdFilter: (session: Session, cmd: number) => boolean = null as any;
     constructor(app: Application) {
         this.app = app;
         this.serverType = app.serverType;
@@ -97,6 +98,7 @@ class ClientManager implements I_clientManager {
         let connectorConfig = this.app.someconfig.connector || {};
         this.clientOnCb = connectorConfig.clientOnCb || clientOnOffCb;
         this.clientOffCb = connectorConfig.clientOffCb || clientOnOffCb;
+        this.cmdFilter = connectorConfig.cmdFilter as any || null;
         this.loadHandler();
     }
 
@@ -159,6 +161,9 @@ class ClientManager implements I_clientManager {
             }
             let data = this.app.protoDecode(msgBuf);
             let cmdArr = this.app.routeConfig[data.cmd].split('.');
+            if (this.cmdFilter && this.cmdFilter(client.session, data.cmd)) {
+                return;
+            }
             if (this.serverType === cmdArr[0]) {
                 let msg = this.app.msgDecode(data.cmd, data.msg);
                 this.msgHandler[cmdArr[1]][cmdArr[2]](msg, client.session, this.callBack(client, data.cmd));

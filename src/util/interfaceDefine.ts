@@ -118,6 +118,7 @@ export interface I_connectorConstructor {
  */
 export interface I_clientSocket {
     session: Session;
+    remoteAddress: string;
     send(msg: Buffer): void;
     close(): void;
 }
