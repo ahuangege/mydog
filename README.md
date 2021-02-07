@@ -1,8 +1,8 @@
 mydog - a node.js server
 ===========================
 
-[官网]<http://mydog.wiki>  
-[Official website]<http://mydog.wiki/#/en/>
+* [官网]<http://mydog.wiki>  
+* [Official website]<http://mydog.wiki/#/en/>
 
 ## installation
 
