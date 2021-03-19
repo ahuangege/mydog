@@ -1,11 +1,9 @@
-/**
- * 通用编码解码模块
- */
+
 import define = require("../util/define");
 import { SocketProxy } from "../util/interfaceDefine";
 
 /**
- * 拆包
+ * Unpack
  */
 export function decode(socket: SocketProxy, msg: Buffer) {
     let readLen = 0;
@@ -46,7 +44,7 @@ export function decode(socket: SocketProxy, msg: Buffer) {
 
 
 /**
- * 部分内部通信消息格式
+ * Part of the internal communication message format
  */
 export function encodeInnerData(data: any) {
     let dataBuf: Buffer = Buffer.from(JSON.stringify(data));
@@ -58,12 +56,12 @@ export function encodeInnerData(data: any) {
 
 
 /**
- *  后端服务器，发送给前端服务器的消息格式
+ *  Back-end server, the message format sent to the front-end server
  *
  *     [4]        [1]      [2]       [...]    [...]
  *  allMsgLen   msgType  uidBufLen   uids   clientMsgBuf
  *
- *  其中clientMsgBuf由前端服务器直接发送给客户端
+ *  The clientMsgBuf is sent directly to the client by the front-end server
  */
 
 export function encodeRemoteData(uids: number[], dataBuf: Buffer) {

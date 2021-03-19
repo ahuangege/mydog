@@ -7,10 +7,10 @@ import { ServerInfo } from "../..";
 import * as appUtil from "../util/appUtil";
 
 /**
- * 是否建立socket连接
+ * Whether to establish a socket connection
  */
 export function ifCreateRpcClient(app: Application, server: ServerInfo) {
-    // 两个服务器之间，只建立一个socket连接
+    // Only one socket connection is established between the two servers
     if (app.serverId < server.id && !app.noRpcMatrix[appUtil.getNoRpcKey(app.serverType, server.serverType)]) {
         removeSocket(server.id);
         new RpcClientSocket(app, server);
@@ -18,7 +18,7 @@ export function ifCreateRpcClient(app: Application, server: ServerInfo) {
 }
 
 /**
- * 移除socket连接
+ * Remove socket connection
  */
 export function removeSocket(id: string) {
     let socket = rpcClientSockets[id];
@@ -80,7 +80,7 @@ export class RpcClientSocket {
             let connectCb = function () {
                 self.app.logger(loggerType.info, `rpcClient -> connect to rpc server success: ${self.id}`);
 
-                // 注册
+                // register
                 let registerBuf = Buffer.from(JSON.stringify({
                     "id": self.app.serverId,
                     "serverType": self.app.serverType,
@@ -121,7 +121,7 @@ export class RpcClientSocket {
     }
 
     /**
-     * 每隔一定时间发送心跳
+     * Send heartbeat at regular intervals
      */
     private heartbeatSend() {
         let self = this;
@@ -142,7 +142,7 @@ export class RpcClientSocket {
     }
 
     /**
-     * 发送心跳后，收到回应
+     * After sending a heartbeat, receive a response
      */
     private heartbeatResponse() {
         clearTimeout(this.heartbeatTimeoutTimer);
@@ -150,7 +150,7 @@ export class RpcClientSocket {
     }
 
     /**
-     * 发送心跳后，一定时间内必须收到回应，否则断开连接
+     * After sending the heartbeat, a response must be received within a certain period of time, otherwise the connection will be disconnected
      */
     private heartbeatTimeoutStart() {
         if (this.heartbeatTimeoutTimer !== null) {
@@ -191,7 +191,7 @@ export class RpcClientSocket {
     }
 
     /**
-     * 注册成功
+     * registration success
      */
     private registerHandle() {
         this.heartbeatSend();
@@ -199,7 +199,7 @@ export class RpcClientSocket {
     }
 
     /**
-     * 移除该socket
+     * Remove the socket
      */
     remove() {
         this.die = true;
@@ -220,13 +220,8 @@ export class RpcClientSocket {
 
     private sendInterval() {
         if (this.sendArr.length > 0) {
-            let arr = this.sendArr;
-            let i: number;
-            let len = arr.length;
-            for (i = 0; i < len; i++) {
-                this.socket.send(arr[i]);
-            }
-            this.sendArr = [];
+            this.socket.send(Buffer.concat(this.sendArr));
+            this.sendArr.length = 0;
         }
     }
 }

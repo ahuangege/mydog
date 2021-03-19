@@ -49,7 +49,7 @@ class RpcServerSocket {
         }, 5000);
     }
 
-    // 首条消息是注册
+    // The first message is registration
     private onRegisterData(data: Buffer) {
         try {
             let type = data.readUInt8(0);
@@ -66,7 +66,7 @@ class RpcServerSocket {
     }
 
     /**
-     * socket收到数据了
+     * socket received data
      * @param data
      */
     private onData(data: Buffer) {
@@ -98,7 +98,7 @@ class RpcServerSocket {
     }
 
     /**
-     * socket连接关闭了
+     * The socket connection is closed
      */
     private onClose() {
         clearTimeout(this.registerTimer);
@@ -112,7 +112,7 @@ class RpcServerSocket {
     }
 
     /**
-     * 注册
+     * register
      */
     private registerHandle(msg: Buffer) {
         clearTimeout(this.registerTimer);
@@ -148,7 +148,7 @@ class RpcServerSocket {
 
         this.app.logger(loggerType.info, `rpcServer -> get new rpc client named: ${this.id}`);
 
-        // 判断是否定时发送消息
+        // Determine whether to send messages regularly
         let rpcConfig = this.app.someconfig.rpc || {};
         let interval = 0;
         if (rpcConfig.interval) {
@@ -163,7 +163,7 @@ class RpcServerSocket {
             this.sendTimer = setInterval(this.sendInterval.bind(this), interval);
         }
 
-        // 注册成功，回应
+        // Registration is successful, respond
         let buffer = Buffer.allocUnsafe(5);
         buffer.writeUInt32BE(1, 0);
         buffer.writeUInt8(define.Rpc_Msg.register, 4);
@@ -174,7 +174,7 @@ class RpcServerSocket {
     }
 
     /**
-     * 心跳
+     * Heartbeat
      */
     private heartbeatHandle() {
         let self = this;
@@ -191,7 +191,7 @@ class RpcServerSocket {
     }
 
     /**
-     * 心跳回应
+     * Heartbeat response
      */
     private heartbeatResponse() {
         let buffer = Buffer.allocUnsafe(5);
@@ -210,13 +210,8 @@ class RpcServerSocket {
 
     private sendInterval() {
         if (this.sendArr.length > 0) {
-            let arr = this.sendArr;
-            let i: number;
-            let len = arr.length;
-            for (i = 0; i < len; i++) {
-                this.socket.send(arr[i]);
-            }
-            this.sendArr = [];
+            this.socket.send(Buffer.concat(this.sendArr));
+            this.sendArr.length = 0;
         }
     }
 }

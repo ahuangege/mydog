@@ -1,5 +1,5 @@
 /**
- * tcp通用服务端
+ * tcp server
  */
 
 

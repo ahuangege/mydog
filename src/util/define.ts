@@ -1,5 +1,5 @@
 /**
- * 一些默认配置
+ * Some default configurations
  */
 export let some_config = {
     Time: {
@@ -17,12 +17,12 @@ export let some_config = {
     },
     Server_Token: "hi,i am inner server",
     Cli_Token: "hi,i am cli",
-    SocketBufferMaxLenUnregister: 1024, // 未注册的socket，消息最大长度
+    SocketBufferMaxLenUnregister: 1024, // Unregistered socket, maximum message length
     SocketBufferMaxLen: 10 * 1024 * 1024
 }
 
 /**
- * master to monitor 消息类型
+ * master to monitor, message type
  */
 export const enum Master_To_Monitor {
     addServer = 1,
@@ -32,7 +32,7 @@ export const enum Master_To_Monitor {
 }
 
 /**
- * monitor to master 消息类型
+ * monitor to master, message type
  */
 export const enum Monitor_To_Master {
     register = 1,
@@ -41,7 +41,7 @@ export const enum Monitor_To_Master {
 }
 
 /**
- * cli工具 to master 消息类型
+ * cli to master, message type
  */
 export const enum Cli_To_Master {
     register = 1,
@@ -50,7 +50,7 @@ export const enum Cli_To_Master {
 }
 
 /**
- * client to server 消息类型
+ * client to server, message type
  */
 export const enum Client_To_Server {
     msg = 1,
@@ -59,7 +59,7 @@ export const enum Client_To_Server {
 }
 
 /**
- * server to client 消息类型
+ * server to client, message type
  */
 export const enum Server_To_Client {
     msg = 1,
@@ -68,13 +68,13 @@ export const enum Server_To_Client {
 }
 
 /**
- * 内部用户服务器消息类型
+ * Internal user server message type
  */
 export const enum Rpc_Msg {
-    register = 1,           // 注册
-    heartbeat = 2,          // 心跳
-    applySession = 3,       // 后端向前端同步session
-    clientMsgIn = 4,        // 收到客户端消息
-    clientMsgOut = 5,       // 向客户端发送消息
-    rpcMsg = 6              // rpc消息
+    register = 1,           // registered
+    heartbeat = 2,          // heartbeat
+    applySession = 3,       // Synchronize session from backend to frontend
+    clientMsgIn = 4,        // Client message received
+    clientMsgOut = 5,       // Send a message to the client
+    rpcMsg = 6              // rpc message
 }

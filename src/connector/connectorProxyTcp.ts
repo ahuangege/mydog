@@ -12,9 +12,9 @@ let maxLen = 0;
 export class ConnectorTcp {
     public app: Application;
     public clientManager: I_clientManager = null as any;
-    public handshakeBuf: Buffer;        // 握手buffer
-    public heartbeatBuf: Buffer;        // 心跳回应buffer
-    public heartbeatTime: number = 0;   // 心跳时间
+    public handshakeBuf: Buffer;        // Handshake buffer
+    public heartbeatBuf: Buffer;        // Heartbeat response buffer
+    public heartbeatTime: number = 0;   // Heartbeat time
     private maxConnectionNum: number = Number.POSITIVE_INFINITY;
     public nowConnectionNum: number = 0;
     public sendCache = false;
@@ -40,14 +40,14 @@ export class ConnectorTcp {
         tcpServer(info.app.serverInfo.clientPort, noDelay, info.startCb, this.newClientCb.bind(this));
 
 
-        // 握手buffer
+        // Handshake buffer
         let routeBuf = Buffer.from(JSON.stringify({ "route": this.app.routeConfig, "heartbeat": this.heartbeatTime / 1000 }));
         this.handshakeBuf = Buffer.alloc(routeBuf.length + 5);
         this.handshakeBuf.writeUInt32BE(routeBuf.length + 1, 0);
         this.handshakeBuf.writeUInt8(define.Server_To_Client.handshake, 4);
         routeBuf.copy(this.handshakeBuf, 5);
 
-        // 心跳回应buffer
+        // Heartbeat response buffer
         this.heartbeatBuf = Buffer.alloc(5);
         this.heartbeatBuf.writeUInt32BE(1, 0);
         this.heartbeatBuf.writeUInt8(define.Server_To_Client.heartbeatResponse, 4);
@@ -68,10 +68,10 @@ class ClientSocket implements I_clientSocket {
     remoteAddress: string = "";
     private connector: ConnectorTcp;
     private clientManager: I_clientManager;
-    private handshakeOver: boolean = false;                 // 是否已经握手成功
+    private handshakeOver: boolean = false;                 // Whether the handshake has been successful
     private socket: SocketProxy;                            // socket
-    private registerTimer: NodeJS.Timer = null as any;      // 握手超时计时
-    private heartbeatTimer: NodeJS.Timer = null as any;     // 心跳超时计时
+    private registerTimer: NodeJS.Timer = null as any;      // Handshake timeout timer
+    private heartbeatTimer: NodeJS.Timer = null as any;     // Heartbeat timeout timer
     private sendCache = false;
     private interval: number = 0;
     private sendTimer: NodeJS.Timer = null as any;
@@ -85,7 +85,7 @@ class ClientSocket implements I_clientSocket {
         this.clientManager = clientManager;
         this.socket = socket;
         this.remoteAddress = socket.remoteAddress;
-        this.socket.maxLen = 5;   // 未注册时最多5字节数据
+        this.socket.maxLen = 5;   // Up to 5 byte of data when not registered
         socket.once('data', this.onRegister.bind(this));
         socket.on('close', this.onClose.bind(this));
         this.registerTimer = setTimeout(() => {
@@ -95,7 +95,7 @@ class ClientSocket implements I_clientSocket {
 
     private onRegister(data: Buffer) {
         let type = data.readUInt8(0);
-        if (type === define.Client_To_Server.handshake) {        // 握手
+        if (type === define.Client_To_Server.handshake) {        // shake hands
             this.handshake();
         } else {
             this.close();
@@ -103,13 +103,13 @@ class ClientSocket implements I_clientSocket {
     }
 
     /**
-     * 收到数据
+     * Received data
      */
     private onData(data: Buffer) {
         let type = data.readUInt8(0);
-        if (type === define.Client_To_Server.msg) {               // 普通的自定义消息
+        if (type === define.Client_To_Server.msg) {               // Ordinary custom message
             this.clientManager.handleMsg(this, data);
-        } else if (type === define.Client_To_Server.heartbeat) {        // 心跳
+        } else if (type === define.Client_To_Server.heartbeat) {        // Heartbeat
             this.heartbeat();
             this.heartbeatResponse();
         } else {
@@ -118,7 +118,7 @@ class ClientSocket implements I_clientSocket {
     }
 
     /**
-     * 关闭了
+     * closed
      */
     private onClose() {
         this.connector.nowConnectionNum--;
@@ -130,7 +130,7 @@ class ClientSocket implements I_clientSocket {
     }
 
     /**
-     * 握手
+     * shake hands
      */
     private handshake() {
         if (this.handshakeOver) {
@@ -150,7 +150,7 @@ class ClientSocket implements I_clientSocket {
     }
 
     /**
-     * 心跳
+     * Heartbeat
      */
     private heartbeat() {
         if (this.connector.heartbeatTime === 0) {
@@ -163,14 +163,14 @@ class ClientSocket implements I_clientSocket {
     }
 
     /**
-     * 心跳回应
+     * Heartbeat response
      */
     private heartbeatResponse() {
         this.send(this.connector.heartbeatBuf);
     }
 
     /**
-     * 发送数据
+     * send data
      */
     send(msg: Buffer) {
         if (this.sendCache) {
@@ -182,18 +182,13 @@ class ClientSocket implements I_clientSocket {
 
     private sendInterval() {
         if (this.sendArr.length > 0) {
-            let arr = this.sendArr;
-            let i: number;
-            let len = arr.length;
-            for (i = 0; i < len; i++) {
-                this.socket.send(arr[i]);
-            }
-            this.sendArr = [];
+            this.socket.send(Buffer.concat(this.sendArr));
+            this.sendArr.length = 0;
         }
     }
 
     /**
-     * 关闭
+     * close
      */
     close() {
         this.socket.close();

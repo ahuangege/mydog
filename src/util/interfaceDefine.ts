@@ -4,7 +4,7 @@ import Application from "../application";
 import { Session } from "../components/session";
 
 /**
- * socket连接代理
+ * socket connection proxy
  */
 export interface SocketProxy extends EventEmitter {
     socket: any;
@@ -18,7 +18,7 @@ export interface SocketProxy extends EventEmitter {
 }
 
 /**
- * monitor收到master的新增服务器信息格式
+ * The monitor receives the new server information format from the master
  */
 export interface monitor_get_new_server {
     "T": number;
@@ -28,7 +28,7 @@ export interface monitor_get_new_server {
 }
 
 /**
- * monitor收到master的移除服务器信息格式
+ * The monitor receives the removal server information format from the master
  */
 export interface monitor_remove_server {
     "T": number;
@@ -37,7 +37,7 @@ export interface monitor_remove_server {
 }
 
 /**
- * monitor向master注册时的消息格式
+ * The message format when the monitor registers with the master
  */
 export interface monitor_reg_master {
     T: number,
@@ -47,7 +47,7 @@ export interface monitor_reg_master {
 }
 
 /**
- * 前端复制到后端的的session
+ * The session copied from the front end to the back end
  */
 export interface sessionCopyJson {
     uid: number;
@@ -56,7 +56,7 @@ export interface sessionCopyJson {
 }
 
 /**
- * 内部框架日志级别
+ * Internal frame log level
  */
 export const enum loggerType {
     info = "info",
@@ -66,11 +66,11 @@ export const enum loggerType {
 
 
 /**
- * rpc消息导向包
- * 1、有cmd有id表示收到消息且需回调
- * 2、有cmd无id表示收到消息无需回调
- * 3、无cmd有id表示是回调的消息
- * 4、len表示最后一个Buffer参数的长度
+ * rpc message-oriented package
+ * 1. If there is cmd and id, it means the message is received and needs to be called back
+ * 2. With cmd without id means no need to call back when the message is received
+ * 3. If there is an id without cmd, it means it is a callback message
+ * 4. len represents the length of the last Buffer parameter
  */
 export interface I_rpcMsg {
     cmd?: string;
@@ -79,7 +79,7 @@ export interface I_rpcMsg {
 }
 
 /**
- * rpc请求超时
+ * rpc request timeout
  */
 export interface I_rpcTimeout {
     cb: Function;
@@ -88,17 +88,17 @@ export interface I_rpcTimeout {
 
 
 export interface I_someConfig {
-    "rpc": I_rpcConfig,             // rpc配置
-    "connector": I_connectorConfig, // 前端connector连接服配置
-    "encodeDecode": I_encodeDecodeConfig,   // 编码解码配置
-    "ssh": string[],                // ssh配置
-    "recognizeToken": { "serverToken": string, "cliToken": string },    // 认证密钥
-    "logger": (level: loggerType, msg: string) => void,           // 内部日志输出
-    "mydogList": () => { "title": string, "value": string }[],      // 自定义监控
+    "rpc": I_rpcConfig,             // rpc configuration
+    "connector": I_connectorConfig, // Front-end connector connection server configuration
+    "encodeDecode": I_encodeDecodeConfig,   // Codec configuration
+    "ssh": string[],                // ssh configuration
+    "recognizeToken": { "serverToken": string, "cliToken": string },    // Authentication key
+    "logger": (level: loggerType, msg: string) => void,           // Internal log output
+    "mydogList": () => { "title": string, "value": string }[],      // Custom monitoring
 }
 
 /**
- * 连接用户的socket管理代理
+ * Connect the user's socket management agent
  */
 export interface I_clientManager {
     addClient(client: I_clientSocket): void;
@@ -107,14 +107,14 @@ export interface I_clientManager {
 }
 
 /**
- * 连接服构造函数
+ * Connection server constructor
  */
 export interface I_connectorConstructor {
     new(info: { app: Application, clientManager: I_clientManager, config: I_connectorConfig, startCb: () => void }): void;
 }
 
 /**
- * 每个用户的socket
+ * Socket for each user
  */
 export interface I_clientSocket {
     session: Session;

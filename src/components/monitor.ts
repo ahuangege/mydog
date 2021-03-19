@@ -1,5 +1,5 @@
 /**
- * 非master服务器启动后，由此连接master服，互相认识，并处理相关逻辑
+ * After the non-master server is started, it connects to the master server, knows each other, and processes related logic
  */
 
 
@@ -25,9 +25,9 @@ export class monitor_client_proxy {
     private heartbeatTimer: NodeJS.Timeout = null as any;
     private heartbeatTimeoutTimer: NodeJS.Timeout = null as any;
 
-    private removeDiffServers: { [id: string]: string } = {}; // monitor重连后，待对比移除的server集合
-    private needDiff: boolean = false; // 是否需要对比
-    private diffTimer: NodeJS.Timeout = null as any;    // 对比倒计时
+    private removeDiffServers: { [id: string]: string } = {}; // After the monitor is reconnected, the server set to be compared and removed
+    private needDiff: boolean = false; // whether need to compare
+    private diffTimer: NodeJS.Timeout = null as any;    // diff timeout
 
     constructor(app: Application) {
         this.app = app;
@@ -36,7 +36,7 @@ export class monitor_client_proxy {
     }
 
     /**
-     * 连接master
+     * Connect master
      */
     private doConnect(delay: number) {
         let self = this;
@@ -44,21 +44,21 @@ export class monitor_client_proxy {
             let connectCb = function () {
                 self.app.logger(loggerType.info, "monitor -> connected to master success");
 
-                // 向master注册
+                // Register with the master
                 self.register();
 
-                // 心跳包
+                // Heartbeat package
                 self.heartbeat();;
             };
             self.app.logger(loggerType.info, "monitor -> try to connect to master now");
-            self.socket = new TcpClient(self.app.masterConfig.port, self.app.masterConfig.host, define.some_config.SocketBufferMaxLen, true, connectCb);
+            self.socket = new TcpClient(self.app.masterConfig.port, self.app.masterConfig.host, define.some_config.SocketBufferMaxLen, false, connectCb);
             self.socket.on("data", self.onData.bind(self));
             self.socket.on("close", self.onClose.bind(self));
         }, delay);
     }
 
     /**
-     * 注册
+     * register
      */
     private register() {
         let tokenConfig = this.app.someconfig.recognizeToken || {};
@@ -73,7 +73,7 @@ export class monitor_client_proxy {
     }
 
     /**
-     * 收到消息
+     * Received the msg
      */
     private onData(_data: Buffer) {
         let data: any = JSON.parse(_data.toString());
@@ -91,7 +91,7 @@ export class monitor_client_proxy {
     }
 
     /**
-     * socket关闭了
+     * closed
      */
     private onClose() {
         this.app.logger(loggerType.error, "monitor -> socket closed, try to reconnect master later");
@@ -105,7 +105,7 @@ export class monitor_client_proxy {
     }
 
     /**
-     * 发送心跳
+     * Send heartbeat
      */
     private heartbeat() {
         let self = this;
@@ -119,7 +119,7 @@ export class monitor_client_proxy {
     }
 
     /**
-     * 心跳超时
+     * Heartbeat timeout
      */
     private heartbeatTimeout() {
         if (this.heartbeatTimeoutTimer !== null) {
@@ -133,14 +133,14 @@ export class monitor_client_proxy {
     }
 
     /**
-     * 发送消息（非buffer）
+     * Send message (not buffer)
      */
     send(msg: any) {
         this.socket.send(encodeInnerData(msg));
     }
 
     /**
-     * 新增服务器
+     * Add server
      */
     private addServer(servers: { [id: string]: ServerInfo }) {
         if (this.needDiff) {
@@ -155,7 +155,7 @@ export class monitor_client_proxy {
                 this.addOrRemoveDiffServer(serverInfo.id, true, serverInfo.serverType);
             }
             let tmpServer: ServerInfo = serversIdMap[serverInfo.id];
-            if (tmpServer && tmpServer.host === serverInfo.host && tmpServer.port === serverInfo.port) {    // 如果已经存在且ip配置相同，则忽略（不考虑其他配置，请开发者自己保证）
+            if (tmpServer && tmpServer.host === serverInfo.host && tmpServer.port === serverInfo.port) {    // If it already exists and the ip configuration is the same, ignore it (other configurations are not considered, please guarantee by the developer)
                 continue;
             }
             if (!serversApp[serverInfo.serverType]) {
@@ -179,7 +179,7 @@ export class monitor_client_proxy {
     }
 
     /**
-     * 移除服务器
+     * Remove server
      */
     private removeServer(msg: monitor_remove_server) {
         if (this.needDiff) {
@@ -213,13 +213,18 @@ export class monitor_client_proxy {
         let self = this;
         this.diffTimer = setTimeout(function () {
             self.diffFunc();
-        }, 5000);     // 5秒后对比
+        }, 5000);     // Compare after 5 seconds
     }
 
     /**
      * 比对原因：与master断开连接期间，如果另一台逻辑服挂了，本服不能断定该服是否移除，
      * 因为添加和删除统一由master通知，所以与master断开期间，不可更改与其他服的关系，
      * 待本服重新连接上master后，通过比对，移除无效服务器
+     * 
+     * (Reason for comparison: During the disconnection from the master, if another logical server hangs up, 
+     * the server cannot determine whether the server will be removed, because the addition and deletion are uniformly notified by the master,
+     *  so during the disconnection from the master, it cannot be changed. Server relationship, 
+     * after the server reconnects to the master, through the comparison, remove the invalid server)
      */
     private diffFunc() {
         this.needDiff = false;
@@ -242,7 +247,7 @@ export class monitor_client_proxy {
     }
 
     /**
-     * 发射添加服务器事件
+     * Launch add server event
      */
     private emitAddServer(serverType: string, id: string) {
         process.nextTick(() => {
@@ -251,7 +256,7 @@ export class monitor_client_proxy {
     }
 
     /**
-     * 发射移除服务器事件
+     * Launch remove server event
      */
     private emitRemoveServer(serverType: string, id: string) {
         process.nextTick(() => {

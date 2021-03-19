@@ -1,5 +1,5 @@
 /**
- * mydog list 等cli命令处理模块
+ * cli command processing module such as mydog list
  */
 
 

@@ -44,7 +44,7 @@ class clientProxy {
     }
 
     private connectCb() {
-        // 注册
+        // register
         let loginInfo = {
             T: define.Cli_To_Master.register,
             cliToken: this.token
@@ -355,8 +355,8 @@ function list(opts: any) {
         let nameEnv = "  appName: " + appName + "    env: " + env;
         console.log("\x1b[35m" + getRealStr(nameEnv) + "\x1b[0m");
 
-        let widthArr: number[][] = [];  // 每个字段的控制台宽度
-        let columnWidth: number[] = []; // 每列的最大宽度
+        let widthArr: number[][] = [];
+        let columnWidth: number[] = [];
         let titleLen = infoArr[0].length;
         for (let i = 0; i < titleLen; i++) {
             columnWidth.push(0);
@@ -408,8 +408,6 @@ function list(opts: any) {
         }
 
 
-        //获得字符串实际长度，中文2，英文1
-        //控制台中中文占用2个英文字符的宽度
         function getDisplayLength(str: string) {
             let realLength = 0, len = str.length, charCode = -1;
             for (var i = 0; i < len; i++) {

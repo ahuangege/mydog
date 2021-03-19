@@ -1,8 +1,8 @@
 {
   "_from": "mydog",
-  "_id": "mydog@2.0.6",
+  "_id": "mydog@2.1.6",
   "_inBundle": false,
-  "_integrity": "sha512-VfFh18jkXmfhAhPNQxiCETu3DUyPwAGV43SmAL+5qsCAF5wY3BC3x6hKZbY+NdVsx8/PQkluAgjqHSRff7Ti9g==",
+  "_integrity": "sha512-maHA+wG1/V+7ZkDb5pxWM1SxGpPwDYzcBNmaXxjT9jAC+EDxP2hj5zgXPO6Xdg6BAJXAeiOaHDs7eIyzMPG/oA==",
   "_location": "/mydog",
   "_phantomChildren": {},
   "_requested": {
@@ -19,10 +19,10 @@
     "#USER",
     "/"
   ],
-  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-2.0.6.tgz",
-  "_shasum": "d734c5ab194a8cde340fd812c54ad6f1d5049947",
+  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-2.1.6.tgz",
+  "_shasum": "47944c1a0e2c0a1cff59ccf5f221f2d02b17603b",
   "_spec": "mydog",
-  "_where": "E:\\mydog",
+  "_where": "D:\\nodejs\\Test",
   "author": {
     "name": "ahuang"
   },
@@ -51,5 +51,5 @@
     "test": "echo \"Error: no test   specified\" && exit 1"
   },
   "types": "index.d.ts",
-  "version": "2.1.6"
+  "version": "2.1.8"
 }

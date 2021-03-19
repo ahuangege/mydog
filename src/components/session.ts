@@ -1,5 +1,5 @@
 /**
- * session类。前端服务器中代表着客户端连接，后端服务器中是部分数据的拷贝
+ * session class. The front-end server represents the client connection, and the back-end server is a copy of some data
  */
 
 
@@ -13,13 +13,13 @@ export function initSessionApp(_app: Application) {
 }
 
 export class Session {
-    uid: number = 0;                                        // 绑定的uid，玩家唯一标识
-    private sid: string = "";                               // 前端服务器id
-    private settings: { [key: string]: any } = {};          // 用户set,get
-    private settingsLocal: { [key: string]: any } = {};     // 用户set,get（本地，不会存在buf里）
+    uid: number = 0;                                        // The bound uid, the unique identifier of the player
+    private sid: string = "";                               // Front-end server id
+    private settings: { [key: string]: any } = {};          // user set,get
+    private settingsLocal: { [key: string]: any } = {};     // user set,get（Local, will not exist in buf）
     sessionBuf: Buffer = null as any;                       // buff
 
-    socket: I_clientSocket = null as any;                   // 玩家的socket连接
+    socket: I_clientSocket = null as any;                   // Player's socket connection
 
     constructor(sid: string = "") {
         this.sid = sid;
@@ -29,12 +29,12 @@ export class Session {
     private resetBuf() {
         if (app.frontend) {
             let tmpBuf = Buffer.from(JSON.stringify({ "uid": this.uid, "sid": this.sid, "settings": this.settings }));
-            this.sessionBuf = Buffer.alloc(tmpBuf.length).fill(tmpBuf); // 复制原因： Buffer.from可能从内部buffer池分配，而sessionBuf几乎常驻不变
+            this.sessionBuf = Buffer.alloc(tmpBuf.length).fill(tmpBuf); // Copy reason: Buffer.from may be allocated from the internal buffer pool, while sessionBuf is almost resident
         }
     }
 
     /**
-     * 绑定session [注：前端调用]
+     * Binding session [Note: Front-end call]
      */
     bind(_uid: number): boolean {
         if (!app.frontend || !this.socket) {
@@ -84,7 +84,7 @@ export class Session {
     }
 
     /**
-     * 设置所有session 
+     * Set up all sessions 
      */
     setAll(_session: sessionCopyJson) {
         this.uid = _session.uid;
@@ -94,7 +94,7 @@ export class Session {
 
 
     /**
-     * 关闭连接 [注：前端调用]
+     * Close the connection [Note: Front-end call]
      */
     close() {
         if (app.frontend && this.socket) {
@@ -103,7 +103,7 @@ export class Session {
     }
 
     /**
-     * 将后端session推送到前端  [注：后端调用]
+     * Push the back-end session to the front-end [Note: back-end call]
      */
     apply() {
         if (!app.frontend) {
@@ -114,7 +114,7 @@ export class Session {
         }
     }
     /**
-     * 后端调用apply后，前端接收到的处理
+     * After the back-end calls apply, the processing received by the front-end
      */
     applySession(settings: { [key: string]: any }) {
         this.settings = settings;
@@ -122,7 +122,7 @@ export class Session {
     }
 
     /**
-     * 获取ip
+     * Get ip
      */
     getIp() {
         if (this.socket) {

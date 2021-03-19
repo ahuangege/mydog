@@ -1,5 +1,5 @@
 /**
- * tcp通用客户端
+ * tcp client
  */
 
 

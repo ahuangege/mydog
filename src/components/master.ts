@@ -1,5 +1,5 @@
 /**
- * master中心服务器，接受monitor连接，负责各服务器之间的互相认识，并接受cli命令
+ * The master central server, accepts the monitor connection, is responsible for the mutual understanding between the servers, and accepts cli commands
  */
 
 
@@ -24,7 +24,7 @@ export function start(_app: Application, cb?: Function) {
 
 function startServer(cb?: Function) {
 
-    tcpServer(app.serverInfo.port, true, startCb, newClientCb);
+    tcpServer(app.serverInfo.port, false, startCb, newClientCb);
 
     function startCb() {
         let str = `listening at [${app.serverInfo.host}:${app.serverInfo.port}]  ${app.serverId}`;
@@ -42,7 +42,7 @@ function startServer(cb?: Function) {
 }
 
 /**
- * 尚未注册的socket代理
+ * Unregistered socket proxy
  */
 class UnregSocket_proxy {
     private socket: SocketProxy;
@@ -80,14 +80,14 @@ class UnregSocket_proxy {
             return;
         }
 
-        // 第一个数据包必须是注册
+        // The first packet must be registered
         if (!data || data.T !== define.Monitor_To_Master.register) {
             app.logger(loggerType.error, `master -> unregistered socket, illegal data, close it, ${socket.remoteAddress}`);
             socket.close();
             return;
         }
 
-        // 是服务器？
+        // Is it a server?
         if (data.serverToken) {
             let tokenConfig = app.someconfig.recognizeToken || {};
             let serverToken = tokenConfig.serverToken || define.some_config.Server_Token;
@@ -106,7 +106,7 @@ class UnregSocket_proxy {
             return;
         }
 
-        // 是cli？
+        // Is it a cli？
         if (data.cliToken) {
             let tokenConfig = app.someconfig.recognizeToken || {};
             let cliToken = tokenConfig.cliToken || define.some_config.Cli_Token;
@@ -142,7 +142,7 @@ class UnregSocket_proxy {
 
 
 /**
- * master处理服务器代理
+ * master processing server agent
  */
 export class Master_ServerProxy {
     private socket: SocketProxy;
@@ -172,7 +172,7 @@ export class Master_ServerProxy {
         this.sid = data.serverInfo.id;
         this.serverType = data.serverInfo.serverType;
 
-        // 构造新增服务器的消息
+        // Construct a new server message
         let socketInfo: monitor_get_new_server = {
             "T": define.Master_To_Monitor.addServer,
             "servers": {}
@@ -180,12 +180,12 @@ export class Master_ServerProxy {
         socketInfo.servers[this.sid] = data.serverInfo;
         let socketInfoBuf: Buffer = msgCoder.encodeInnerData(socketInfo);
 
-        // 向其他服务器通知,有新的服务器
+        // Notify other servers that there are new servers
         for (let sid in servers) {
             servers[sid].socket.send(socketInfoBuf);
         }
 
-        // 通知新加入的服务器，当前已经有哪些服务器了
+        // Notify the newly added server, which servers are currently available
         let result = msgCoder.encodeInnerData(serversDataTmp);
         this.socket.send(result);
 
@@ -257,7 +257,7 @@ export class Master_ServerProxy {
 }
 
 /**
- * master处理cli代理
+ * master handles cli agent
  */
 export class Master_ClientProxy {
     private socket: SocketProxy;

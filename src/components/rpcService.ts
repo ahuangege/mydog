@@ -1,5 +1,5 @@
 /**
- * rpc连接的管理，发送rpc消息
+ * rpc connection management, sending rpc messages
  */
 
 
@@ -14,15 +14,15 @@ import { I_RpcSocket } from "./rpcSocketPool";
 
 let app: Application;
 let msgHandler: { [filename: string]: any } = {};
-let rpcId = 1;  // 必须从1开始，不可为0
+let rpcId = 1;  // Must start from 1, not 0
 let rpcRequest: { [id: number]: I_rpcTimeout } = {};
-let rpcTimeMax: number = 10 * 1000; //超时时间
-let outTime = 0;    // 当前时刻 + 超时时间
+let rpcTimeMax: number = 10 * 1000; //overtime time
+let outTime = 0;    // Current time + timeout
 
 
 
 /**
- * 初始化
+ * init
  * @param _app 
  */
 export function init(_app: Application) {
@@ -44,10 +44,10 @@ export function init(_app: Application) {
 
 
 /**
- * 处理rpc消息
+ * Process rpc messages
  * 
  *     [1]         [1]      [...]    [...]      [...]
- *   消息类型   rpcBufLen   rpcBuf   msgBuf   bufLast
+ *   msgType    rpcBufLen   rpcBuf   msgBuf    bufLast
  */
 export function handleMsg(sid: string, bufAll: Buffer) {
     let rpcBufLen = bufAll.readUInt8(1);
@@ -77,7 +77,7 @@ export function handleMsg(sid: string, bufAll: Buffer) {
 
 
 /**
- * rpc构造
+ * rpc structure
  */
 class rpc_create {
     private toId: string = "";
@@ -271,18 +271,18 @@ class rpc_create {
 
 
 /**
- * 获取rpcId
+ * Get rpcId
  */
 function getRpcId() {
     let id = rpcId++;
-    if (rpcId > 999999) {
+    if (rpcId > 9999999) {
         rpcId = 1;
     }
     return id;
 }
 
 /**
- * rpc超时检测
+ * rpc timeout detection
  */
 function checkTimeout() {
     let now = Date.now();
@@ -305,10 +305,10 @@ function timeoutCb(cb: Function) {
 
 
 /**
- *  发送rpc消息
+ *  Send rpc message
  * 
  *    [4]       [1]         [1]      [...]    [...]      [...]
- *  allMsgLen  消息类型   rpcBufLen   rpcBuf   msgBuf   bufLast
+ *  allMsgLen  msgType   rpcBufLen   rpcBuf   msgBuf    bufLast
  */
 function sendRpcMsg(socket: I_RpcSocket, rpcMsg: I_rpcMsg, msgBuf: Buffer, bufLast: Buffer) {
     let buffLastLen = 0;
@@ -330,7 +330,7 @@ function sendRpcMsg(socket: I_RpcSocket, rpcMsg: I_rpcMsg, msgBuf: Buffer, bufLa
 }
 
 /**
- * 给本服务器发送rpc消息
+ * Send rpc message to this server
  */
 function sendRpcMsgToSelf(cmd: { "serverType": string, "file_method": string }, msgBuf: Buffer, bufLast: Buffer, cb?: Function) {
     let args = JSON.parse(msgBuf.toString());
@@ -353,7 +353,7 @@ function sendRpcMsgToSelf(cmd: { "serverType": string, "file_method": string }, 
 
 
 /**
- * rpc回调
+ * rpc callback
  */
 function getCallBackFunc(sid: string, id: number) {
     return function (...args: any[]) {
@@ -369,7 +369,7 @@ function getCallBackFunc(sid: string, id: number) {
 }
 
 /**
- * rpc本服务器回调
+ * rpc server callback
  */
 function getCallBackFuncSelf(id: number) {
     return function (...args: any[]) {

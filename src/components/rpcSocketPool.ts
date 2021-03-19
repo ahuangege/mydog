@@ -3,14 +3,14 @@ export class RpcSocketPool {
     private rpcSockets: { [id: string]: I_RpcSocket } = {};
 
     /**
-     * 添加socket
+     * Add socket
      */
     addSocket(id: string, socket: I_RpcSocket) {
         this.rpcSockets[id] = socket;
     }
 
     /**
-     * 移除socket
+     * Remove socket
      */
     removeSocket(id: string) {
         delete this.rpcSockets[id];
@@ -18,7 +18,7 @@ export class RpcSocketPool {
 
 
     /**
-     * 发送消息
+     * send messages
      */
     sendMsg(id: string, msg: Buffer) {
         let socket = this.rpcSockets[id];
@@ -28,7 +28,7 @@ export class RpcSocketPool {
     }
 
     /**
-     * 获取socket
+     * Get socket
      */
     getSocket(id: string) {
         return this.rpcSockets[id];

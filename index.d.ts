@@ -1,21 +1,28 @@
 
+
 /**
- * 创建 app
+ * 
+ * HOME: http://mydog.wiki
+ * 
+ */
+
+/**
+ * Create app
  */
 export function createApp(): Application;
 
 /**
- * 被创建的app
+ * The app being created
  */
 export let app: Application;
 
 /**
- * mydog版本
+ * Mydog version
  */
 export let version: string;
 
 /**
- * 自带三类connector
+ * Three types of connectors
  */
 export let connector: {
     connectorTcp: I_connectorConstructor,
@@ -24,283 +31,251 @@ export let connector: {
 }
 
 /**
- * app 类
+ * App class
  */
 export interface Application {
 
     /**
-     * 应用名称
+     * Application Name
      */
     appName: string;
 
     /**
-     * env
+     * Startup environment
      */
     readonly env: string;
 
     /**
-     * 服务器id
+     * Server id
      */
     readonly serverId: string;
 
     /**
-     * 服务器类型
+     * Server type
      */
     readonly serverType: string;
 
     /**
-     * 本服务器的配置
+     * The configuration of this server
      */
     readonly serverInfo: ServerInfo;
 
     /**
-     * 配置：route.ts
+     * configuration：route.ts
      */
     readonly routeConfig: string[];
 
     /**
-     * 配置：master.ts
+     * configuration：master.ts
      */
     readonly masterConfig: ServerInfo;
 
     /**
-     * 配置：servers.ts
+     * configuration：servers.ts
      */
     readonly serversConfig: { [serverType: string]: ServerInfo[] };
 
     /**
-     * 服务器启动时刻
+     * Server start time
      */
     readonly startTime: number;
 
     /**
-     * 前端服务器，所有的socket连接数
+     * The number of all socket connections (frontend server call)
      */
     readonly clientNum: number;
 
     /**
-     * rpc
+     * rpc call
      */
     readonly rpc: (serverId: string) => Rpc;
 
     /**
-     * 启动服务器
+     * Start the server
      */
     start(): void;
 
     /**
-     * rpc配置
+     * rpc configuration
      */
     setConfig(key: "rpc", value: I_rpcConfig): void;
     /**
-     * 前端connector配置
+     * connector configuration
      */
     setConfig(key: "connector", value: I_connectorConfig): void;
     /**
-     * 编码解码配置
+     * codec configuration
      */
     setConfig(key: "encodeDecode", value: I_encodeDecodeConfig): void;
     /**
-     * ssh配置
+     * ssh configuration
      */
     setConfig(key: "ssh", value: string[]): void;
     /**
-     * 认证密钥配置
+     * authentication key configuration
      */
     setConfig(key: "recognizeToken", value: I_recognizeTokenConfig): void;
     /**
-     * 内部日志输出
+     * internal log output
      */
     setConfig(key: "logger", value: (level: "info" | "warn" | "error", msg: string) => void): void;
     /**
-     * 自定义监控
+     * custom monitoring
      */
     setConfig(key: "mydogList", value: () => { "title": string, "value": string }[]): void;
 
     /**
-     * 设置键值对
-     * @param key 键
-     * @param value 值
+     * Set key-value pairs
      */
     set<T = any>(key: string | number, value: T): T
 
     /**
-     * 获取键值对
-     * @param key 键
+     * Get key-value pairs
      */
     get<T = any>(key: string | number): T;
 
     /**
-     * 删除键值对
-     * @param key 键
+     * Delete key-value pairs
      */
     delete(key: string | number): void;
 
     /**
-     * 获取某一类服务器
-     * @param serverType 服务器类型
+     * Get a certain type of server
      */
     getServersByType(serverType: string): ServerInfo[];
 
     /**
-     * 获取某一个服务器
-     * @param serverId 服务器id
+     * Get a server
      */
     getServerById(serverId: string): ServerInfo;
 
     /**
-     * 路由配置    [注：前端服调用]
-     * @param serverType 服务器类型
-     * @param routeFunc 路由函数
+     * Routing configuration (frontend server call)
      */
     route(serverType: string, routeFunc: (session: Session) => string): void;
 
     /**
-     * 是否有该客户端    [注：前端服调用]
-     * @param uid 标识uid
+     * Is there such a client (frontend server call)
      */
     hasClient(uid: number): boolean;
 
     /**
-     * 关闭绑定的客户端    [注：前端服调用]
-     * @param uid 标识uid
+     * Close the client (frontend server call)
      */
     closeClient(uid: number): void;
 
     /**
-     * 配置部分session    [注：前端服调用]
-     * @param uid 标识uid
-     * @param settings session里的部分配置
+     * Configure part of the session (frontend server call)
      */
     applySession(uid: number, settings: { [key: string]: any }): void;
 
     /**
-     * 向客户端发送消息    [注：前端服调用]
-     * @param cmd 路由
-     * @param msg 消息
-     * @param uids uid数组
+     * Send a message to the client (frontend server call)
      */
     sendMsgByUid(cmd: number, msg: any, uids: number[]): void;
 
     /**
-     * 向所有的客户端发送消息    [注：前端服调用]
-     * @param cmd 路由
-     * @param msg 消息
+     * Send a message to all clients of this server (frontend server call)
      */
     sendAll(cmd: number, msg: any): void;
 
     /**
-     * 向客户端发送消息    [注：后端服调用]
-     * @param cmd 路由
-     * @param msg 消息
-     * @param uidsid uidsid数组
+     * Send a message to the client (backend server call)
      */
     sendMsgByUidSid(cmd: number, msg: any, uidsid: { "uid": number, "sid": string }[]): void;
 
     /**
-     * 向客户端发送消息    [注：后端服调用]
-     * @param cmd   路由
-     * @param msg   消息
-     * @param group   {sid:uid[]}
+     * Send a message to the client (backend server call)
      */
     sendMsgByGroup(cmd: number, msg: any, group: { [sid: string]: number[] }): void;
 
     /**
-     * 配置服务器执行函数
-     * @param type 服务器类型   "all" 或者 "gate|connector"形式
-     * @param cb 执行函数
+     * Configure server execution function
+     * @param type serverType, "all" or "gate|connector" form
+     * @param cb execution function
      */
     configure(type: string, cb: () => void): void;
 
 
     /**
-     * 监听事件（添加服务器，移除服务器）
-     * @param event 事件
-     * @param cb 回调
+     * Monitor events (add server, remove server)
      */
     on(event: "onAddServer" | "onRemoveServer", cb: (serverType: string, id: string) => void): void;
 
 }
 
 /**
- * Session 类
+ * Session class
  */
 export interface Session {
     /**
-     * 绑定的uid
+     * binded uid
      */
     readonly uid: number;
 
     /**
-     * 前端服务器id
+     * frontend server id
      */
     readonly sid: string;
 
     /**
-     * 设置键值对
-     * @param value 键值对
+     * Set key-value pairs
      */
     set(value: { [key: string]: any }): void;
 
     /**
-     * 获取键值对
-     * @param key 键
+     * Get key-value pairs
      */
     get<T = any>(key: number | string): T;
 
     /**
-     * 删除键值对
-     * @param keys 键
+     * Delete key-value pair
      */
     delete(keys: (number | string)[]): void;
 
     /**
-     * 设置键值对（本地）
-     * @param value 键值对
+     * Set key-value pairs (local)
      */
     setLocal(key: number | string, value: any): void;
 
     /**
-     * 获取键值对（本地）
-     * @param key 键
+     * Get key-value pairs (local)
      */
     getLocal<T = any>(key: number | string): T;
 
     /**
-     * 删除键值对（本地）
-     * @param key 键
+     * Delete key-value pair (local)
      */
     deleteLocal(key: number | string): void;
 
     /**
-     * 绑定uid    [注：前端服调用]
-     * @param uid 标识uid
+     * Bind uid (frontend server call)
      */
     bind(uid: number): boolean;
 
     /**
-     * 关闭连接    [注：前端服调用]
+     * Close connection (frontend server call)
      */
     close(): void;
 
     /**
-     * 将后端session同步到前端    [注：后端服调用]
+     * Sync the backend session to the frontend (backend server call)
      */
     apply(): void;
 
     /**
-     * 获取ip   [注：前端服调用]
+     * Get ip (frontend server call)
      */
     getIp(): string;
 
 }
 
 /**
- * 服务器信息
+ * server information
  */
 export interface ServerInfo {
     /**
-     * 服务器id
+     * Server id
      */
     readonly id: string;
     /**
@@ -312,7 +287,7 @@ export interface ServerInfo {
      */
     readonly port: number;
     /**
-     * 是否是前端服务器
+     * Is it a frontend server
      */
     readonly frontend: boolean;
     /**
@@ -320,7 +295,7 @@ export interface ServerInfo {
      */
     readonly clientPort: number;
     /**
-     * 服务器类型 [注：由框架内部赋值]
+     * Server type [Note: Assigned by the framework]
      */
     readonly serverType: string;
 
@@ -328,7 +303,7 @@ export interface ServerInfo {
 }
 
 /**
- * rpc声明
+ * rpc interface
  */
 declare global {
     interface Rpc {
@@ -336,84 +311,84 @@ declare global {
 }
 
 /**
- * rpc调用，内部错误码
+ * rpc call, internal error code
  */
 export const enum rpcErr {
     /**
-     * 没有错误
+     * no err
      */
     ok = 0,
     /**
-     * 没有目标服务器
+     * no target server
      */
     noServer = 1,
     /**
-     * rpc超时
+     * rpc timeout
      */
     timeout = 2
 }
 
 /**
- * 编码解码
+ * codec configuration
  */
 interface I_encodeDecodeConfig {
     /**
-     * 协议编码
+     * protocol encoding
      */
     "protoEncode"?: (cmd: number, msg: any) => Buffer,
     /**
-     * 消息编码
+     * message encoding
      */
     "msgEncode"?: (cmd: number, msg: any) => Buffer,
     /**
-     * 协议解码
+     * protocol decoding
      */
     "protoDecode"?: (data: Buffer) => { "cmd": number, "msg": Buffer },
     /**
-     * 消息解码
+     * message decoding
      */
     "msgDecode"?: (cmd: number, msg: Buffer) => any,
 }
 
 
 /**
- * 前端connector配置
+ * connector configuration
  */
 interface I_connectorConfig {
     /**
-     * 自定义connector类
+     * custom connector class (default tcp)
      */
     "connector"?: I_connectorConstructor,
     /**
-     * 心跳（秒）
+     * heartbeat (seconds, default none)
      */
     "heartbeat"?: number,
     /**
-     * 最大连接数
+     * maximum number of connections (no upper limit by default)
      */
     "maxConnectionNum"?: number,
     /**
-     * 消息包最大长度
+     * maximum message packet length (default 10 Mb)
      */
     "maxLen"?: number
     /**
-     * 是否开启Nagle算法（默认不开启）
+     * whether to enable Nagle algorithm (not enabled by default)
      */
     "noDelay"?: boolean,
     /**
-     * 消息发送频率（毫秒）
+     * message sending frequency (ms, more than 10 is enabled, the default is to send immediately)
      */
     "interval"?: number,
     /**
-     * 客户端连接通知
+     * client connection notification
      */
     "clientOnCb"?: (session: Session) => void,
     /**
-     * 客户端离开通知
+     * client leaving notification
      */
     "clientOffCb"?: (session: Session) => void,
     /**
-     * 消息过滤。返回true，则该消息会被丢弃。
+     * message filtering. Return true, the message will be discarded.
      */
     "cmdFilter"?: (session: Session, cmd: number) => boolean,
 
@@ -421,62 +396,62 @@ interface I_connectorConfig {
 }
 
 /**
- * rpc配置
+ * rpc configuration
  */
 interface I_rpcConfig {
     /**
-     * 超时时间（秒）
+     * timeout (seconds, use more than 5, default 10)
      */
     "timeout"?: number,
     /**
-     * 消息包最大长度
+     * maximum message packet length (default 10 Mb)
      */
     "maxLen"?: number,
     /**
-     * 消息发送频率（毫秒）
+     * message sending frequency (ms, more than 10 is enabled, the default is to send immediately)
      */
     "interval"?: number | { "default": number, [serverType: string]: number }
     /**
-     * 是否开启Nagle算法（默认不开启）
+     * whether to enable Nagle algorithm (not enabled by default)
      */
     "noDelay"?: boolean,
     /**
-     * 心跳（秒）
+     * heartbeat (seconds, use more than 5, default 60)
      */
     "heartbeat"?: number,
     /**
-     * 重连间隔（秒）
+     * reconnection interval (seconds, default 2)
      */
     "reconnectDelay"?: number,
     /**
-     * 不建立socket连接的矩阵
+     * matrix without socket connection
      */
     "noRpcMatrix"?: { [serverType: string]: string[] }
 }
 
 /**
- * 认证密钥
+ * authentication key configuration
  */
 interface I_recognizeTokenConfig {
     /**
-     * 服务器内部认证密钥
+     * server internal authentication key
      */
     "serverToken"?: string,
     /**
-     * master与cli的认证密钥
+     * master and cli authentication key
      */
     "cliToken"?: string,
 }
 
 /**
- * 自定义connector类
+ * Custom connector class
  */
 export interface I_connectorConstructor {
     new(info: { app: Application, clientManager: I_clientManager, config: I_connectorConfig, startCb: () => void }): void;
 }
 
 /**
- * 用户socket管理
+ * User socket management
  */
 export interface I_clientManager {
     addClient(client: I_clientSocket): void;
@@ -485,26 +460,26 @@ export interface I_clientManager {
 }
 
 /**
- * 用户socket
+ * User socket
  */
 export interface I_clientSocket {
     /**
-     * session （注：框架内部赋值）
+     * session (Note: Assignment within the framework)
      */
     readonly session: Session;
 
     /**
-     * ip（session是从这里拿到的ip）
+     * ip (Session gets the ip from here)
      */
     remoteAddress: string;
 
     /**
-     * 发送消息
+     * send messages
      */
     send(msg: Buffer): void;
 
     /**
-     * 关闭
+     * close
      */
     close(): void;
 }

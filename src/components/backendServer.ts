@@ -1,6 +1,3 @@
-/**
- * 后端服务器启动监听端口，并接受前端服务器的连接
- */
 
 
 import Application from "../application";
@@ -42,7 +39,7 @@ export class BackendServer {
 
 
     /**
-     * 后端服务器加载路由处理
+     * Back-end server load routing processing
      */
     private loadHandler() {
         let dirName = path.join(this.app.base, define.some_config.File_Dir.Servers, this.app.serverType, "handler");
@@ -63,7 +60,7 @@ export class BackendServer {
     }
 
     /**
-     * 后端服务器收到前端服转发的客户端消息
+     * The back-end server receives the client message forwarded by the front-end server
      */
     handleMsg(id: string, msg: Buffer) {
         let sessionLen = msg.readUInt16BE(1);
@@ -90,7 +87,7 @@ export class BackendServer {
     }
 
     /**
-     * 后端session同步到前端
+     * Synchronize back-end session to front-end
      */
     sendSession(sid: string, sessionBuf: Buffer) {
         let buf = Buffer.allocUnsafe(5 + sessionBuf.length);
@@ -101,7 +98,7 @@ export class BackendServer {
     }
 
     /**
-     * 后端服务器给客户端发消息
+     * The back-end server sends a message to the client
      */
     sendMsgByUidSid(cmd: number, msg: any, uidsid: { "uid": number, "sid": string }[]) {
         let groups: { [sid: string]: number[] } = {};
@@ -129,7 +126,7 @@ export class BackendServer {
     }
 
     /**
-     * 后端服务器给客户端发消息
+     * The back-end server sends a message to the client
      */
     sendMsgByGroup(cmd: number, msg: any, group: { [sid: string]: number[] }) {
         let app = this.app;

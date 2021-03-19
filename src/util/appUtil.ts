@@ -1,6 +1,3 @@
-/**
- * 启动环境检查
- */
 
 
 import * as path from "path";
@@ -17,7 +14,7 @@ import { ServerInfo } from "../..";
 
 
 /**
- * 加载配置
+ * Load configuration
  * @param app 
  */
 export function defaultConfiguration(app: Application) {
@@ -28,7 +25,7 @@ export function defaultConfiguration(app: Application) {
 }
 
 /**
- * 启动服务器
+ * Start the server
  * @param app 
  */
 export function startServer(app: Application) {
@@ -120,7 +117,7 @@ let loadBaseConfig = function (app: Application) {
     }
 };
 
-/** 解析servers配置 */
+/** Parse the servers configuration */
 function parseServersConfig(info: { [serverType: string]: ServerInfo[] }) {
     for (let svrT in info) {
         let arr = info[svrT];
