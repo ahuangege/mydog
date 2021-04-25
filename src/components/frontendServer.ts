@@ -28,10 +28,7 @@ export class FrontendServer {
         let mydog: typeof indexDts = require("../mydog");
         let connectorConfig = this.app.someconfig.connector || {};
         let connectorConstructor: I_connectorConstructor = connectorConfig.connector as any || mydog.connector.connectorTcp;
-        let defaultEncodeDecode: Required<indexDts.I_encodeDecodeConfig> = protocol.Tcp_EncodeDecode;
-        if (connectorConstructor === mydog.connector.connectorWs as any || connectorConstructor === mydog.connector.connectorWss as any) {
-            defaultEncodeDecode = protocol.Ws_EncodeDecode;
-        }
+        let defaultEncodeDecode: Required<indexDts.I_encodeDecodeConfig> = protocol.default_encodeDecode;
         let encodeDecodeConfig = this.app.someconfig.encodeDecode || {};
         this.app.protoEncode = encodeDecodeConfig.protoEncode || defaultEncodeDecode.protoEncode;
         this.app.msgEncode = encodeDecodeConfig.msgEncode || defaultEncodeDecode.msgEncode;

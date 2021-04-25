@@ -43,13 +43,15 @@ export class ConnectorWss {
 
         // Handshake buffer
         let routeBuf = Buffer.from(JSON.stringify({ "route": this.app.routeConfig, "heartbeat": this.heartbeatTime / 1000 }));
-        this.handshakeBuf = Buffer.alloc(routeBuf.length + 1);
-        this.handshakeBuf.writeUInt8(define.Server_To_Client.handshake, 0);
-        routeBuf.copy(this.handshakeBuf, 1);
+        this.handshakeBuf = Buffer.alloc(routeBuf.length + 5);
+        this.handshakeBuf.writeUInt32BE(routeBuf.length + 1, 0)
+        this.handshakeBuf.writeUInt8(define.Server_To_Client.handshake, 4);
+        routeBuf.copy(this.handshakeBuf, 5);
 
         // Heartbeat response buffer
-        this.heartbeatBuf = Buffer.alloc(1);
-        this.heartbeatBuf.writeUInt8(define.Server_To_Client.heartbeatResponse, 0);
+        this.heartbeatBuf = Buffer.alloc(5);
+        this.heartbeatBuf.writeUInt32BE(1, 0);
+        this.heartbeatBuf.writeUInt8(define.Server_To_Client.heartbeatResponse, 4);
     }
 
     private newClientCb(socket: SocketProxy) {
@@ -84,7 +86,7 @@ class ClientSocket implements I_clientSocket {
         this.clientManager = clientManager;
         this.socket = socket;
         this.remoteAddress = socket.remoteAddress;
-        this.socket.socket._receiver._maxPayload = 1;   // Up to 1 byte of data when not registered
+        this.socket.socket._receiver._maxPayload = 5;   // Up to 5 byte of data when not registered
         socket.once('data', this.onRegister.bind(this));
         socket.on('close', this.onClose.bind(this));
         this.registerTimer = setTimeout(() => {
@@ -243,7 +245,12 @@ class WsSocket extends EventEmitter implements SocketProxy {
         });
         socket.on("message", (data: Buffer) => {
             if (!this.die) {
-                this.emit("data", data);
+                let index = 0;
+                while (index < data.length) {
+                    let msgLen = data.readUInt32BE(index);
+                    this.emit("data", data.slice(index + 4, index + 4 + msgLen));
+                    index += msgLen + 4;
+                }
             } else {
                 this.close()
             }
