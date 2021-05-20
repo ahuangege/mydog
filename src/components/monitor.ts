@@ -166,14 +166,14 @@ export class monitor_client_proxy {
                     if (serversApp[serverInfo.serverType][i].id === tmpServer.id) {
                         serversApp[serverInfo.serverType].splice(i, 1);
                         rpcClient.removeSocket(tmpServer.id);
-                        this.emitRemoveServer(serverInfo.serverType, tmpServer.id);
+                        this.emitRemoveServer(tmpServer);
                         break;
                     }
                 }
             }
             serversApp[serverInfo.serverType].push(serverInfo);
             serversIdMap[serverInfo.id] = serverInfo;
-            this.emitAddServer(serverInfo.serverType, serverInfo.id);
+            this.emitAddServer(serverInfo);
             rpcClient.ifCreateRpcClient(this.app, serverInfo)
         }
     }
@@ -191,9 +191,10 @@ export class monitor_client_proxy {
         if (serversApp[msg.serverType]) {
             for (let i = 0; i < serversApp[msg.serverType].length; i++) {
                 if (serversApp[msg.serverType][i].id === msg.id) {
+                    let tmpInfo = serversApp[msg.serverType][i];
                     serversApp[msg.serverType].splice(i, 1);
                     rpcClient.removeSocket(msg.id)
-                    this.emitRemoveServer(msg.serverType, msg.id);
+                    this.emitRemoveServer(tmpInfo);
                     break;
                 }
             }
@@ -236,10 +237,11 @@ export class monitor_client_proxy {
                     continue;
                 }
                 if (!this.removeDiffServers[id]) {
+                    let tmpInfo = this.app.serversIdMap[id];
                     delete this.app.serversIdMap[id];
                     servers[serverType].splice(i, 1);
                     rpcClient.removeSocket(id);
-                    this.emitRemoveServer(serverType, id);
+                    this.emitRemoveServer(tmpInfo);
                 }
             }
         }
@@ -249,18 +251,18 @@ export class monitor_client_proxy {
     /**
      * Launch add server event
      */
-    private emitAddServer(serverType: string, id: string) {
+    private emitAddServer(serverInfo: ServerInfo) {
         process.nextTick(() => {
-            this.app.emit("onAddServer", serverType, id);
+            this.app.emit("onAddServer", serverInfo);
         });
     }
 
     /**
      * Launch remove server event
      */
-    private emitRemoveServer(serverType: string, id: string) {
+    private emitRemoveServer(serverInfo: ServerInfo) {
         process.nextTick(() => {
-            this.app.emit("onRemoveServer", serverType, id);
+            this.app.emit("onRemoveServer", serverInfo);
         });
     }
 }

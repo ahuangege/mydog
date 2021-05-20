@@ -107,6 +107,12 @@ let loadBaseConfig = function (app: Application) {
             }
             if (key === "serversConfig") {
                 parseServersConfig(file);
+            } else if (key === "routeConfig") {
+                let arr: string[][] = [];
+                for (let one of file) {
+                    arr.push((one as string).split("."));
+                }
+                app.routeConfig2 = arr;
             }
 
             app[key] = file;
@@ -153,7 +159,8 @@ let processArgs = function (app: Application, args: any) {
     app.serverId = args.id || app.masterConfig.id;
     app.isDaemon = !!args.isDaemon;
     if (app.serverId === app.masterConfig.id) {
-        app.serverInfo = app.masterConfig;
+        app.serverInfo = JSON.parse(JSON.stringify(app.masterConfig));
+        (app.serverInfo as any).serverType = "master";
         app.serverType = "master";
         app.startMode = startAlone ? "alone" : "all";
     } else {

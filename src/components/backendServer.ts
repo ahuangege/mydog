@@ -61,7 +61,7 @@ export class BackendServer {
         let session = new Session();
         session.setAll(JSON.parse(sessionBuf.toString()));
         let cmd = msg.readUInt16BE(3 + sessionLen);
-        let cmdArr = this.app.routeConfig[cmd].split('.');
+        let cmdArr = this.app.routeConfig2[cmd];
         let data = this.app.msgDecode(cmd, msg.slice(5 + sessionLen));
         this.msgHandler[cmdArr[1]][cmdArr[2]](data, session, this.callback(id, cmd, session.uid));
     }

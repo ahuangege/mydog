@@ -2,7 +2,7 @@
 import { connector, createApp, Session } from "mydog";
 let app = createApp();
 
-app.setConfig("connector", { "connector": connector.connectorWs, "clientOnCb": clientOnCb, "clientOffCb": clientOffCb });
+app.setConfig("connector", { "connector": connector.Ws, "clientOnCb": clientOnCb, "clientOffCb": clientOffCb });
 app.setConfig("encodeDecode", { "msgDecode": msgDecode, "msgEncode": msgEncode });
 app.start();
 

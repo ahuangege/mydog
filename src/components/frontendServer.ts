@@ -27,7 +27,7 @@ export class FrontendServer {
         protocol.init(this.app);
         let mydog: typeof indexDts = require("../mydog");
         let connectorConfig = this.app.someconfig.connector || {};
-        let connectorConstructor: I_connectorConstructor = connectorConfig.connector as any || mydog.connector.connectorTcp;
+        let connectorConstructor: I_connectorConstructor = connectorConfig.connector as any || mydog.connector.Tcp;
         let defaultEncodeDecode: Required<indexDts.I_encodeDecodeConfig> = protocol.default_encodeDecode;
         let encodeDecodeConfig = this.app.someconfig.encodeDecode || {};
         this.app.protoEncode = encodeDecodeConfig.protoEncode || defaultEncodeDecode.protoEncode;
@@ -154,10 +154,10 @@ class ClientManager implements I_clientManager {
                 return;
             }
             let data = this.app.protoDecode(msgBuf);
-            let cmdArr = this.app.routeConfig[data.cmd].split('.');
             if (this.cmdFilter && this.cmdFilter(client.session, data.cmd)) {
                 return;
             }
+            let cmdArr = this.app.routeConfig2[data.cmd];
             if (this.serverType === cmdArr[0]) {
                 let msg = this.app.msgDecode(data.cmd, data.msg);
                 this.msgHandler[cmdArr[1]][cmdArr[2]](msg, client.session, this.callBack(client, data.cmd));

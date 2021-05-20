@@ -2,12 +2,12 @@ mydog - a node.js game server
 ===========================
 
 ### Home
-<http://mydog.wiki>
+<http://www.mydog.wiki>
 
 ### Installation
 
 ```bash
-npm install mydog -g
+npm i mydog -g
 ```
 
 ### Usage

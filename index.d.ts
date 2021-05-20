@@ -2,7 +2,7 @@
 
 /**
  * 
- * HOME: http://mydog.wiki
+ * HOME: http://www.mydog.wiki
  * 
  */
 
@@ -25,9 +25,9 @@ export let version: string;
  * Three types of connectors
  */
 export let connector: {
-    connectorTcp: I_connectorConstructor,
-    connectorWs: I_connectorConstructor,
-    connectorWss: I_connectorConstructor,
+    Tcp: I_connectorConstructor,
+    Ws: I_connectorConstructor,
+    Wss: I_connectorConstructor,
 }
 
 /**
@@ -39,6 +39,11 @@ export interface Application {
      * Application Name
      */
     appName: string;
+
+    /**
+     * Root path
+     */
+    readonly base: string;
 
     /**
      * Startup environment
@@ -155,19 +160,9 @@ export interface Application {
     route(serverType: string, routeFunc: (session: Session) => string): void;
 
     /**
-     * Is there such a client (frontend server call)
+     * Get client by uid (frontend server call)
      */
-    hasClient(uid: number): boolean;
-
-    /**
-     * Close the client (frontend server call)
-     */
-    closeClient(uid: number): void;
-
-    /**
-     * Configure part of the session (frontend server call)
-     */
-    applySession(uid: number, settings: { [key: string]: any }): void;
+    getClient(uid: number): Session;
 
     /**
      * Send a message to the client (frontend server call)
@@ -196,11 +191,10 @@ export interface Application {
      */
     configure(type: string, cb: () => void): void;
 
-
     /**
      * Monitor events (add server, remove server)
      */
-    on(event: "onAddServer" | "onRemoveServer", cb: (serverType: string, id: string) => void): void;
+    on(event: "onAddServer" | "onRemoveServer", cb: (serverInfo: ServerInfo) => void): void;
 
 }
 

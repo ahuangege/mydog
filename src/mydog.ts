@@ -9,9 +9,9 @@ interface I_mydog {
     createApp: () => Application,
     app: Application,
     connector: {
-        connectorTcp: I_connectorConstructor,
-        connectorWs: I_connectorConstructor,
-        connectorWss: I_connectorConstructor,
+        Tcp: I_connectorConstructor,
+        Ws: I_connectorConstructor,
+        Wss: I_connectorConstructor,
     }
 }
 
@@ -30,9 +30,9 @@ mydog.createApp = function () {
 };
 
 mydog.connector = {
-    "connectorTcp": ConnectorTcp,
-    "connectorWs": ConnectorWs,
-    "connectorWss": ConnectorWss
+    "Tcp": ConnectorTcp,
+    "Ws": ConnectorWs,
+    "Wss": ConnectorWss
 };
 
 

@@ -27,6 +27,7 @@ export default class Application extends EventEmitter {
     routeConfig: string[] = [];                                                              // route.ts
     masterConfig: ServerInfo = {} as ServerInfo;                                             // master.ts
     serversConfig: { [serverType: string]: ServerInfo[] } = {};                              // servers.ts
+    routeConfig2: string[][] = [];                                                           // route.ts  (split)
 
     clientNum: number = 0;                                                                   // Number of all socket connections
     clients: { [uid: number]: I_clientSocket } = {};                                         // Sockets that have been binded
@@ -148,29 +149,14 @@ export default class Application extends EventEmitter {
     }
 
     /**
-     * Is there a bound client
+     * get client by uid
      */
-    hasClient(uid: number) {
-        return !!this.clients[uid];
-    }
-
-    /**
-     * Close the bound client
-     */
-    closeClient(uid: number) {
+    getClient(uid: number) {
         let client = this.clients[uid];
         if (client) {
-            client.close();
-        }
-    }
-
-    /**
-     * Configure part of the session
-     */
-    applySession(uid: number, some: { [key: string]: any }) {
-        let client = this.clients[uid];
-        if (client) {
-            client.session.set(some);
+            return client.session;
+        } else {
+            return null;
         }
     }
 
