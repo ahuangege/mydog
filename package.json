@@ -44,7 +44,7 @@
     "server",
     "nodejs"
   ],
-  "license": "ISC",
+  "license": "MIT",
   "main": "lib/mydog.js",
   "name": "mydog",
   "scripts": {
@@ -55,5 +55,5 @@
     "type": "git",
     "url": "https://github.com/ahuangege/mydog.git"
   },
-  "version": "2.2.0"
+  "version": "2.2.1"
 }

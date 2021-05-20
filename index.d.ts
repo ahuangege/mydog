@@ -160,9 +160,9 @@ export interface Application {
     route(serverType: string, routeFunc: (session: Session) => string): void;
 
     /**
-     * Get client by uid (frontend server call)
+     * Get session by uid (frontend server call)
      */
-    getClient(uid: number): Session;
+    getSession(uid: number): Session;
 
     /**
      * Send a message to the client (frontend server call)

@@ -149,9 +149,9 @@ export default class Application extends EventEmitter {
     }
 
     /**
-     * get client by uid
+     * get session by uid
      */
-    getClient(uid: number) {
+    getSession(uid: number) {
         let client = this.clients[uid];
         if (client) {
             return client.session;
