@@ -1,9 +1,8 @@
 import Application from "../application";
-import { SocketProxy, loggerType } from "../util/interfaceDefine";
+import { SocketProxy, loggerType, ServerInfo } from "../util/interfaceDefine";
 import { TcpClient } from "../components/tcpClient";
 import * as define from "../util/define";
 import * as rpcService from "./rpcService";
-import { ServerInfo } from "../..";
 import * as appUtil from "../util/appUtil";
 
 /**

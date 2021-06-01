@@ -1,7 +1,6 @@
 import Application from "../application";
-import { I_clientManager, I_clientSocket, SocketProxy } from "../util/interfaceDefine";
+import { I_clientManager, I_clientSocket, SocketProxy, I_connectorConfig } from "../util/interfaceDefine";
 import * as define from "../util/define";
-import { I_connectorConfig } from "../..";
 import { Session } from "../components/session";
 import { EventEmitter } from "events";
 import * as ws from "ws";

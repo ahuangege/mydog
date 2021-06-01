@@ -3,10 +3,9 @@ import Application from "../application";
 import define = require("../util/define");
 import * as path from "path";
 import * as fs from "fs";
-import { loggerType, sessionCopyJson, I_clientSocket, I_clientManager, I_connectorConstructor } from "../util/interfaceDefine";
+import { loggerType, sessionCopyJson, I_clientSocket, I_clientManager, I_connectorConstructor, I_encodeDecodeConfig } from "../util/interfaceDefine";
 import { Session, initSessionApp } from "./session";
 import * as protocol from "../connector/protocol";
-import * as indexDts from "../..";
 
 export class FrontendServer {
     private app: Application;
@@ -25,10 +24,10 @@ export class FrontendServer {
             cb && cb();
         };
         protocol.init(this.app);
-        let mydog: typeof indexDts = require("../mydog");
+        let mydog = require("../mydog");
         let connectorConfig = this.app.someconfig.connector || {};
         let connectorConstructor: I_connectorConstructor = connectorConfig.connector as any || mydog.connector.Tcp;
-        let defaultEncodeDecode: Required<indexDts.I_encodeDecodeConfig> = protocol.default_encodeDecode;
+        let defaultEncodeDecode: Required<I_encodeDecodeConfig> = protocol.default_encodeDecode;
         let encodeDecodeConfig = this.app.someconfig.encodeDecode || {};
         this.app.protoEncode = encodeDecodeConfig.protoEncode || defaultEncodeDecode.protoEncode;
         this.app.msgEncode = encodeDecodeConfig.msgEncode || defaultEncodeDecode.msgEncode;
@@ -57,14 +56,13 @@ export class FrontendServer {
      * The front-end server forwards the message of the back-end server to the client
      */
     sendMsgByUids(data: Buffer) {
-        let uidBuffLen = data.readUInt16BE(1);
-        let uids = JSON.parse(data.slice(3, 3 + uidBuffLen).toString());
-        let msgBuf = data.slice(3 + uidBuffLen);
+        let uidsLen = data.readUInt16BE(1);
+        let msgBuf = data.slice(3 + uidsLen * 4);
         let clients = this.app.clients;
         let client: I_clientSocket;
         let i: number;
-        for (i = 0; i < uids.length; i++) {
-            client = clients[uids[i]];
+        for (i = 0; i < uidsLen; i++) {
+            client = clients[data.readUInt32BE(3 + i * 4)];
             if (client) {
                 client.send(msgBuf);
             }
@@ -82,8 +80,8 @@ class ClientManager implements I_clientManager {
     private msgHandler: { [filename: string]: any } = {};
     private serverType: string = "";
     private router: { [serverType: string]: (session: Session) => string };
-    private clientOnCb: (session: indexDts.Session) => void = null as any;
-    private clientOffCb: (session: indexDts.Session) => void = null as any;
+    private clientOnCb: (session: Session) => void = null as any;
+    private clientOffCb: (session: Session) => void = null as any;
     private cmdFilter: (session: Session, cmd: number) => boolean = null as any;
     constructor(app: Application) {
         this.app = app;

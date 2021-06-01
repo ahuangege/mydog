@@ -1,5 +1,4 @@
 import { EventEmitter } from "events";
-import { I_connectorConfig, I_encodeDecodeConfig, I_rpcConfig, ServerInfo } from "../..";
 import Application from "../application";
 import { Session } from "../components/session";
 
@@ -121,4 +120,159 @@ export interface I_clientSocket {
     remoteAddress: string;
     send(msg: Buffer): void;
     close(): void;
+}
+
+
+
+/**
+ * connector configuration
+ */
+export interface I_connectorConfig {
+    /**
+     * custom connector class (default tcp)
+     */
+    "connector"?: I_connectorConstructor,
+    /**
+     * heartbeat (seconds, default none)
+     */
+    "heartbeat"?: number,
+    /**
+     * maximum number of connections (no upper limit by default)
+     */
+    "maxConnectionNum"?: number,
+    /**
+     * maximum message packet length (default 10 MB)
+     */
+    "maxLen"?: number
+    /**
+     * whether to enable Nagle algorithm (not enabled by default)
+     */
+    "noDelay"?: boolean,
+    /**
+     * message sending frequency (ms, more than 10 is enabled, the default is to send immediately)
+     */
+    "interval"?: number,
+    /**
+     * client connection notification
+     */
+    "clientOnCb"?: (session: Session) => void,
+    /**
+     * client leaving notification
+     */
+    "clientOffCb"?: (session: Session) => void,
+    /**
+     * message filtering. Return true, the message will be discarded.
+     */
+    "cmdFilter"?: (session: Session, cmd: number) => boolean,
+
+    [key: string]: any,
+}
+
+
+/**
+ * codec configuration
+ */
+export interface I_encodeDecodeConfig {
+    /**
+     * protocol encoding
+     */
+    "protoEncode"?: (cmd: number, msg: any) => Buffer,
+    /**
+     * message encoding
+     */
+    "msgEncode"?: (cmd: number, msg: any) => Buffer,
+    /**
+     * protocol decoding
+     */
+    "protoDecode"?: (data: Buffer) => { "cmd": number, "msg": Buffer },
+    /**
+     * message decoding
+     */
+    "msgDecode"?: (cmd: number, msg: Buffer) => any,
+}
+
+
+/**
+ * rpc configuration
+ */
+export interface I_rpcConfig {
+    /**
+     * timeout (seconds, use more than 5, default 10)
+     */
+    "timeout"?: number,
+    /**
+     * maximum message packet length (default 10 MB)
+     */
+    "maxLen"?: number,
+    /**
+     * message sending frequency (ms, more than 10 is enabled, the default is to send immediately)
+     */
+    "interval"?: number | { "default": number, [serverType: string]: number }
+    /**
+     * whether to enable Nagle algorithm (not enabled by default)
+     */
+    "noDelay"?: boolean,
+    /**
+     * heartbeat (seconds, use more than 5, default 60)
+     */
+    "heartbeat"?: number,
+    /**
+     * reconnection interval (seconds, default 2)
+     */
+    "reconnectDelay"?: number,
+    /**
+     * matrix without socket connection
+     */
+    "noRpcMatrix"?: { [serverType: string]: string[] }
+}
+
+
+/**
+ * server information
+ */
+export interface ServerInfo {
+    /**
+     * Server id
+     */
+    readonly id: string;
+    /**
+     * host
+     */
+    readonly host: string;
+    /**
+     * port
+     */
+    readonly port: number;
+    /**
+     * Is it a frontend server
+     */
+    readonly frontend: boolean;
+    /**
+     * clientPort
+     */
+    readonly clientPort: number;
+    /**
+     * Server type [Note: Assigned by the framework]
+     */
+    readonly serverType: string;
+
+    [key: string]: any;
+}
+
+/**
+ * rpc call, internal error code
+ */
+export const enum rpcErr {
+    /**
+     * no err
+     */
+    ok = 0,
+    /**
+     * no target server
+     */
+    noServer = 1,
+    /**
+     * rpc timeout
+     */
+    timeout = 2
 }

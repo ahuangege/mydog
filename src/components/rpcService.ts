@@ -4,12 +4,11 @@
 
 
 import Application from "../application";
-import { I_rpcTimeout, I_rpcMsg, loggerType } from "../util/interfaceDefine";
+import { I_rpcTimeout, I_rpcMsg, loggerType, ServerInfo, rpcErr } from "../util/interfaceDefine";
 import * as path from "path";
 import * as fs from "fs";
 import define = require("../util/define");
 import * as appUtil from "../util/appUtil";
-import { rpcErr, ServerInfo } from "../..";
 import { I_RpcSocket } from "./rpcSocketPool";
 
 let app: Application;

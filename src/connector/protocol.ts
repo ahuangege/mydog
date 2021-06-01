@@ -1,6 +1,7 @@
-import { I_encodeDecodeConfig } from "../..";
+
 import Application from "../application";
 import * as define from "../util/define";
+import { I_encodeDecodeConfig } from "../util/interfaceDefine";
 
 let app: Application;
 export function init(_app: Application) {

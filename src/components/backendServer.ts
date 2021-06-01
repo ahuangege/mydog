@@ -5,9 +5,10 @@ import { encodeRemoteData } from "./msgCoder";
 import * as path from "path";
 import * as fs from "fs";
 import define = require("../util/define");
+import { I_encodeDecodeConfig } from "../util/interfaceDefine";
+
 import { Session, initSessionApp } from "./session";
 import * as protocol from "../connector/protocol";
-import * as indexDts from "../..";
 
 
 export class BackendServer {
@@ -20,7 +21,7 @@ export class BackendServer {
     init() {
         initSessionApp(this.app);
         protocol.init(this.app);
-        let defaultEncodeDecode: Required<indexDts.I_encodeDecodeConfig> = protocol.default_encodeDecode;
+        let defaultEncodeDecode: Required<I_encodeDecodeConfig> = protocol.default_encodeDecode;
         let encodeDecodeConfig = this.app.someconfig.encodeDecode || {};
         this.app.protoEncode = encodeDecodeConfig.protoEncode || defaultEncodeDecode.protoEncode;
         this.app.msgEncode = encodeDecodeConfig.msgEncode || defaultEncodeDecode.msgEncode;

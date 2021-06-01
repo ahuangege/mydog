@@ -10,7 +10,7 @@ import * as rpcServer from "../components/rpcServer";
 import * as rpcService from "../components/rpcService";
 import { FrontendServer } from "../components/frontendServer";
 import { BackendServer } from "../components/backendServer";
-import { ServerInfo } from "../..";
+import { ServerInfo } from "./interfaceDefine";
 
 
 /**

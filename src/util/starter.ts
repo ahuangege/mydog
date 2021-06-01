@@ -3,7 +3,7 @@ import Application from "../application";
 import * as cp from "child_process"
 import * as util from "util"
 import * as os from "os"
-import { ServerInfo } from "../..";
+import { ServerInfo } from "../util/interfaceDefine";
 
 let app: Application = null as any;
 

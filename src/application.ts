@@ -4,13 +4,12 @@
 
 
 import * as path from "path"
-import { I_someConfig, loggerType, I_clientSocket } from "./util/interfaceDefine";
+import { I_someConfig, loggerType, I_clientSocket, I_connectorConfig, I_encodeDecodeConfig, I_rpcConfig, ServerInfo } from "./util/interfaceDefine";
 import * as appUtil from "./util/appUtil";
 import { EventEmitter } from "events";
 import { RpcSocketPool } from "./components/rpcSocketPool";
 import { FrontendServer } from "./components/frontendServer";
 import { BackendServer } from "./components/backendServer";
-import { I_connectorConfig, I_encodeDecodeConfig, I_rpcConfig, ServerInfo } from "..";
 import { Session } from "./components/session";
 
 declare global {

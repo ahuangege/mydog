@@ -1,8 +1,8 @@
 {
   "_from": "mydog",
-  "_id": "mydog@2.1.9",
+  "_id": "mydog@2.2.1",
   "_inBundle": false,
-  "_integrity": "sha512-A6ExEol192fg78A8tskUuFVRB/4KBkP0xtYaibQCzijyTbEz8okRKcyAiSvSuvSpJyj6RuhK+aZ7o2TYGeHATw==",
+  "_integrity": "sha512-BWjme+ZarjvTrtVz2MpykX/Q7hq9DlS6lBppKRgtQ8YASaEtK7h5wjEXAtRt1lfQc6K/qyFfmjn+Y6MabnNKTA==",
   "_location": "/mydog",
   "_phantomChildren": {},
   "_requested": {
@@ -19,8 +19,8 @@
     "#USER",
     "/"
   ],
-  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-2.1.9.tgz",
-  "_shasum": "23487215a3586d33e9d8a91b30d12b5c3cf7db96",
+  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-2.2.1.tgz",
+  "_shasum": "bc50dbd4bb721aba949e1823950e2e4fcf4efe20",
   "_spec": "mydog",
   "_where": "D:\\nodejs\\mydogNew",
   "author": {
@@ -28,6 +28,9 @@
   },
   "bin": {
     "mydog": "lib/cli.js"
+  },
+  "bugs": {
+    "url": "https://github.com/ahuangege/mydog/issues"
   },
   "bundleDependencies": false,
   "dependencies": {
@@ -47,13 +50,13 @@
   "license": "MIT",
   "main": "lib/mydog.js",
   "name": "mydog",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ahuangege/mydog.git"
+  },
   "scripts": {
     "test": "echo \"Error: no test   specified\" && exit 1"
   },
   "types": "index.d.ts",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ahuangege/mydog.git"
-  },
-  "version": "2.2.1"
+  "version": "2.2.2"
 }

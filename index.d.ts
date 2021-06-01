@@ -362,7 +362,7 @@ interface I_connectorConfig {
      */
     "maxConnectionNum"?: number,
     /**
-     * maximum message packet length (default 10 Mb)
+     * maximum message packet length (default 10 MB)
      */
     "maxLen"?: number
     /**
@@ -398,7 +398,7 @@ interface I_rpcConfig {
      */
     "timeout"?: number,
     /**
-     * maximum message packet length (default 10 Mb)
+     * maximum message packet length (default 10 MB)
      */
     "maxLen"?: number,
     /**

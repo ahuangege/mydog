@@ -65,12 +65,14 @@ export function encodeInnerData(data: any) {
  */
 
 export function encodeRemoteData(uids: number[], dataBuf: Buffer) {
-    let uidsBuf = Buffer.from(JSON.stringify(uids));
-    let buf = Buffer.allocUnsafe(7 + uidsBuf.length + dataBuf.length);
-    buf.writeUInt32BE(3 + uidsBuf.length + dataBuf.length, 0);
+    let uidsLen = uids.length * 4;
+    let buf = Buffer.allocUnsafe(7 + uidsLen + dataBuf.length);
+    buf.writeUInt32BE(3 + uidsLen + dataBuf.length, 0);
     buf.writeUInt8(define.Rpc_Msg.clientMsgOut, 4);
-    buf.writeUInt16BE(uidsBuf.length, 5);
-    uidsBuf.copy(buf, 7);
-    dataBuf.copy(buf, 7 + uidsBuf.length);
+    buf.writeUInt16BE(uids.length, 5);
+    for (let i = 0; i < uids.length; i++) {
+        buf.writeUInt32BE(uids[i], 7 + i * 4);
+    }
+    dataBuf.copy(buf, 7 + uidsLen);
     return buf;
 }
