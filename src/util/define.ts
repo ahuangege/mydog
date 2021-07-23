@@ -76,5 +76,6 @@ export const enum Rpc_Msg {
     applySession = 3,       // Synchronize session from backend to frontend
     clientMsgIn = 4,        // Client message received
     clientMsgOut = 5,       // Send a message to the client
-    rpcMsg = 6              // rpc message
+    rpcMsg = 6,              // rpc message
+    rpcMsgAwait = 7,              // rpc message await
 }

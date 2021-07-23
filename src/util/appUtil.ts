@@ -11,6 +11,7 @@ import * as rpcService from "../components/rpcService";
 import { FrontendServer } from "../components/frontendServer";
 import { BackendServer } from "../components/backendServer";
 import { ServerInfo } from "./interfaceDefine";
+import { msgCoderSetApp } from "../components/msgCoder";
 
 
 /**
@@ -30,6 +31,7 @@ export function defaultConfiguration(app: Application) {
  */
 export function startServer(app: Application) {
     startPng(app);
+    msgCoderSetApp(app);
     if (app.serverType === "master") {
         master.start(app);
     } else if (app.frontend) {

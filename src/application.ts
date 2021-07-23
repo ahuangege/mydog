@@ -4,7 +4,7 @@
 
 
 import * as path from "path"
-import { I_someConfig, loggerType, I_clientSocket, I_connectorConfig, I_encodeDecodeConfig, I_rpcConfig, ServerInfo } from "./util/interfaceDefine";
+import { I_someConfig, loggerType, I_clientSocket, I_connectorConfig, I_encodeDecodeConfig, I_rpcConfig, ServerInfo, loggerLevel } from "./util/interfaceDefine";
 import * as appUtil from "./util/appUtil";
 import { EventEmitter } from "events";
 import { RpcSocketPool } from "./components/rpcSocketPool";
@@ -46,9 +46,10 @@ export default class Application extends EventEmitter {
 
     router: { [serverType: string]: (session: Session) => string } = {};                     // Pre-selection when routing messages to the backend
     rpc: (serverId: string) => Rpc = null as any;                                            // Rpc packaging
+    rpcAwait: (serverId: string, notify: boolean) => Rpc = null as any;                      // Rpc await packaging
     rpcPool: RpcSocketPool = new RpcSocketPool();                                            // Rpc socket pool
 
-    logger: (level: loggerType, msg: string) => void = function () { };                      // Internal log output port
+    logger: (type: loggerType, level: loggerLevel, msg: string) => void = function () { };                      // Internal msg log output
 
     msgEncode: Required<I_encodeDecodeConfig>["msgEncode"] = null as any;
     msgDecode: Required<I_encodeDecodeConfig>["msgDecode"] = null as any;
@@ -84,7 +85,7 @@ export default class Application extends EventEmitter {
     setConfig(key: "encodeDecode", value: Partial<I_encodeDecodeConfig>): void
     setConfig(key: "ssh", value: string[]): void
     setConfig(key: "recognizeToken", value: { "serverToken"?: string, "cliToken"?: string }): void
-    setConfig(key: "logger", value: (level: loggerType, msg: string) => void): void
+    setConfig(key: "logger", value: (type: loggerType, level: loggerType, msg: string) => void): void
     setConfig(key: "mydogList", value: () => { "title": string, "value": string }[]): void
     setConfig(key: keyof I_someConfig, value: any): void {
         this.someconfig[key] = value;
@@ -157,6 +158,13 @@ export default class Application extends EventEmitter {
         } else {
             return null;
         }
+    }
+
+    /**
+     * get all clients
+     */
+    getAllClients() {
+        return this.clients;
     }
 
     /**

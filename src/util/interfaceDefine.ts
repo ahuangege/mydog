@@ -57,11 +57,20 @@ export interface sessionCopyJson {
 /**
  * Internal frame log level
  */
-export const enum loggerType {
+export const enum loggerLevel {
     info = "info",
     warn = "warn",
     error = "error"
 }
+
+/**
+ * Internal frame log type
+ */
+export const enum loggerType {
+    frame = "frame",
+    msg = "msg",
+}
+
 
 
 /**
@@ -82,6 +91,7 @@ export interface I_rpcMsg {
  */
 export interface I_rpcTimeout {
     cb: Function;
+    await: boolean;
     time: number;
 }
 
@@ -223,7 +233,7 @@ export interface I_rpcConfig {
     /**
      * matrix without socket connection
      */
-    "noRpcMatrix"?: { [serverType: string]: string[] }
+    "noRpcMatrix"?: { [serverType: string]: string[] },
 }
 
 

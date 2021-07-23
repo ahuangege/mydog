@@ -4,15 +4,17 @@ let app = createApp();
 
 app.setConfig("connector", { "connector": connector.Ws, "clientOnCb": clientOnCb, "clientOffCb": clientOffCb });
 app.setConfig("encodeDecode", { "msgDecode": msgDecode, "msgEncode": msgEncode });
+app.setConfig("logger", (type, level, msg) => {
+    if (level === "warn" || level === "error") {
+        console.log(msg);
+    }
+});
+
 app.start();
 
 process.on("uncaughtException", function (err: any) {
     console.log(err)
 });
-
-
-
-
 
 
 function msgDecode(cmd: number, msg: Buffer): any {

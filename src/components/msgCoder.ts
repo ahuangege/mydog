@@ -1,6 +1,12 @@
 
+import Application from "../application";
 import define = require("../util/define");
-import { SocketProxy } from "../util/interfaceDefine";
+import { loggerLevel, loggerType, SocketProxy } from "../util/interfaceDefine";
+
+let app: Application = null as any;
+export function msgCoderSetApp(_app: Application) {
+    app = _app;
+}
 
 /**
  * Unpack
@@ -14,8 +20,8 @@ export function decode(socket: SocketProxy, msg: Buffer) {
             if (socket.buffer.length === 4) {
                 socket.len = socket.buffer.readUInt32BE(0);
                 if (socket.len > socket.maxLen || socket.len === 0) {
+                    app.logger(loggerType.frame, loggerLevel.error, "socket data length is longer then " + socket.maxLen + ", close it, " + socket.remoteAddress);
                     socket.close();
-                    throw new Error("socket data length is longer then " + socket.maxLen + ", close it, " + socket.remoteAddress);
                     return;
                 }
                 socket.buffer = Buffer.allocUnsafe(socket.len);

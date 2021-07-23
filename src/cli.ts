@@ -176,36 +176,17 @@ function init() {
     let pathStr = process.cwd();
     emptyDirectory(pathStr, function (empty) {
         if (empty) {
-            process.stdin.destroy();
             createApplicationAt(pathStr);
         } else {
-            confirm('Destination is not empty, continue? (y/n) [no] ', function (force) {
-                process.stdin.destroy();
+            confirm('Destination is not empty, continue? (y/n) [no]   ', function (force) {
                 if (force) {
                     createApplicationAt(pathStr);
                 } else {
-                    abort('Fail to init a project');
+                    abort('[ canceled ]');
                 }
             });
         }
     });
-
-    function confirm(msg: string, fn: (yes: boolean) => void) {
-        prompt(msg, function (val) {
-            fn(/^ *y(es)?/i.test(val));
-        });
-        function prompt(msg: string, fn: (data: string) => void) {
-            if (' ' === msg[msg.length - 1]) {
-                process.stdout.write(msg);
-            } else {
-                console.log(msg);
-            }
-            process.stdin.setEncoding('ascii');
-            process.stdin.once('data', function (data) {
-                fn(data.toString());
-            }).resume();
-        }
-    }
 
     function createApplicationAt(ph: string) {
         copy(path.join(__dirname, '../template'), ph);
@@ -245,6 +226,21 @@ function init() {
         });
     }
 
+}
+
+function confirm(msg: string, fn: (yes: boolean) => void) {
+    prompt(msg, function (val) {
+        val = val.trim().toLowerCase();
+        fn(val === "y" || val === "yes");
+    });
+    function prompt(msg: string, fn: (data: string) => void) {
+        console.log(msg);
+        process.stdin.setEncoding('ascii');
+        process.stdin.once('data', function (data) {
+            process.stdin.destroy();
+            fn(data.toString());
+        }).resume();
+    }
 }
 
 
@@ -427,40 +423,60 @@ function list(opts: any) {
 }
 
 function stop(opts: any) {
-    connectToMaster(opts.host, opts.port, opts.token, function (client) {
-        client.request({ "func": "stop" }, function (err) {
-            if (err) {
-                return abort(err);
-            }
-            abort("the application has stopped, please confirm!");
+    confirm('stop the server ? (y/n) [no]   ', (yes) => {
+        if (!yes) {
+            abort("[ canceled ]")
+            return;
+        }
+        connectToMaster(opts.host, opts.port, opts.token, function (client) {
+            client.request({ "func": "stop" }, function (err) {
+                if (err) {
+                    return abort(err);
+                }
+                abort("the application has stopped, please confirm!");
+            });
         });
-    });
+    })
+
 }
 
 function remove(opts: any) {
     if (opts.serverIds.length === 0) {
         return abort("no server input, please use `mydog remove server-id-1 server-id-2` ")
     }
-    connectToMaster(opts.host, opts.port, opts.token, function (client) {
-        client.request({ "func": "remove", "args": opts.serverIds }, function (err) {
-            if (err) {
-                return abort(err);
-            }
-            abort("the servers have been removed, please confirm!");
+    confirm(`remove server: ${opts.serverIds.join(" ")} ? (y/n) [no]   `, (yes) => {
+        if (!yes) {
+            abort("[ canceled ]")
+            return;
+        }
+        connectToMaster(opts.host, opts.port, opts.token, function (client) {
+            client.request({ "func": "remove", "args": opts.serverIds }, function (err) {
+                if (err) {
+                    return abort(err);
+                }
+                abort("the servers have been removed, please confirm!");
+            });
         });
     });
+
 }
 
 function removeT(opts: any) {
     if (opts.serverTypes.length === 0) {
         return abort("no serverType input, please use `mydog removeT gate connector` ")
     }
-    connectToMaster(opts.host, opts.port, opts.token, function (client) {
-        client.request({ "func": "removeT", "args": opts.serverTypes }, function (err) {
-            if (err) {
-                return abort(err);
-            }
-            abort("the serverTypes have been removed, please confirm!");
+    confirm(`remove serverType: ${opts.serverTypes.join(" ")} ? (y/n) [no]   `, (yes) => {
+        if (!yes) {
+            abort("[ canceled ]")
+            return;
+        }
+        connectToMaster(opts.host, opts.port, opts.token, function (client) {
+            client.request({ "func": "removeT", "args": opts.serverTypes }, function (err) {
+                if (err) {
+                    return abort(err);
+                }
+                abort("the serverTypes have been removed, please confirm!");
+            });
         });
     });
 }

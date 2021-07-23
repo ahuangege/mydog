@@ -3,7 +3,7 @@ import Application from "../application";
 import define = require("../util/define");
 import * as path from "path";
 import * as fs from "fs";
-import { loggerType, sessionCopyJson, I_clientSocket, I_clientManager, I_connectorConstructor, I_encodeDecodeConfig } from "../util/interfaceDefine";
+import { loggerType, sessionCopyJson, I_clientSocket, I_clientManager, I_connectorConstructor, I_encodeDecodeConfig, loggerLevel } from "../util/interfaceDefine";
 import { Session, initSessionApp } from "./session";
 import * as protocol from "../connector/protocol";
 
@@ -20,7 +20,7 @@ export class FrontendServer {
         let startCb = function () {
             let str = `listening at [${self.app.serverInfo.host}:${self.app.serverInfo.clientPort}]  ${self.app.serverId} (clientPort)`;
             console.log(str);
-            self.app.logger(loggerType.info, str);
+            self.app.logger(loggerType.frame, loggerLevel.info, str);
             cb && cb();
         };
         protocol.init(this.app);
@@ -118,7 +118,7 @@ class ClientManager implements I_clientManager {
 
     addClient(client: I_clientSocket) {
         if (client.session) {
-            this.app.logger(loggerType.warn, "frontendServer -> the I_client has already been added, close it");
+            this.app.logger(loggerType.frame, loggerLevel.warn, "frontendServer -> the I_client has already been added, close it");
             client.close();
             return;
         }
@@ -147,7 +147,7 @@ class ClientManager implements I_clientManager {
     handleMsg(client: I_clientSocket, msgBuf: Buffer) {
         try {
             if (!client.session) {
-                this.app.logger(loggerType.warn, "frontendServer -> cannot handle msg before added, close it");
+                this.app.logger(loggerType.frame, loggerLevel.warn, "frontendServer -> cannot handle msg before added, close it");
                 client.close();
                 return;
             }
@@ -163,7 +163,7 @@ class ClientManager implements I_clientManager {
                 this.doRemote(data, client.session, cmdArr);
             }
         } catch (e) {
-            this.app.logger(loggerType.error, e.stack);
+            this.app.logger(loggerType.msg, loggerLevel.error, e.stack);
         }
     }
 
@@ -192,7 +192,7 @@ class ClientManager implements I_clientManager {
         }
         let svr = this.app.serversIdMap[id];
         if (svr.serverType !== cmdArr[0] || svr.frontend) {
-            this.app.logger(loggerType.warn, "frontendServer -> illegal remote");
+            this.app.logger(loggerType.msg, loggerLevel.warn, "frontendServer -> illegal remote");
             return;
         }
         let sessionBuf = session.sessionBuf;

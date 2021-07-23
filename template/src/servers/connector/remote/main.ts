@@ -14,6 +14,6 @@ export default class Remote {
     }
 
     test(msg: string) {
-        console.log("rpcMsg", msg);
+        console.log("rpcMsg", msg)
     }
 }

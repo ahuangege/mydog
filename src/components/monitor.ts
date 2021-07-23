@@ -7,7 +7,7 @@ import Application from "../application";
 import { MonitorCli } from "./cliUtil";
 import { TcpClient } from "./tcpClient";
 import define = require("../util/define");
-import { SocketProxy, monitor_get_new_server, monitor_remove_server, loggerType, monitor_reg_master, ServerInfo } from "../util/interfaceDefine";
+import { SocketProxy, monitor_get_new_server, monitor_remove_server, loggerLevel, monitor_reg_master, ServerInfo, loggerType } from "../util/interfaceDefine";
 import { encodeInnerData } from "./msgCoder";
 import * as rpcClient from "./rpcClient";
 
@@ -41,7 +41,7 @@ export class monitor_client_proxy {
         let self = this;
         setTimeout(function () {
             let connectCb = function () {
-                self.app.logger(loggerType.info, "monitor -> connected to master success");
+                self.app.logger(loggerType.frame, loggerLevel.info, "monitor -> connected to master success");
 
                 // Register with the master
                 self.register();
@@ -49,7 +49,7 @@ export class monitor_client_proxy {
                 // Heartbeat package
                 self.heartbeat();;
             };
-            self.app.logger(loggerType.info, "monitor -> try to connect to master now");
+            self.app.logger(loggerType.frame, loggerLevel.info, "monitor -> try to connect to master now");
             self.socket = new TcpClient(self.app.masterConfig.port, self.app.masterConfig.host, define.some_config.SocketBufferMaxLen, false, connectCb);
             self.socket.on("data", self.onData.bind(self));
             self.socket.on("close", self.onClose.bind(self));
@@ -93,7 +93,7 @@ export class monitor_client_proxy {
      * closed
      */
     private onClose() {
-        this.app.logger(loggerType.error, "monitor -> socket closed, try to reconnect master later");
+        this.app.logger(loggerType.frame, loggerLevel.error, "monitor -> socket closed, try to reconnect master later");
         this.needDiff = true;
         this.removeDiffServers = {};
         clearTimeout(this.diffTimer);
@@ -126,7 +126,7 @@ export class monitor_client_proxy {
         }
         let self = this;
         this.heartbeatTimeoutTimer = setTimeout(function () {
-            self.app.logger(loggerType.error, "monitor -> heartbeat timeout, close the socket");
+            self.app.logger(loggerType.frame, loggerLevel.error, "monitor -> heartbeat timeout, close the socket");
             self.socket.close();
         }, define.some_config.Time.Monitor_Heart_Beat_Timeout_Time * 1000)
     }
