@@ -1,14 +1,19 @@
 
 import { connector, createApp, Session } from "mydog";
+import { getCpuUsage } from "./cpuUsage";
 let app = createApp();
 
-app.setConfig("connector", { "connector": connector.Ws, "clientOnCb": clientOnCb, "clientOffCb": clientOffCb });
+app.setConfig("connector", { "connector": connector.Ws, "clientOnCb": clientOnCb, "clientOffCb": clientOffCb, "interval": 50 });
 app.setConfig("encodeDecode", { "msgDecode": msgDecode, "msgEncode": msgEncode });
 app.setConfig("logger", (type, level, msg) => {
     if (level === "warn" || level === "error") {
         console.log(msg);
     }
 });
+app.setConfig("rpc", { "interval": 33 });
+app.setConfig("mydogList", () => {
+    return [{ "title": "cpu", "value": getCpuUsage() }]
+})
 
 app.start();
 
@@ -19,13 +24,13 @@ process.on("uncaughtException", function (err: any) {
 
 function msgDecode(cmd: number, msg: Buffer): any {
     let msgStr = msg.toString();
-    console.log("--->>>", app.routeConfig[cmd], msgStr);
+    console.log("↑ ", app.routeConfig[cmd], msgStr);
     return JSON.parse(msgStr);
 }
 
 function msgEncode(cmd: number, msg: any): Buffer {
     let msgStr = JSON.stringify(msg);
-    console.log("<<<---", app.routeConfig[cmd], msgStr);
+    console.log(" ↓", app.routeConfig[cmd], msgStr);
     return Buffer.from(msgStr);
 }
 

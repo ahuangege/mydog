@@ -12,6 +12,8 @@ export interface SocketProxy extends EventEmitter {
     maxLen: number;
     len: number;
     buffer: Buffer;
+    headLen: number;
+    headBuf: Buffer;
     close(): void;
     send(data: Buffer): void;
 }

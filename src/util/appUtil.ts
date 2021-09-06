@@ -212,7 +212,6 @@ function startPng(app: Application) {
     let version = require("../mydog").version;
     version = "Ver: " + version;
     console.log("      ");
-    console.log("      ");
     for (let i = 0; i < lines.length; i++) {
         if (i === 5) {
             let j;
@@ -227,6 +226,5 @@ function startPng(app: Application) {
         }
         console.log(lines[i]);
     }
-    console.log("  ");
     console.log("  ");
 }

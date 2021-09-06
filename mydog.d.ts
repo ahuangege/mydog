@@ -3,7 +3,7 @@
 /**
  * 
  * 官网: https://www.mydog.wiki
- * 版本: 2.2.3
+ * 版本: 2.3.0
  * 
  */
 
@@ -23,12 +23,11 @@ export let app: Application;
 export let version: string;
 
 /**
- * 三种内置的 connector
+ * 两种内置的 connector
  */
 export let connector: {
     Tcp: I_connectorConstructor,
     Ws: I_connectorConstructor,
-    Wss: I_connectorConstructor,
 }
 
 /**
@@ -92,7 +91,7 @@ export interface Application {
     readonly clientNum: number;
 
     /**
-     * rpc 调用
+     * rpc 调用，回调形式
      */
     readonly rpc: (serverId: string) => Rpc;
 

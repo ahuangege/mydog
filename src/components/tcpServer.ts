@@ -29,7 +29,10 @@ class NetSocket extends EventEmitter implements SocketProxy {
     socket: net.Socket;
     maxLen: number;
     len: number = 0;
-    buffer: Buffer = Buffer.allocUnsafe(0);
+    buffer: Buffer = null as any;
+    headLen = 0;
+    headBuf = Buffer.alloc(4);
+
     constructor(socket: net.Socket) {
         super();
         this.socket = socket;
@@ -48,11 +51,7 @@ class NetSocket extends EventEmitter implements SocketProxy {
             }
         });
         socket.on("data", (data: Buffer) => {
-            if (!this.die) {
-                decode(this, data);
-            } else {
-                this.close();
-            }
+            decode(this, data);
         });
     }
 

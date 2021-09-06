@@ -228,7 +228,7 @@ class rpc_create {
 
     proxyCbAwait(cmd: { "serverType": string, "file_method": string }) {
         let self = this;
-        let func = function (...args: any[]): Promise<any> | null {
+        let func = function (...args: any[]): Promise<any> | undefined {
             return self.sendAwait(self.toId, self.notify, cmd, args);
         }
         return func;
@@ -301,10 +301,10 @@ class rpc_create {
     }
 
 
-    sendAwait(sid: string, notify: boolean, cmd: { "serverType": string, "file_method": string }, args: any[]): Promise<any> | null {
+    sendAwait(sid: string, notify: boolean, cmd: { "serverType": string, "file_method": string }, args: any[]): Promise<any> | undefined {
         if (sid === "*") {
             this.sendTAwait(cmd, args);
-            return null;
+            return undefined;
         }
 
         let bufLast: Buffer = null as any;
@@ -317,14 +317,14 @@ class rpc_create {
 
         let socket = app.rpcPool.getSocket(sid);
         if (!socket) {
-            return null;
+            return undefined;
         }
 
         let rpcMsg: I_rpcMsg = {
             "cmd": cmd.file_method
         };
 
-        let promise: Promise<any> = null as any;
+        let promise: Promise<any> = undefined as any;
         if (!notify) {
             let cb: Function = null as any;
             promise = new Promise((resolve) => {
@@ -385,7 +385,7 @@ function checkTimeout() {
         if (rpcRequest[id].time < now) {
             let one = rpcRequest[id];
             delete rpcRequest[id];
-            one.await ? one.cb(null) : one.cb(rpcErr.timeout);
+            one.await ? one.cb(undefined) : one.cb(rpcErr.timeout);
         }
     }
 }
@@ -442,7 +442,7 @@ function sendRpcMsgToSelf(cmd: { "serverType": string, "file_method": string }, 
 /**
  * Send rpc message to this server await
  */
-function sendRpcMsgToSelfAwait(cmd: { "serverType": string, "file_method": string }, msgBuf: Buffer, bufLast: Buffer, notify: boolean): Promise<any> | null {
+function sendRpcMsgToSelfAwait(cmd: { "serverType": string, "file_method": string }, msgBuf: Buffer, bufLast: Buffer, notify: boolean): Promise<any> | undefined {
     let args = JSON.parse(msgBuf.toString());
     if (bufLast) {
         args.push(bufLast);
@@ -453,7 +453,7 @@ function sendRpcMsgToSelfAwait(cmd: { "serverType": string, "file_method": strin
             let file = msgHandler[route[0]];
             file[route[1]].apply(file, args);
         });
-        return null;
+        return undefined;
     }
 
     let cb: Function = null as any;
