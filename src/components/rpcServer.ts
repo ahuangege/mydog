@@ -59,7 +59,7 @@ class RpcServerSocket {
                 this.app.logger(loggerType.frame, loggerLevel.error, `rpcServer -> illegal rpc register, close the rpc socket: ${this.socket.remoteAddress}`);
                 this.socket.close();
             }
-        } catch (e) {
+        } catch (e: any) {
             this.socket.close();
             this.app.logger(loggerType.frame, loggerLevel.error, e.stack);
         }
@@ -95,7 +95,7 @@ class RpcServerSocket {
                 this.app.logger(loggerType.frame, loggerLevel.error, `rpcServer -> illegal data type, close rpc client named: ${this.id}`);
                 this.socket.close();
             }
-        } catch (e) {
+        } catch (e: any) {
             this.app.logger(loggerType.msg, loggerLevel.error, e.stack);
         }
     }
@@ -106,6 +106,7 @@ class RpcServerSocket {
     private onClose() {
         clearTimeout(this.registerTimer);
         clearTimeout(this.heartbeatTimer);
+        this.heartbeatTimer = null as any;
         clearInterval(this.sendTimer);
         this.sendArr = [];
         if (this.registered) {
@@ -180,16 +181,19 @@ class RpcServerSocket {
      * Heartbeat
      */
     private heartbeatHandle() {
-        let self = this;
-        clearTimeout(this.heartbeatTimer);
+        if (this.heartbeatTimer) {
+            this.heartbeatTimer.refresh();
+            return;
+        }
+
         let rpcConfig = this.app.someconfig.rpc || {};
         let heartbeat = rpcConfig.heartbeat || define.some_config.Time.Rpc_Heart_Beat_Time;
         if (heartbeat < 5) {
             heartbeat = 5;
         }
-        this.heartbeatTimer = setTimeout(function () {
-            self.app.logger(loggerType.frame, loggerLevel.warn, `rpcServer -> heartBeat time out, close it: ${self.id}`);
-            self.socket.close();
+        this.heartbeatTimer = setTimeout(() => {
+            this.app.logger(loggerType.frame, loggerLevel.warn, `rpcServer -> heartBeat time out, close it: ${this.id}`);
+            this.socket.close();
         }, heartbeat * 1000 * 2);
     }
 

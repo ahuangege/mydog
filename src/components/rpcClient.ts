@@ -123,20 +123,20 @@ export class RpcClientSocket {
      * Send heartbeat at regular intervals
      */
     private heartbeatSend() {
-        let self = this;
+
         let rpcConfig = this.app.someconfig.rpc || {};
         let heartbeat = rpcConfig.heartbeat || define.some_config.Time.Rpc_Heart_Beat_Time;
         let timeDelay = heartbeat * 1000 - 5000 + Math.floor(5000 * Math.random());
         if (timeDelay < 5000) {
             timeDelay = 5000;
         }
-        this.heartbeatTimer = setTimeout(function () {
+        this.heartbeatTimer = setTimeout(() => {
             let buf = Buffer.allocUnsafe(5);
             buf.writeUInt32BE(1, 0);
             buf.writeUInt8(define.Rpc_Msg.heartbeat, 4);
-            self.socket.send(buf);
-            self.heartbeatTimeoutStart();
-            self.heartbeatSend();
+            this.socket.send(buf);
+            this.heartbeatTimeoutStart();
+            this.heartbeatTimer.refresh();
         }, timeDelay);
     }
 
@@ -187,7 +187,7 @@ export class RpcClientSocket {
             else if (type === define.Rpc_Msg.heartbeat) {
                 this.heartbeatResponse();
             }
-        } catch (e) {
+        } catch (e: any) {
             this.app.logger(loggerType.msg, loggerLevel.error, e.stack);
         }
     }

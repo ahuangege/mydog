@@ -162,7 +162,7 @@ class ClientManager implements I_clientManager {
             } else {
                 this.doRemote(data, client.session, cmdArr);
             }
-        } catch (e) {
+        } catch (e: any) {
             this.app.logger(loggerType.msg, loggerLevel.error, e.stack);
         }
     }

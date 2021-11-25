@@ -131,4 +131,16 @@ export class Session {
             return "";
         }
     }
+
+    /** Send msg to client */
+    send(cmd: number, msg: any) {
+        if (!app.frontend || !this.socket) {
+            return;
+        }
+        if (msg === undefined) {
+            msg = null;
+        }
+        let msgBuf = app.protoEncode(cmd, msg);
+        this.socket.send(msgBuf);
+    }
 }

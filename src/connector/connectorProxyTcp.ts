@@ -134,6 +134,7 @@ class ClientSocket implements I_clientSocket {
         this.connector.nowConnectionNum--;
         clearTimeout(this.registerTimer);
         clearTimeout(this.heartbeatTimer);
+        this.heartbeatTimer = null as any;
         clearInterval(this.sendTimer);
         this.sendArr = [];
         this.clientManager.removeClient(this);
@@ -175,10 +176,13 @@ class ClientSocket implements I_clientSocket {
         if (this.connector.heartbeatTime === 0) {
             return;
         }
-        clearTimeout(this.heartbeatTimer);
-        this.heartbeatTimer = setTimeout(() => {
-            this.close();
-        }, this.connector.heartbeatTime * 2);
+        if (this.heartbeatTimer) {
+            this.heartbeatTimer.refresh();
+        } else {
+            this.heartbeatTimer = setTimeout(() => {
+                this.close();
+            }, this.connector.heartbeatTime * 2);
+        }
     }
 
     /**
@@ -210,6 +214,7 @@ class ClientSocket implements I_clientSocket {
      * close
      */
     close() {
+        this.sendInterval()
         this.socket.close();
     }
 }

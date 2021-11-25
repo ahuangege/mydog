@@ -2,7 +2,7 @@ mydog - a node.js game server
 ===========================
 
 ### Home
-<http://www.mydog.wiki>
+<https://www.mydog.wiki>
 
 ### Installation
 

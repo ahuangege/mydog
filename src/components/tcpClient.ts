@@ -17,6 +17,7 @@ export class TcpClient extends EventEmitter implements SocketProxy {
     buffer: Buffer = null as any;
     headLen = 0;
     headBuf = Buffer.alloc(4);
+    private onDataFunc: (data: Buffer) => void = null as any;
 
     constructor(port: number, host: string, maxLen: number, noDelay: boolean, connectCb: () => void) {
         super();
@@ -26,21 +27,28 @@ export class TcpClient extends EventEmitter implements SocketProxy {
         });
         this.socket.setNoDelay(noDelay);
         this.maxLen = maxLen;
-        this.socket.on("close", (err) => {
-            if (!this.die) {
-                this.die = true;
-                this.emit("close", err);
-            }
+
+        this.socket.on("close", () => {
+            this.onClose();
         });
         this.socket.on("error", (err) => {
-            if (!this.die) {
-                this.die = true;
-                this.emit("close", err);
-            }
+            this.onClose(err);
         });
-        this.socket.on("data", (data) => {
-            decode(this, data);
-        });
+
+        this.onDataFunc = this.onData.bind(this);
+        this.socket.on("data", this.onDataFunc);
+    }
+
+    private onClose(err?: Error) {
+        if (!this.die) {
+            this.die = true;
+            this.socket.off("data", this.onDataFunc);
+            this.emit("close", err);
+        }
+    }
+
+    private onData(data: Buffer) {
+        decode(this, data);
     }
 
     send(data: Buffer) {
@@ -48,7 +56,11 @@ export class TcpClient extends EventEmitter implements SocketProxy {
     }
 
     close() {
-        this.socket.destroy();
+        this.socket.end(() => {
+            setTimeout(() => {
+                this.socket.destroy();
+            }, 1000)
+        });
         this.socket.emit("close");
     }
 }

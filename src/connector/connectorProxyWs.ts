@@ -3,7 +3,7 @@ import { I_clientManager, I_clientSocket, SocketProxy, I_connectorConfig } from 
 import * as define from "../util/define";
 import { Session } from "../components/session";
 import { EventEmitter } from "events";
-import * as ws from "ws";
+import WebSocket, * as ws from "ws";
 import * as https from "https";
 import * as http from "http";
 import { some_config } from "../util/define";
@@ -136,6 +136,7 @@ class ClientSocket implements I_clientSocket {
         this.connector.nowConnectionNum--;
         clearTimeout(this.registerTimer);
         clearTimeout(this.heartbeatTimer);
+        this.heartbeatTimer = null as any;
         clearInterval(this.sendTimer);
         this.sendArr = [];
         this.clientManager.removeClient(this);
@@ -177,10 +178,13 @@ class ClientSocket implements I_clientSocket {
         if (this.connector.heartbeatTime === 0) {
             return;
         }
-        clearTimeout(this.heartbeatTimer);
-        this.heartbeatTimer = setTimeout(() => {
-            this.close();
-        }, this.connector.heartbeatTime * 2);
+        if (this.heartbeatTimer) {
+            this.heartbeatTimer.refresh();
+        } else {
+            this.heartbeatTimer = setTimeout(() => {
+                this.close();
+            }, this.connector.heartbeatTime * 2);
+        }
     }
 
     /**
@@ -212,6 +216,7 @@ class ClientSocket implements I_clientSocket {
      * close
      */
     close() {
+        this.sendInterval();
         this.socket.close();
     }
 }
@@ -246,36 +251,44 @@ function wsServer(port: number, config: I_connectorConfig, startCb: () => void, 
 class WsSocket extends EventEmitter implements SocketProxy {
     die: boolean = false;
     remoteAddress: string = "";
-    socket: any;
+    socket: WebSocket;
     maxLen: number = 0;
     len: number = 0;
     buffer: Buffer = null as any;
     headLen = 0;
     headBuf = Buffer.alloc(4);
-    constructor(socket: any, remoteAddress: string) {
+    private onDataFunc: (data: Buffer) => void = null as any;
+    constructor(socket: WebSocket, remoteAddress: string) {
         super();
         this.socket = socket;
         this.remoteAddress = remoteAddress;
-        socket.on("close", (err: any) => {
-            if (!this.die) {
-                this.die = true;
-                this.emit("close", err);
-            }
+
+        socket.on("close", () => {
+            this.onClose();
         });
         socket.on("error", (err: any) => {
-            if (!this.die) {
-                this.die = true;
-                this.emit("close", err);
-            }
+            this.onClose(err);
         });
-        socket.on("message", (data: Buffer) => {
-            let index = 0;
-            while (index < data.length) {
-                let msgLen = data.readUInt32BE(index);
-                this.emit("data", data.slice(index + 4, index + 4 + msgLen));
-                index += msgLen + 4;
-            }
-        });
+
+        this.onDataFunc = this.onData.bind(this);
+        socket.on("message", this.onDataFunc);
+    }
+
+    private onClose(err?: Error) {
+        if (!this.die) {
+            this.die = true;
+            this.socket.off("message", this.onDataFunc);
+            this.emit("close", err);
+        }
+    }
+
+    private onData(data: Buffer) {
+        let index = 0;
+        while (index < data.length) {
+            let msgLen = data.readUInt32BE(index);
+            this.emit("data", data.slice(index + 4, index + 4 + msgLen));
+            index += msgLen + 4;
+        }
     }
 
     send(data: Buffer) {

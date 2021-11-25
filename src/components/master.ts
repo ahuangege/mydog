@@ -197,11 +197,9 @@ export class Master_ServerProxy {
     }
 
     private heartbeatTimeout() {
-        let self = this;
-        clearTimeout(this.heartbeatTimeoutTimer);
-        this.heartbeatTimeoutTimer = setTimeout(function () {
-            app.logger(loggerType.frame, loggerLevel.error, `master -> heartbeat timeout, close the monitor named: ${self.sid}, ${self.socket.remoteAddress}`);
-            self.socket.close();
+        this.heartbeatTimeoutTimer = setTimeout(() => {
+            app.logger(loggerType.frame, loggerLevel.error, `master -> heartbeat timeout, close the monitor named: ${this.sid}, ${this.socket.remoteAddress}`);
+            this.socket.close();
         }, define.some_config.Time.Monitor_Heart_Beat_Time * 1000 * 2);
     }
 
@@ -228,12 +226,12 @@ export class Master_ServerProxy {
 
         try {
             if (data.T === define.Monitor_To_Master.heartbeat) {
-                this.heartbeatTimeout();
+                this.heartbeatTimeoutTimer.refresh();
                 this.heartbeatResponse();
             } else if (data.T === define.Monitor_To_Master.cliMsg) {
                 masterCli.deal_monitor_msg(data);
             }
-        } catch (err) {
+        } catch (err: any) {
             app.logger(loggerType.frame, loggerLevel.error, `master -> handle msg error, close it: ${this.sid}, ${this.socket.remoteAddress}\n${err.stack}`);
             this.socket.close();
         }
@@ -261,7 +259,7 @@ export class Master_ServerProxy {
  */
 export class Master_ClientProxy {
     private socket: SocketProxy;
-    private heartbeatTimer: NodeJS.Timeout = null as any;
+    private heartbeatTimeoutTimer: NodeJS.Timeout = null as any;
     constructor(socket: SocketProxy) {
         this.socket = socket;
         this.init();
@@ -280,11 +278,9 @@ export class Master_ClientProxy {
     }
 
     private heartbeatTimeOut() {
-        let self = this;
-        clearTimeout(this.heartbeatTimer);
-        this.heartbeatTimer = setTimeout(function () {
-            app.logger(loggerType.frame, loggerLevel.error, `master -> heartbeat timeout, close the cli: ${self.socket.remoteAddress}`);
-            self.socket.close();
+        this.heartbeatTimeoutTimer = setTimeout(() => {
+            app.logger(loggerType.frame, loggerLevel.error, `master -> heartbeat timeout, close the cli: ${this.socket.remoteAddress}`);
+            this.socket.close();
         }, define.some_config.Time.Monitor_Heart_Beat_Time * 1000 * 2);
     }
 
@@ -300,7 +296,7 @@ export class Master_ClientProxy {
 
         try {
             if (data.T === define.Cli_To_Master.heartbeat) {
-                this.heartbeatTimeOut();
+                this.heartbeatTimeoutTimer.refresh();
             } else if (data.T === define.Cli_To_Master.cliMsg) {
                 app.logger(loggerType.frame, loggerLevel.info, `master -> master get command from the cli: ${this.socket.remoteAddress} ==> ${JSON.stringify(data)}`);
                 masterCli.deal_cli_msg(this, data);
@@ -308,7 +304,7 @@ export class Master_ClientProxy {
                 app.logger(loggerType.frame, loggerLevel.error, `master -> the cli illegal data type close it: ${this.socket.remoteAddress}`);
                 this.socket.close();
             }
-        } catch (e) {
+        } catch (e: any) {
             app.logger(loggerType.frame, loggerLevel.error, `master -> cli handle msg err, close it: ${this.socket.remoteAddress}\n ${e.stack}`);
             this.socket.close();
         }
@@ -319,7 +315,7 @@ export class Master_ClientProxy {
     }
 
     private onClose() {
-        clearTimeout(this.heartbeatTimer);
+        clearTimeout(this.heartbeatTimeoutTimer);
         app.logger(loggerType.frame, loggerLevel.info, `master -> a cli disconnected: ${this.socket.remoteAddress}`);
     }
 }

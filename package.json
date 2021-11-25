@@ -1,28 +1,27 @@
 {
-  "_from": "mydog",
-  "_id": "mydog@2.2.3",
+  "_from": "mydog@^2.3.1",
+  "_id": "mydog@2.3.1",
   "_inBundle": false,
-  "_integrity": "sha512-19bCKx/Ik6aHRozfF37jvePsBIc4uMzK5WcIaJjePTBUEfpSjSqbwEvfRVuN5SeriURq/ZcyBUX6Z4VxMRqB8A==",
+  "_integrity": "sha512-B5d4URhuXOW5Hjfi10Z46gAXm0Dg5j9ieM1NfqjPKMo46iYfj11/PCtqiFOlAWzLe8ZbmP1OcYDu31kU7f2Cdw==",
   "_location": "/mydog",
   "_phantomChildren": {},
   "_requested": {
-    "type": "tag",
+    "type": "range",
     "registry": true,
-    "raw": "mydog",
+    "raw": "mydog@^2.3.1",
     "name": "mydog",
     "escapedName": "mydog",
-    "rawSpec": "",
+    "rawSpec": "^2.3.1",
     "saveSpec": null,
-    "fetchSpec": "latest"
+    "fetchSpec": "^2.3.1"
   },
   "_requiredBy": [
-    "#USER",
     "/"
   ],
-  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-2.2.3.tgz",
-  "_shasum": "8459b3b00d3c99ee0b85a7fc2ea145f73f56f129",
-  "_spec": "mydog",
-  "_where": "D:\\nodejs",
+  "_resolved": "https://registry.npmjs.org/mydog/-/mydog-2.3.1.tgz",
+  "_shasum": "b727a4fb64300f37577ac7aca18d2564f0187c2a",
+  "_spec": "mydog@^2.3.1",
+  "_where": "E:\\nodejs\\test\\server",
   "author": {
     "name": "ahuang"
   },
@@ -36,7 +35,6 @@
   "dependencies": {
     "@types/node": "^12.0.8",
     "@types/ws": "^6.0.1",
-    "commander": "^2.17.1",
     "ws": "^7.0.1"
   },
   "deprecated": false,
@@ -58,5 +56,5 @@
     "test": "echo \"Error: no test   specified\" && exit 1"
   },
   "types": "mydog.d.ts",
-  "version": "2.3.0"
+  "version": "2.3.1"
 }

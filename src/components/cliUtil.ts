@@ -70,7 +70,7 @@ export class MasterCli {
             num++;
             this.send_to_monitor(this.servers[sid], { "func": "list" }, cb)
         }
-        let titles = ["id", "serverType", "pid", "rss(M)", "upTime(d/h/m)"];
+        let titles = ["id", "serverType", "pid", "rss(M)", "upTime(d-h-m)"];
         let infos = getListInfo(this.app);
         let listFunc = this.app.someconfig.mydogList;
         if (typeof listFunc === "function") {
@@ -184,7 +184,7 @@ function formatTime(time: number) {
     var hours = Math.floor(time / 3600);
     time = time % 3600;
     var minutes = Math.ceil(time / 60);
-    return days + "/" + hours + "/" + minutes;
+    return days + "-" + hours + "-" + minutes;
 }
 
 

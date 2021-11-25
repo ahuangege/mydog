@@ -3,7 +3,7 @@
 /**
  * 
  * 官网: https://www.mydog.wiki
- * 版本: 2.3.0
+ * 版本: 2.3.1
  * 
  */
 
@@ -26,7 +26,15 @@ export let version: string;
  * 两种内置的 connector
  */
 export let connector: {
+
+    /**
+     * tcp socket
+     */
     Tcp: I_connectorConstructor,
+
+    /**
+     * websocket
+     */
     Ws: I_connectorConstructor,
 }
 
@@ -91,21 +99,21 @@ export interface Application {
     readonly clientNum: number;
 
     /**
+     * 启动服务器
+     */
+    start(): void;
+
+    /**
      * rpc 调用，回调形式
      */
-    readonly rpc: (serverId: string) => Rpc;
+    rpc: (serverId: string) => Rpc;
 
     /**
      * rpc 调用， await 形式
      * @param serverId 服务器id
      * @param notify 是否是通知类消息 （默认false）
      */
-    readonly rpcAwait: (serverId: string, notify?: boolean) => Rpc;
-
-    /**
-     * 启动服务器
-     */
-    start(): void;
+    rpcAwait: (serverId: string, notify?: boolean) => Rpc;
 
     /**
      * rpc 配置
@@ -214,6 +222,7 @@ export interface Application {
  * Session 类
  */
 export interface Session {
+
     /**
      * 绑定的 uid
      */
@@ -274,6 +283,10 @@ export interface Session {
      */
     getIp(): string;
 
+    /**
+     * 向客户端发送消息 （前端服调用）
+     */
+    send(cmd: number, msg: any): void;
 }
 
 /**
@@ -460,8 +473,17 @@ export interface I_connectorConstructor {
  * 客户端socket管理
  */
 export interface I_clientManager {
+    /** 
+     * 将客户端注册到框架中 
+     */
     addClient(client: I_clientSocket): void;
+    /**
+     * 处理客户端消息
+     */
     handleMsg(client: I_clientSocket, msg: Buffer): void;
+    /**
+     * 从框架中移除该客户端
+     */
     removeClient(client: I_clientSocket): void;
 }
 
@@ -470,20 +492,17 @@ export interface I_clientManager {
  */
 export interface I_clientSocket {
     /**
-     * session （注：框架内部赋值）
+     * session （注意：框架内部赋值）
      */
     readonly session: Session;
-
     /**
      * ip（session是从这里拿到的ip）
      */
     remoteAddress: string;
-
     /**
      * 发送消息
      */
     send(msg: Buffer): void;
-
     /**
      * 关闭
      */

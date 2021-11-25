@@ -32,35 +32,49 @@ class NetSocket extends EventEmitter implements SocketProxy {
     buffer: Buffer = null as any;
     headLen = 0;
     headBuf = Buffer.alloc(4);
+    private onDataFunc: (data: Buffer) => void = null as any;
 
     constructor(socket: net.Socket) {
         super();
         this.socket = socket;
         this.maxLen = some_config.SocketBufferMaxLenUnregister;
         this.remoteAddress = socket.remoteAddress as string;
-        socket.on("close", (err) => {
-            if (!this.die) {
-                this.die = true;
-                this.emit("close", err);
-            }
+
+        this.socket.on("close", () => {
+            this.onClose();
         });
-        socket.on("error", (err) => {
-            if (!this.die) {
-                this.die = true;
-                this.emit("close", err);
-            }
+        this.socket.on("error", (err) => {
+            this.onClose(err);
         });
-        socket.on("data", (data: Buffer) => {
-            decode(this, data);
-        });
+
+        this.onDataFunc = this.onData.bind(this);
+        this.socket.on("data", this.onDataFunc);
+
     }
+
+    private onClose(err?: Error) {
+        if (!this.die) {
+            this.die = true;
+            this.socket.off("data", this.onDataFunc);
+            this.emit("close", err);
+        }
+    }
+
+    private onData(data: Buffer) {
+        decode(this, data);
+    }
+
 
     send(data: Buffer) {
         this.socket.write(data);
     }
 
     close() {
-        this.socket.destroy();
+        this.socket.end(() => {
+            setTimeout(() => {
+                this.socket.destroy();
+            }, 1000)
+        });
         this.socket.emit("close");
     }
 }

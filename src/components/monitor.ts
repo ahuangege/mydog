@@ -107,13 +107,12 @@ export class monitor_client_proxy {
      * Send heartbeat
      */
     private heartbeat() {
-        let self = this;
         let timeDelay = define.some_config.Time.Monitor_Heart_Beat_Time * 1000 - 5000 + Math.floor(5000 * Math.random());
-        this.heartbeatTimer = setTimeout(function () {
+        this.heartbeatTimer = setTimeout(() => {
             let heartbeatMsg = { "T": define.Monitor_To_Master.heartbeat };
-            self.send(heartbeatMsg);
-            self.heartbeatTimeout();
-            self.heartbeat();
+            this.send(heartbeatMsg);
+            this.heartbeatTimeout();
+            this.heartbeatTimer.refresh();
         }, timeDelay)
     }
 

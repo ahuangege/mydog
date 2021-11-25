@@ -3,7 +3,7 @@ import { connector, createApp, Session } from "mydog";
 import { getCpuUsage } from "./cpuUsage";
 let app = createApp();
 
-app.setConfig("connector", { "connector": connector.Ws, "clientOnCb": clientOnCb, "clientOffCb": clientOffCb, "interval": 50 });
+app.setConfig("connector", { "connector": connector.Ws, "clientOnCb": clientOnCb, "heartbeat": 60, "clientOffCb": clientOffCb, "interval": 50 });
 app.setConfig("encodeDecode", { "msgDecode": msgDecode, "msgEncode": msgEncode });
 app.setConfig("logger", (type, level, msg) => {
     if (level === "warn" || level === "error") {
