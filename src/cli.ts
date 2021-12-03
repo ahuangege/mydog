@@ -20,6 +20,8 @@ class clientProxy {
     socket: TcpClient;
     token: string;
     connect_cb: Function;
+    private needAbort = true;
+    private heartbeatTimeout: NodeJS.Timeout = null as any;
     constructor(host: string, port: number, token: string, cb: Function) {
         this.token = token;
         this.connect_cb = cb;
@@ -38,7 +40,10 @@ class clientProxy {
         });
 
         this.socket.on("close", (err: any) => {
-            abort(err);
+            clearTimeout(this.heartbeatTimeout);
+            if (this.needAbort) {
+                abort(err);
+            }
         });
     }
 
@@ -56,7 +61,7 @@ class clientProxy {
 
     private heartbeat() {
         let self = this;
-        setTimeout(function () {
+        this.heartbeatTimeout = setTimeout(function () {
             let heartBeatMsg = { T: define.Cli_To_Master.heartbeat };
             let heartBeatMsg_buf = msgCoder.encodeInnerData(heartBeatMsg);
             self.socket.send(heartBeatMsg_buf);
@@ -64,7 +69,7 @@ class clientProxy {
         }, define.some_config.Time.Monitor_Heart_Beat_Time * 1000)
     }
 
-    request(msg: any, cb: (err: string, ...args: any[]) => void) {
+    request(msg: any, timeout: number, cb: (err: string, ...args: any[]) => void) {
         let reqId = this.reqId++;
         let data = { "T": define.Cli_To_Master.cliMsg, "reqId": reqId, "msg": msg };
         let buf = msgCoder.encodeInnerData(data);
@@ -76,13 +81,14 @@ class clientProxy {
             "timeOut": setTimeout(function () {
                 delete self.reqs[reqId];
                 cb("time out");
-            }, 10 * 1000)
+            }, timeout * 1000)
         };
 
     }
 
-    close() {
-        abort();
+    close(needAbort = true) {
+        this.needAbort = needAbort;
+        this.socket.close();
     }
 }
 
@@ -444,11 +450,28 @@ commond.addCommond({
     "name": "cmd",
     "des": "build cmd file",
     "options": [],
-    "usage": "mydog cmd ts [cs ...]",
+    "usage": "mydog cmd [ts cs ...]",
     "cb": (opts, argv) => {
         cmd(argv);
     }
 });
+
+commond.addCommond({
+    "name": "send",
+    "des": "send msg to mydog",
+    "options": [
+        { "opt": "-h", "name": "host", "des": "master server host", "mustNeed": false, "type": "string", "default": DEFAULT_MASTER_HOST },
+        { "opt": "-p", "name": "port", "des": "master server port", "mustNeed": false, "type": "number", "default": DEFAULT_MASTER_PORT },
+        { "opt": "-t", "name": "token", "des": "cli token", "mustNeed": false, "type": "string", "default": define.some_config.Cli_Token },
+        { "opt": "-id", "name": "serverId", "des": "serverId will get msg", "mustNeed": false, "type": "string" },
+        { "opt": "-svrT", "name": "serverType", "des": "serverType will get msg", "mustNeed": false, "type": "string" },
+    ],
+    "usage": "mydog send [-id id1,id2] [-svrT svrT1,svrT2] [argv0 argv1...]",
+    "cb": (opts: { "host": string, "port": number, "token": string, "serverId": string, "serverType": string }, argv) => {
+        send(opts, argv);
+    }
+});
+
 
 commond.parse();
 
@@ -581,7 +604,7 @@ function list(opts: { "host": string, "port": number, "token": string, "interval
         requestList();
         let rowNum = 0;
         function requestList() {
-            client.request({ "func": "list" }, function (err, msg: { "name": string, "env": string, "serverTypeSort": string[], "infoArr": string[][] }) {
+            client.request({ "func": "list" }, 10, function (err, msg: { "name": string, "env": string, "serverTypeSort": string[], "infoArr": string[][] }) {
                 if (err) {
                     return abort(err);
                 }
@@ -717,7 +740,7 @@ function stop(opts: { "host": string, "port": number, "token": string }) {
             return;
         }
         connectToMaster(opts.host, opts.port, opts.token, function (client) {
-            client.request({ "func": "stop" }, function (err) {
+            client.request({ "func": "stop" }, 3600, function (err) {
                 if (err) {
                     return abort(err);
                 }
@@ -738,7 +761,7 @@ function remove(opts: { "host": string, "port": number, "token": string, "server
             return;
         }
         connectToMaster(opts.host, opts.port, opts.token, function (client) {
-            client.request({ "func": "remove", "args": opts.serverIds }, function (err) {
+            client.request({ "func": "remove", "args": opts.serverIds }, 10, function (err) {
                 if (err) {
                     return abort(err);
                 }
@@ -759,7 +782,7 @@ function removeT(opts: { "host": string, "port": number, "token": string, "serve
             return;
         }
         connectToMaster(opts.host, opts.port, opts.token, function (client) {
-            client.request({ "func": "removeT", "args": opts.serverTypes }, function (err) {
+            client.request({ "func": "removeT", "args": opts.serverTypes }, 10, function (err) {
                 if (err) {
                     return abort(err);
                 }
@@ -771,11 +794,8 @@ function removeT(opts: { "host": string, "port": number, "token": string, "serve
 
 
 function cmd(lans: string[]) {
-    let cmdAll = lans.length === 0;
     let routePath = "config/sys/route.ts";
     let serverPath = "config/cmd.ts";
-    let clientPathCs = "config/CmdClient.cs"
-    let clientPathTs = "config/cmdClient.ts"
     let nowPath = process.cwd();
     let filepath = path.join(nowPath, routePath);
     if (!fs.existsSync(filepath)) {
@@ -847,32 +867,69 @@ function cmd(lans: string[]) {
     }
 
     function clientCmd() {
-        let endStrCs = 'public class Cmd\n{\n'
-        let endStrTs = 'export const enum cmd {\n'
-        for (let one of cmdObjArr) {
-            if (one.note) {
-                endStrCs += `\t/// <summary>\n\t/// ${one.note}\n\t/// </summary>\n`;
-                endStrTs += `\t/**\n\t * ${one.note}\n\t */\n`;
-            }
-            let oneStr = one.cmd;
-            if (one.cmd.indexOf('.') !== -1) {
-                let tmpArr = one.cmd.split('.');
-                oneStr = tmpArr[0] + '_' + tmpArr[1] + '_' + tmpArr[2];
-            }
-            endStrCs += `\tpublic const string ${oneStr} = "${one.cmd}";\n`;
-            endStrTs += `\t${oneStr} = "${one.cmd}",\n`;
+        let clipath = path.join(nowPath, "mydog_cli.js");
+        if (!fs.existsSync(clipath)) {
+            return;
         }
-
-        endStrCs += '}';
-        endStrTs += '}';
-        if (cmdAll || lans.includes("cs")) {
-            fs.writeFileSync(path.join(nowPath, clientPathCs), endStrCs);
-        }
-        if (cmdAll || lans.includes("ts")) {
-            fs.writeFileSync(path.join(nowPath, clientPathTs), endStrTs);
+        let file = require(path.join(nowPath, "mydog_cli.js"));
+        if (file.mydog_cmd && typeof file.mydog_cmd === "function") {
+            file.mydog_cmd(lans, cmdObjArr);
         }
     }
 
+}
+
+function send(opts: { "host": string, "port": number, "token": string, "serverId": string, "serverType": string }, argv: string[]) {
+    if (argv.length === 0) {
+        return abort("At least one argv is required");
+    }
+    let serverIds: string[] = [];
+    let serverTypes: string[] = [];
+    let endMsg: { "serverIds": string[], "serverTypes": string[], "argv": string[] } = {} as any;
+    if (opts.serverId) {
+        serverIds = opts.serverId.split(" ");
+        endMsg["serverIds"] = serverIds;
+    } else if (opts.serverType) {
+        serverTypes = opts.serverType.split(" ");
+        endMsg["serverTypes"] = serverTypes;
+    }
+    endMsg["argv"] = argv;
+    let msg = `sendMsg:
+{
+    "serverIds": ${JSON.stringify(serverIds)}
+    "serverTypes": ${JSON.stringify(serverTypes)}
+    "argv": ${JSON.stringify(argv)}
+}
+(y/n)[no] ?    `
+    confirm(msg, (yes) => {
+        if (!yes) {
+            abort("[ canceled ]")
+            return;
+        }
+        connectToMaster(opts.host, opts.port, opts.token, function (client) {
+            console.log();
+            client.request({ "func": "send", "args": endMsg }, 60, function (err, data: { "err": string, "timeoutIds": string[], "data": any[] }) {
+                client.close(false);
+                if (err) {
+                    return abort(err);
+                }
+                if (data.err) {
+                    return abort(data.err);
+                }
+                let clipath = path.join(process.cwd(), "mydog_cli.js");
+                if (!fs.existsSync(clipath)) {
+                    console.log(data);
+                    return;
+                }
+                let file = require(path.join(process.cwd(), "mydog_cli.js"));
+                if (file.mydog_send && typeof file.mydog_send === "function") {
+                    file.mydog_send(endMsg, data.timeoutIds, data.data);
+                } else {
+                    console.log(data);
+                }
+            });
+        });
+    });
 }
 
 

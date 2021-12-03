@@ -20,6 +20,7 @@ export class MasterCli {
     private servers: { [id: string]: Master_ServerProxy };
     private monitorRequests: { [reqId: number]: requset } = {};
     private reqId: number = 1;
+    private exiting = false;    // 进程是否正在退出
     constructor(app: Application, servers: { [id: string]: Master_ServerProxy }) {
         this.app = app;
         this.servers = servers;
@@ -46,7 +47,7 @@ export class MasterCli {
         }
     }
 
-    private send_to_monitor(socket: Master_ServerProxy, msg: any, cb?: Function) {
+    private send_to_monitor(socket: Master_ServerProxy, msg: { "func": string, "args"?: any }, timeout: number, cb?: Function) {
         let data = { "T": define.Master_To_Monitor.cliMsg, "msg": msg } as any;
         if (cb) {
             let _reqId = this.reqId++;
@@ -57,7 +58,7 @@ export class MasterCli {
                 "timeOut": setTimeout(function () {
                     delete self.monitorRequests[_reqId];
                     cb("time out");
-                }, 10 * 1000)
+                }, timeout * 1000)
             }
         }
         socket.send(data);
@@ -68,7 +69,7 @@ export class MasterCli {
         let num = 0;
         for (let sid in this.servers) {
             num++;
-            this.send_to_monitor(this.servers[sid], { "func": "list" }, cb)
+            this.send_to_monitor(this.servers[sid], { "func": "list" }, 10, cb)
         }
         let titles = ["id", "serverType", "pid", "rss(M)", "upTime(d-h-m)"];
         let infos = getListInfo(this.app);
@@ -111,31 +112,40 @@ export class MasterCli {
         let num = 0;
         for (let sid in this.servers) {
             num++;
-            this.send_to_monitor(this.servers[sid], { "func": "stop" }, cb);
         }
         if (num === 0) {
             cb("no server", null);
+            return;
         }
+
+        if (this.exiting) {
+            socket.send({ "reqId": reqId });
+            return;
+        }
+        this.exiting = true;
+
+        for (let sid in this.servers) {
+            this.send_to_monitor(this.servers[sid], { "func": "stop" }, 3600, cb);    // stop 会导致 master 也关闭，且master在其他服关闭后才能关闭，所以超时时间设为很久
+        }
+
         function cb(err: any, data: any) {
             num--;
             if (num <= 0) {
                 socket.send({ "reqId": reqId });
-                setTimeout(() => {
-                    process.exit();
-                }, 1000);
+                exitCall();
             }
         }
     }
 
 
-    private func_remove(reqId: number, socket: Master_ClientProxy, args: any) {
+    private func_remove(reqId: number, socket: Master_ClientProxy, args: string[]) {
         let num = 0;
         for (let i = 0; i < args.length; i++) {
             if (!this.servers[args[i]]) {
                 continue;
             }
             num++;
-            this.send_to_monitor(this.servers[args[i]], { "func": "remove" }, cb);
+            this.send_to_monitor(this.servers[args[i]], { "func": "remove" }, 10, cb);
         }
         if (num === 0) {
             cb("no server", null);
@@ -156,7 +166,7 @@ export class MasterCli {
                 continue;
             }
             num++;
-            this.send_to_monitor(one, { "func": "removeT" }, cb);
+            this.send_to_monitor(one, { "func": "removeT" }, 10, cb);
         }
         if (num === 0) {
             cb("no serverType", null);
@@ -168,6 +178,56 @@ export class MasterCli {
             }
         }
     }
+
+    private func_send(reqId: number, socket: Master_ClientProxy, args: { "serverIds": string[], "serverTypes": string[], "argv": string[] }) {
+        let okArr: Master_ServerProxy[] = [];
+        if (args.serverIds) {
+            for (let id of args.serverIds) {
+                if (this.servers[id]) {
+                    okArr.push(this.servers[id]);
+                }
+            }
+        } else if (args.serverTypes) {
+            for (let x in this.servers) {
+                let one = this.servers[x];
+                if (args.serverTypes.includes(one.serverType)) {
+                    okArr.push(one);
+                }
+            }
+        } else {
+            for (let x in this.servers) {
+                okArr.push(this.servers[x]);
+            }
+        }
+
+        if (okArr.length === 0) {
+            socket.send({
+                "reqId": reqId,
+                "msg": {
+                    "err": "no target serverIds"
+                }
+            });
+            return;
+        }
+
+        let num = okArr.length;
+        let endData: { "id": string, "serverType": string, "data": any }[] = [];
+        let timeoutIds: string[] = [];
+        for (let one of okArr) {
+            this.send_to_monitor(one, { "func": "send", "args": args.argv }, 60, (err: any, data: any) => {
+                if (err) {
+                    timeoutIds.push(one.sid);
+                } else {
+                    endData.push({ "id": one.sid, "serverType": one.serverType, "data": data });
+                }
+                num--;
+                if (num <= 0) {
+                    socket.send({ "reqId": reqId, "msg": { "err": "", "timeoutIds": timeoutIds, "data": endData } });
+                }
+            });
+        }
+    }
+
 
 }
 
@@ -191,6 +251,7 @@ function formatTime(time: number) {
 
 export class MonitorCli {
     private app: Application;
+    private exiting = false;    // 进程是否正在退出
     constructor(app: Application) {
         this.app = app;
     }
@@ -233,10 +294,20 @@ export class MonitorCli {
             "T": define.Monitor_To_Master.cliMsg,
             "reqId": reqId,
         };
-        this.send_to_master(socket, msg);
-        setTimeout(() => {
-            process.exit();
-        }, 1000);
+        if (this.exiting) {
+            return;
+        }
+        this.exiting = true;
+        let exitFunc = this.app.someconfig.onBeforeExit;
+        if (exitFunc) {
+            exitFunc(() => {
+                this.send_to_master(socket, msg);
+                exitCall();
+            });
+        } else {
+            this.send_to_master(socket, msg);
+            exitCall();
+        }
     }
 
     private func_remove(reqId: number, socket: monitor_client_proxy, args: any) {
@@ -245,9 +316,19 @@ export class MonitorCli {
             "reqId": reqId,
         };
         this.send_to_master(socket, msg);
-        setTimeout(() => {
-            process.exit();
-        }, 1000);
+        if (this.exiting) {
+            return;
+        }
+        this.exiting = true;
+        let exitFunc = this.app.someconfig.onBeforeExit;
+        if (exitFunc) {
+            exitFunc(() => {
+                exitCall();
+            });
+        } else {
+            exitCall();
+        }
+
     }
 
     private func_removeT(reqId: number, socket: monitor_client_proxy, args: any) {
@@ -256,8 +337,44 @@ export class MonitorCli {
             "reqId": reqId,
         };
         this.send_to_master(socket, msg);
-        setTimeout(() => {
-            process.exit();
-        }, 1000);
+        if (this.exiting) {
+            return;
+        }
+        this.exiting = true;
+        let exitFunc = this.app.someconfig.onBeforeExit;
+        if (exitFunc) {
+            exitFunc(() => {
+                exitCall();
+            });
+        } else {
+            exitCall();
+        }
     }
+
+    private func_send(reqId: number, socket: monitor_client_proxy, args: string[]) {
+        let msg = {
+            "T": define.Monitor_To_Master.cliMsg,
+            "reqId": reqId,
+            "msg": null,
+        };
+        let sendFunc = this.app.someconfig.onMydogSend;
+        if (sendFunc) {
+            sendFunc(args, (data) => {
+                if (data === undefined) {
+                    data = null;
+                }
+                msg.msg = data;
+                this.send_to_master(socket, msg);
+            });
+        } else {
+            this.send_to_master(socket, msg);
+        }
+    }
+}
+
+/** 进程 1s 后退出 */
+function exitCall() {
+    setTimeout(() => {
+        process.exit();
+    }, 1000);
 }

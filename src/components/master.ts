@@ -146,7 +146,7 @@ class UnregSocket_proxy {
  */
 export class Master_ServerProxy {
     private socket: SocketProxy;
-    private sid: string = "";
+    public sid: string = "";
     public serverType: string = "";
     private heartbeatTimeoutTimer: NodeJS.Timeout = null as any;
     constructor(data: monitor_reg_master, socket: SocketProxy) {

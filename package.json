@@ -21,7 +21,7 @@
   "_resolved": "https://registry.npmjs.org/mydog/-/mydog-2.3.1.tgz",
   "_shasum": "b727a4fb64300f37577ac7aca18d2564f0187c2a",
   "_spec": "mydog@^2.3.1",
-  "_where": "E:\\nodejs\\test\\server",
+  "_where": "E:\\mydog\\server",
   "author": {
     "name": "ahuang"
   },
@@ -56,5 +56,5 @@
     "test": "echo \"Error: no test   specified\" && exit 1"
   },
   "types": "mydog.d.ts",
-  "version": "2.3.1 "
+  "version": "2.3.2"
 }

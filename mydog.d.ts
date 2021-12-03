@@ -3,7 +3,7 @@
 /**
  * 
  * 官网: https://www.mydog.wiki
- * 版本: 2.3.1
+ * 版本: 2.3.2
  * 
  */
 
@@ -106,14 +106,14 @@ export interface Application {
     /**
      * rpc 调用，回调形式
      */
-    rpc: (serverId: string) => Rpc;
+    rpc(serverId: string): Rpc;
 
     /**
      * rpc 调用， await 形式
      * @param serverId 服务器id
      * @param notify 是否是通知类消息 （默认false）
      */
-    rpcAwait: (serverId: string, notify?: boolean) => Rpc;
+    rpcAwait(serverId: string, notify?: boolean): Rpc;
 
     /**
      * rpc 配置
@@ -143,7 +143,14 @@ export interface Application {
      * 自定义监控
      */
     setConfig(key: "mydogList", value: () => { "title": string, "value": string }[]): void;
-
+    /**
+     * 服务器关闭回调
+     */
+    setConfig(key: "onBeforeExit", value: (cb: () => void) => void): void;
+    /**
+     * 接收 mydog send 发来的消息
+     */
+    setConfig(key: "onMydogSend", value: (args: string[], cb: (data: any) => void) => void): void;
     /**
      * 设置键值对
      */

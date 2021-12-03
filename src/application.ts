@@ -80,13 +80,6 @@ export default class Application extends EventEmitter {
     }
 
 
-    setConfig(key: "rpc", value: I_rpcConfig): void
-    setConfig(key: "connector", value: I_connectorConfig): void
-    setConfig(key: "encodeDecode", value: Partial<I_encodeDecodeConfig>): void
-    setConfig(key: "ssh", value: string[]): void
-    setConfig(key: "recognizeToken", value: { "serverToken"?: string, "cliToken"?: string }): void
-    setConfig(key: "logger", value: (type: loggerType, level: loggerType, msg: string) => void): void
-    setConfig(key: "mydogList", value: () => { "title": string, "value": string }[]): void
     setConfig(key: keyof I_someConfig, value: any): void {
         this.someconfig[key] = value;
         if (key === "logger") {
