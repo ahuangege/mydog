@@ -13,7 +13,7 @@ let DEFAULT_MASTER_HOST = '127.0.0.1';
 let DEFAULT_MASTER_PORT = 3005;
 let FILEREAD_ERROR = 'Fail to read the file, please check if the application is started legally.';
 
-
+//#region  some class
 class clientProxy {
     reqId: number = 1;
     reqs: { [reqId: number]: { "cb": Function, "timeOut": NodeJS.Timer } } = {};
@@ -359,7 +359,10 @@ interface I_option {
     /** 默认值 */
     "default"?: number | string,
 }
+//#endregion
 
+
+//#region  add commond
 let commond = new Commond();
 commond.setNameVersion("mydog", version);
 
@@ -369,7 +372,7 @@ commond.addCommond({
     "options": [],
     "usage": "",
     "cb": () => {
-        init();
+        cli_init();
     }
 });
 
@@ -383,7 +386,7 @@ commond.addCommond({
     "usage": "mydog start -e env [serverId-1 ...]",
     "cb": (opts: { "env": string, "daemon": boolean, "serverIds": string[] }, argv) => {
         opts.serverIds = argv;
-        start(opts);
+        cli_start(opts);
     }
 });
 
@@ -398,7 +401,7 @@ commond.addCommond({
     ],
     "usage": "",
     "cb": (opts: { "host": string, "port": number, "token": string, "interval": number }) => {
-        list(opts);
+        cli_list(opts);
     }
 });
 
@@ -412,7 +415,7 @@ commond.addCommond({
     ],
     "usage": "",
     "cb": (opts: { "host": string, "port": number, "token": string }) => {
-        stop(opts);
+        cli_stop(opts);
     }
 });
 
@@ -427,7 +430,7 @@ commond.addCommond({
     "usage": "mydog remove serverId-1 [serverId-2 ...]",
     "cb": (opts: { "host": string, "port": number, "token": string, "serverIds": string[] }, argv) => {
         opts.serverIds = argv;
-        remove(opts);
+        cli_remove(opts);
     }
 });
 
@@ -442,7 +445,7 @@ commond.addCommond({
     "usage": "mydog removeT serverType-1 [serverType-2 ...]",
     "cb": (opts: { "host": string, "port": number, "token": string, "serverTypes": string[] }, argv) => {
         opts.serverTypes = argv;
-        removeT(opts);
+        cli_removeT(opts);
     }
 });
 
@@ -452,7 +455,7 @@ commond.addCommond({
     "options": [],
     "usage": "mydog cmd [ts cs ...]",
     "cb": (opts, argv) => {
-        cmd(argv);
+        cli_cmd(argv);
     }
 });
 
@@ -468,22 +471,17 @@ commond.addCommond({
     ],
     "usage": "mydog send [-id id1,id2] [-svrT svrT1,svrT2] [argv0 argv1...]",
     "cb": (opts: { "host": string, "port": number, "token": string, "serverId": string, "serverType": string }, argv) => {
-        send(opts, argv);
+        cli_send(opts, argv);
     }
 });
 
-
 commond.parse();
 
+//#endregion
 
 
-function abort(str: string = "") {
-    console.error(str);
-    process.exit(1);
-}
-
-
-function init() {
+//#region  some func
+function cli_init() {
     let pathStr = process.cwd();
     emptyDirectory(pathStr, function (empty) {
         if (empty) {
@@ -539,35 +537,27 @@ function init() {
 
 }
 
-function confirm(msg: string, fn: (yes: boolean) => void) {
-    prompt(msg, function (val) {
-        val = val.trim().toLowerCase();
-        fn(val === "y" || val === "yes");
-    });
-    function prompt(msg: string, fn: (data: string) => void) {
-        console.log(msg);
-        process.stdin.setEncoding('ascii');
-        process.stdin.once('data', function (data) {
-            process.stdin.destroy();
-            fn(data.toString());
-        }).resume();
-    }
-}
-
-
-function start(opts: { "env": string, "daemon": boolean, "serverIds": string[] }) {
+function cli_start(opts: { "env": string, "daemon": boolean, "serverIds": string[] }) {
 
     let absScript = path.resolve(process.cwd(), 'app.js');
     if (!fs.existsSync(absScript)) {
-        abort("  ->  Not find the script: " + absScript);
+        absScript = path.resolve(process.cwd(), '../dist/app.js');
+        if (!fs.existsSync(absScript)) {
+            abort("  ->  Not find the script: " + absScript);
+        }
     }
     opts.env = opts.env || "development";
     opts.daemon = !!opts.daemon;
     if (opts.serverIds.length === 0) {
         startSvr([absScript, 'env=' + opts.env, "daemon=" + opts.daemon]);
     } else {
-        for (let one of opts.serverIds) {
-            startSvr([absScript, 'env=' + opts.env, "daemon=" + opts.daemon, "id=" + one]);
+        let serverIds: string[] = [];
+        for (let id of opts.serverIds) {
+            serverIds.push(...parseServerId(id));
+        }
+        serverIds = Array.from(new Set(serverIds));
+        for (let id of serverIds) {
+            startSvr([absScript, 'env=' + opts.env, "daemon=" + opts.daemon, "id=" + id]);
         }
     }
 
@@ -594,7 +584,7 @@ function start(opts: { "env": string, "daemon": boolean, "serverIds": string[] }
 
 }
 
-function list(opts: { "host": string, "port": number, "token": string, "interval": number }) {
+function cli_list(opts: { "host": string, "port": number, "token": string, "interval": number }) {
     let interval = Math.ceil(opts.interval);
     if (interval < 1) {
         interval = 1;
@@ -733,7 +723,7 @@ function list(opts: { "host": string, "port": number, "token": string, "interval
 
 }
 
-function stop(opts: { "host": string, "port": number, "token": string }) {
+function cli_stop(opts: { "host": string, "port": number, "token": string }) {
     confirm('stop the server ? (y/n) [no]   ', (yes) => {
         if (!yes) {
             abort("[ canceled ]")
@@ -751,17 +741,22 @@ function stop(opts: { "host": string, "port": number, "token": string }) {
 
 }
 
-function remove(opts: { "host": string, "port": number, "token": string, "serverIds": string[] }) {
+function cli_remove(opts: { "host": string, "port": number, "token": string, "serverIds": string[] }) {
     if (opts.serverIds.length === 0) {
         return abort("no server input, please use like `mydog remove serverId-1 [serverId-2 ...]` ")
     }
-    confirm(`remove server: ${opts.serverIds.join(" ")} ? (y/n) [no]   `, (yes) => {
+    let serverIds: string[] = [];
+    for (let id of opts.serverIds) {
+        serverIds.push(...parseServerId(id));
+    }
+    serverIds = Array.from(new Set(serverIds));
+    confirm(`remove server: ${serverIds.join(" ")} ? (y/n) [no]   `, (yes) => {
         if (!yes) {
             abort("[ canceled ]")
             return;
         }
         connectToMaster(opts.host, opts.port, opts.token, function (client) {
-            client.request({ "func": "remove", "args": opts.serverIds }, 10, function (err) {
+            client.request({ "func": "remove", "args": serverIds }, 10, function (err) {
                 if (err) {
                     return abort(err);
                 }
@@ -772,10 +767,11 @@ function remove(opts: { "host": string, "port": number, "token": string, "server
 
 }
 
-function removeT(opts: { "host": string, "port": number, "token": string, "serverTypes": string[] }) {
+function cli_removeT(opts: { "host": string, "port": number, "token": string, "serverTypes": string[] }) {
     if (opts.serverTypes.length === 0) {
         return abort("no serverType input, please use like `mydog removeT serverType-1 [serverType-2 ...]` ")
     }
+    opts.serverTypes = Array.from(new Set(opts.serverTypes));
     confirm(`remove serverType: ${opts.serverTypes.join(" ")} ? (y/n) [no]   `, (yes) => {
         if (!yes) {
             abort("[ canceled ]")
@@ -793,7 +789,8 @@ function removeT(opts: { "host": string, "port": number, "token": string, "serve
 }
 
 
-function cmd(lans: string[]) {
+function cli_cmd(lans: string[]) {
+    lans = Array.from(new Set(lans));
     let routePath = "config/sys/route.ts";
     let serverPath = "config/cmd.ts";
     let nowPath = process.cwd();
@@ -879,21 +876,29 @@ function cmd(lans: string[]) {
 
 }
 
-function send(opts: { "host": string, "port": number, "token": string, "serverId": string, "serverType": string }, argv: string[]) {
+function cli_send(opts: { "host": string, "port": number, "token": string, "serverId": string, "serverType": string }, argv: string[]) {
     if (argv.length === 0) {
-        return abort("At least one argv is required");
+        return abort("cannot send empty msg");
+    }
+    for (let i = 0; i < argv.length; i++) {
+        argv[i] = argv[i].replace(/ /g, ",");
     }
     let serverIds: string[] = [];
     let serverTypes: string[] = [];
-    let endMsg: { "serverIds": string[], "serverTypes": string[], "argv": string[] } = {} as any;
+    let endMsg: { "serverIds": string[], "serverTypes": string[], "argv": string[] } = { "serverIds": [], "serverTypes": [], "argv": argv };
     if (opts.serverId) {
-        serverIds = opts.serverId.split(" ");
+        opts.serverId = opts.serverId.replace(/ /g, ",");
+        for (let id of opts.serverId.split(",")) {
+            serverIds.push(...parseServerId(id));
+        }
+        serverIds = Array.from(new Set(serverIds));
         endMsg["serverIds"] = serverIds;
-    } else if (opts.serverType) {
-        serverTypes = opts.serverType.split(" ");
+    }
+    if (opts.serverType) {
+        opts.serverType = opts.serverType.replace(/ /g, ",");
+        serverTypes = Array.from(new Set(opts.serverType.split(",")));
         endMsg["serverTypes"] = serverTypes;
     }
-    endMsg["argv"] = argv;
     let msg = `sendMsg:
 {
     "serverIds": ${JSON.stringify(serverIds)}
@@ -930,6 +935,75 @@ function send(opts: { "host": string, "port": number, "token": string, "serverId
             });
         });
     });
+}
+//#endregion
+
+
+function abort(str: string = "") {
+    console.error(str);
+    process.exit(1);
+}
+
+function confirm(msg: string, fn: (yes: boolean) => void) {
+    prompt(msg, function (val) {
+        val = val.trim().toLowerCase();
+        fn(val === "y" || val === "yes");
+    });
+    function prompt(msg: string, fn: (data: string) => void) {
+        console.log(msg);
+        process.stdin.setEncoding('ascii');
+        process.stdin.once('data', function (data) {
+            process.stdin.destroy();
+            fn(data.toString());
+        }).resume();
+    }
+}
+
+function parseServerId(id: string): string[] {
+    if (!id.includes("~")) {
+        return [id];
+    }
+    let arr = id.split("~");
+    if (arr.length !== 2) {
+        abort("cannot parse serverId: " + id);
+        return [];
+    }
+    let numArr: string[] = [];
+    for (let i = 0; i <= 9; i++) {
+        numArr.push(i.toString());
+    }
+    let startNumArr: string[] = [];
+    let idStartArr: string[] = [];
+    let getId = false;
+    let charArr = arr[0].split("");
+    for (let i = charArr.length - 1; i >= 0; i--) {
+        if (getId) {
+            idStartArr.unshift(charArr[i]);
+            continue;
+        }
+        if (numArr.includes(charArr[i])) {
+            startNumArr.unshift(charArr[i]);
+        } else {
+            idStartArr.unshift(charArr[i]);
+            getId = true;
+        }
+    }
+    let idStartStr = idStartArr.join("");
+    if (startNumArr.length == 0) {
+        abort("cannot parse serverId: " + id);
+        return [];
+    }
+    let startNum = parseInt(startNumArr.join(""));
+    let endNum = parseInt(arr[1]);
+    if (isNaN(startNum) || isNaN(endNum) || startNum > endNum) {
+        abort("cannot parse serverId: " + id);
+        return [];
+    }
+    let endIds: string[] = [];
+    for (let i = startNum; i <= endNum; i++) {
+        endIds.push(idStartStr + i);
+    }
+    return endIds;
 }
 
 

@@ -60,18 +60,11 @@ export interface sessionCopyJson {
  * Internal frame log level
  */
 export const enum loggerLevel {
+    debug = "debug",
     info = "info",
-    warn = "warn",
     error = "error"
 }
 
-/**
- * Internal frame log type
- */
-export const enum loggerType {
-    frame = "frame",
-    msg = "msg",
-}
 
 
 
@@ -104,7 +97,7 @@ export interface I_someConfig {
     "encodeDecode": I_encodeDecodeConfig,   // Codec configuration
     "ssh": string[],                // ssh configuration
     "recognizeToken": { "serverToken": string, "cliToken": string },    // Authentication key
-    "logger": (type: loggerType, level: loggerLevel, msg: string) => void,           // Internal log output
+    "logger": (level: loggerLevel, msg: string) => void,           // Internal log output
     "mydogList": () => { "title": string, "value": string }[],      // Custom monitoring
     "onBeforeExit": (cb: () => void) => void,       // beforeExit notice
     "onMydogSend": (args: string[], cb: (data: any) => void) => void,       // mydog send msg callback

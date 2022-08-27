@@ -16,9 +16,6 @@ export class BackendServer {
     private msgHandler: { [filename: string]: any } = {};
     constructor(app: Application) {
         this.app = app;
-    }
-
-    init() {
         initSessionApp(this.app);
         protocol.init(this.app);
         let defaultEncodeDecode: Required<I_encodeDecodeConfig> = protocol.default_encodeDecode;
@@ -30,7 +27,6 @@ export class BackendServer {
 
         this.loadHandler();
     }
-
 
     /**
      * Back-end server load routing processing

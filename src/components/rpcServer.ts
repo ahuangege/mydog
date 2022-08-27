@@ -1,8 +1,10 @@
 import Application from "..//application";
 import tcpServer from "../components/tcpServer";
-import { SocketProxy, loggerLevel, loggerType, } from "../util/interfaceDefine";
+import { SocketProxy, loggerLevel } from "../util/interfaceDefine";
 import * as define from "../util/define";
 import * as rpcService from "./rpcService";
+import * as path from "path";
+let meFilename = `[${path.basename(__filename, ".js")}.ts]`;
 
 let serverToken: string = "";
 let maxLen = 0;
@@ -16,7 +18,6 @@ export function start(app: Application, cb: () => void) {
     function startCb() {
         let str = `listening at [${app.serverInfo.host}:${app.serverInfo.port}]  ${app.serverId}`;
         console.log(str);
-        app.logger(loggerType.frame, loggerLevel.info, str);
         cb();
     }
 
@@ -44,7 +45,7 @@ class RpcServerSocket {
         socket.once("data", this.onRegisterData.bind(this));
         socket.on("close", this.onClose.bind(this));
         this.registerTimer = setTimeout(function () {
-            app.logger(loggerType.frame, loggerLevel.error, `rpcServer -> register timeout, close the rpc socket: ${socket.remoteAddress}`);
+            app.logger(loggerLevel.error, `${meFilename} register timeout, close the rpc socket: ${socket.remoteAddress}`);
             socket.close();
         }, 5000);
     }
@@ -56,12 +57,12 @@ class RpcServerSocket {
             if (type === define.Rpc_Msg.register) {
                 this.registerHandle(data);
             } else {
-                this.app.logger(loggerType.frame, loggerLevel.error, `rpcServer -> illegal rpc register, close the rpc socket: ${this.socket.remoteAddress}`);
+                this.app.logger(loggerLevel.error, `${meFilename} illegal rpc register, close the rpc socket: ${this.socket.remoteAddress}`);
                 this.socket.close();
             }
         } catch (e: any) {
             this.socket.close();
-            this.app.logger(loggerType.frame, loggerLevel.error, e.stack);
+            this.app.logger(loggerLevel.error, e);
         }
     }
 
@@ -92,11 +93,11 @@ class RpcServerSocket {
                 this.heartbeatResponse();
             }
             else {
-                this.app.logger(loggerType.frame, loggerLevel.error, `rpcServer -> illegal data type, close rpc client named: ${this.id}`);
+                this.app.logger(loggerLevel.error, `${meFilename} illegal data type, close rpc client named: ${this.id}`);
                 this.socket.close();
             }
         } catch (e: any) {
-            this.app.logger(loggerType.msg, loggerLevel.error, e.stack);
+            this.app.logger(loggerLevel.error, e.stack);
         }
     }
 
@@ -112,7 +113,7 @@ class RpcServerSocket {
         if (this.registered) {
             this.app.rpcPool.removeSocket(this.id);
         }
-        this.app.logger(loggerType.frame, loggerLevel.error, `rpcServer -> a rpc client disconnected: ${this.id}, ${this.socket.remoteAddress}`);
+        this.app.logger(loggerLevel.error, `${meFilename} a rpc client disconnected: ${this.id}, ${this.socket.remoteAddress}`);
     }
 
     /**
@@ -124,18 +125,18 @@ class RpcServerSocket {
         try {
             data = JSON.parse(msg.slice(1).toString());
         } catch (err) {
-            this.app.logger(loggerType.frame, loggerLevel.error, `rpcServer -> JSON parse error，close the rpc socket: ${this.socket.remoteAddress}`);
+            this.app.logger(loggerLevel.error, `${meFilename} JSON parse error，close the rpc socket: ${this.socket.remoteAddress}`);
             this.socket.close();
             return;
         }
 
         if (data.serverToken !== serverToken) {
-            this.app.logger(loggerType.frame, loggerLevel.error, `rpcServer -> illegal serverToken, close the rpc socket: ${this.socket.remoteAddress}`);
+            this.app.logger(loggerLevel.error, `${meFilename} illegal serverToken, close the rpc socket: ${this.socket.remoteAddress}`);
             this.socket.close();
             return;
         }
         if (this.app.rpcPool.getSocket(data.id)) {
-            this.app.logger(loggerType.frame, loggerLevel.error, `rpcServer -> already has a rpc client named: ${data.id}, close it, ${this.socket.remoteAddress}`);
+            this.app.logger(loggerLevel.error, `${meFilename} already has a rpc client named: ${data.id}, close it, ${this.socket.remoteAddress}`);
             this.socket.close();
             return;
         }
@@ -150,7 +151,7 @@ class RpcServerSocket {
         this.id = data.id;
         this.app.rpcPool.addSocket(this.id, this);
 
-        this.app.logger(loggerType.frame, loggerLevel.info, `rpcServer -> get new rpc client named: ${this.id}`);
+        this.app.logger(loggerLevel.debug, `${meFilename} get new rpc client named: ${this.id}`);
 
         // Determine whether to send messages regularly
         let rpcConfig = this.app.someconfig.rpc || {};
@@ -192,7 +193,7 @@ class RpcServerSocket {
             heartbeat = 5;
         }
         this.heartbeatTimer = setTimeout(() => {
-            this.app.logger(loggerType.frame, loggerLevel.warn, `rpcServer -> heartBeat time out, close it: ${this.id}`);
+            this.app.logger(loggerLevel.error, `${meFilename} heartBeat time out, close it: ${this.id}`);
             this.socket.close();
         }, heartbeat * 1000 * 2);
     }

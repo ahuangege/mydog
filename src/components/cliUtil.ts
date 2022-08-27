@@ -139,6 +139,7 @@ export class MasterCli {
 
 
     private func_remove(reqId: number, socket: Master_ClientProxy, args: string[]) {
+        args = Array.from(new Set(args));
         let num = 0;
         for (let i = 0; i < args.length; i++) {
             if (!this.servers[args[i]]) {
@@ -159,6 +160,7 @@ export class MasterCli {
     }
 
     private func_removeT(reqId: number, socket: Master_ClientProxy, args: string[]) {
+        args = Array.from(new Set(args));
         let num = 0;
         for (let x in this.servers) {
             let one = this.servers[x];
@@ -180,26 +182,29 @@ export class MasterCli {
     }
 
     private func_send(reqId: number, socket: Master_ClientProxy, args: { "serverIds": string[], "serverTypes": string[], "argv": string[] }) {
-        let okArr: Master_ServerProxy[] = [];
-        if (args.serverIds) {
+        let okArrSet: Set<Master_ServerProxy> = new Set();
+        if (args.serverIds.length) {
             for (let id of args.serverIds) {
                 if (this.servers[id]) {
-                    okArr.push(this.servers[id]);
+                    okArrSet.add(this.servers[id]);
                 }
             }
-        } else if (args.serverTypes) {
+        }
+        if (args.serverTypes.length) {
             for (let x in this.servers) {
                 let one = this.servers[x];
                 if (args.serverTypes.includes(one.serverType)) {
-                    okArr.push(one);
+                    okArrSet.add(one);
                 }
-            }
-        } else {
-            for (let x in this.servers) {
-                okArr.push(this.servers[x]);
             }
         }
 
+        if (args.serverIds.length === 0 && args.serverTypes.length === 0) {
+            for (let x in this.servers) {
+                okArrSet.add(this.servers[x]);
+            }
+        }
+        let okArr = Array.from(okArrSet);
         if (okArr.length === 0) {
             socket.send({
                 "reqId": reqId,

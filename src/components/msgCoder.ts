@@ -1,7 +1,9 @@
 
 import Application from "../application";
 import define = require("../util/define");
-import { loggerLevel, loggerType, SocketProxy } from "../util/interfaceDefine";
+import { loggerLevel, SocketProxy } from "../util/interfaceDefine";
+import * as path from "path";
+let meFilename = `[${path.basename(__filename, ".js")}.ts]`;
 
 let app: Application = null as any;
 export function msgCoderSetApp(_app: Application) {
@@ -22,7 +24,7 @@ export function decode(socket: SocketProxy, msg: Buffer) {
             if (socket.headLen === 4) {
                 socket.len = socket.headBuf.readUInt32BE(0);
                 if (socket.len > socket.maxLen || socket.len === 0) {
-                    app.logger(loggerType.frame, loggerLevel.error, "socket data length is longer then " + socket.maxLen + ", close it, " + socket.remoteAddress);
+                    app.logger(loggerLevel.error, `${meFilename} socket data length is wrong, close it, ${socket.remoteAddress}`);
                     socket.close();
                     return;
                 }

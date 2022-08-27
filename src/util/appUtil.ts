@@ -36,8 +36,9 @@ export function startServer(app: Application) {
         master.start(app);
     } else if (app.frontend) {
         rpcService.init(app);
+        app.frontendServer = new FrontendServer(app);
+
         rpcServer.start(app, function () {
-            app.frontendServer = new FrontendServer(app);
             app.frontendServer.start(function () {
                 monitor.start(app);
             });
@@ -45,9 +46,9 @@ export function startServer(app: Application) {
 
     } else {
         rpcService.init(app);
+        app.backendServer = new BackendServer(app);
+
         rpcServer.start(app, function () {
-            app.backendServer = new BackendServer(app);
-            app.backendServer.init();
             monitor.start(app);
         });
     }

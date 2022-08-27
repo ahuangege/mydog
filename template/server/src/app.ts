@@ -5,8 +5,8 @@ let app = createApp();
 
 app.setConfig("connector", { "connector": connector.Ws, "clientOnCb": clientOnCb, "heartbeat": 60, "clientOffCb": clientOffCb, "interval": 50 });
 app.setConfig("encodeDecode", { "msgDecode": msgDecode, "msgEncode": msgEncode });
-app.setConfig("logger", (type, level, msg) => {
-    if (level === "warn" || level === "error") {
+app.setConfig("logger", (level, msg) => {
+    if (level == "info" || level == "error") {
         console.log(msg);
     }
 });
@@ -14,6 +14,7 @@ app.setConfig("rpc", { "interval": 33 });
 app.setConfig("mydogList", () => {
     return [{ "title": "cpu", "value": getCpuUsage() }]
 })
+
 
 app.start();
 
@@ -42,3 +43,5 @@ function clientOnCb(session: Session) {
 function clientOffCb(session: Session) {
     console.log("one client off");
 }
+
+

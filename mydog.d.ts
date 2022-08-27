@@ -3,7 +3,7 @@
 /**
  * 
  * 官网: https://www.mydog.wiki
- * 版本: 2.3.2
+ * 版本: 2.3.3
  * 
  */
 
@@ -138,7 +138,7 @@ export interface Application {
     /**
      * 框架日志输出
      */
-    setConfig(key: "logger", value: (type: "frame" | "msg", level: "info" | "warn" | "error", msg: string) => void): void;
+    setConfig(key: "logger", value: (level: "debug" | "info" | "error", msg: string | Error) => void): void;
     /**
      * 自定义监控
      */

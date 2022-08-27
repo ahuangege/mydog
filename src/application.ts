@@ -4,7 +4,7 @@
 
 
 import * as path from "path"
-import { I_someConfig, loggerType, I_clientSocket, I_connectorConfig, I_encodeDecodeConfig, I_rpcConfig, ServerInfo, loggerLevel } from "./util/interfaceDefine";
+import { I_someConfig, I_clientSocket, I_connectorConfig, I_encodeDecodeConfig, I_rpcConfig, ServerInfo, loggerLevel } from "./util/interfaceDefine";
 import * as appUtil from "./util/appUtil";
 import { EventEmitter } from "events";
 import { RpcSocketPool } from "./components/rpcSocketPool";
@@ -49,7 +49,7 @@ export default class Application extends EventEmitter {
     rpcAwait: (serverId: string, notify: boolean) => Rpc = null as any;                      // Rpc await packaging
     rpcPool: RpcSocketPool = new RpcSocketPool();                                            // Rpc socket pool
 
-    logger: (type: loggerType, level: loggerLevel, msg: string) => void = function () { };                      // Internal msg log output
+    logger: (level: loggerLevel, err: Error | string) => void = function () { };                      // Internal msg log output
 
     msgEncode: Required<I_encodeDecodeConfig>["msgEncode"] = null as any;
     msgDecode: Required<I_encodeDecodeConfig>["msgDecode"] = null as any;
