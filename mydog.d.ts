@@ -3,9 +3,10 @@
 /**
  * 
  * 官网: https://www.mydog.wiki
- * 版本: 2.3.3
+ * 版本: 2.3.4
  * 
  */
+
 
 /**
  * 创建 app
@@ -219,8 +220,23 @@ export interface Application {
     configure(type: string, cb: () => void): void;
 
     /**
-     * 监听事件 （添加服务器，移除服务器）
+     * 消息处理前的一些前置工作
      */
+    before(filter: { "before": (cmd: number, msg: any, session: Session, cb: (hasError?: boolean) => void) => void }): void;
+
+    /**
+     * 消息处理后的一些后置工作
+     */
+    after(filter: { "after": (cmd: number, msg: any, session: Session, cb: () => void) => void }): void;
+
+    /**
+     * 消息刚达到网关服时的一些处理
+     */
+    globalBefore(filter: { "before": (info: { cmd: number, msg: Buffer }, session: Session, cb: (hasError?: boolean) => void) => void }): void
+
+    /** 服务器全部启动成功 */
+    on(event: "onStartAll", cb: () => void): void;
+    /** 服务器添加或移除 */
     on(event: "onAddServer" | "onRemoveServer", cb: (serverInfo: ServerInfo) => void): void;
 
 }
@@ -337,24 +353,6 @@ declare global {
 }
 
 /**
- * rpc 调用，内部错误码
- */
-export const enum rpcErr {
-    /**
-     * 成功
-     */
-    ok = 0,
-    /**
-     * 没有目标服务器
-     */
-    noServer = 1,
-    /**
-     * rpc 超时
-     */
-    timeout = 2
-}
-
-/**
  * 编码解码配置
  */
 interface I_encodeDecodeConfig {
@@ -413,10 +411,6 @@ interface I_connectorConfig {
      * 客户端离开通知
      */
     "clientOffCb"?: (session: Session) => void,
-    /**
-     * 消息过滤。返回true，则该消息会被丢弃。
-     */
-    "cmdFilter"?: (session: Session, cmd: number) => boolean,
 
     [key: string]: any,
 }
@@ -452,7 +446,11 @@ interface I_rpcConfig {
     /**
      * 不建立socket连接的矩阵
      */
-    "noRpcMatrix"?: { [serverType: string]: string[] }
+    "noRpcMatrix"?: { [serverType: string]: string[] },
+    /**
+     * rpc 消息缓存长度（默认 5000）
+     */
+    "msgCacheLength"?: number,
 }
 
 /**

@@ -13,7 +13,8 @@ export default class Remote {
     constructor(app: Application) {
     }
 
-    test(msg: string) {
-        console.log("rpcMsg", msg)
+    test(msg: string, cb: (err: boolean, data: string) => void) {
+        console.log("rpc get:", msg);
+        cb(false, "haha")
     }
 }

@@ -149,7 +149,6 @@ class RpcServerSocket {
         this.socket.on("data", this.onData.bind(this));
 
         this.id = data.id;
-        this.app.rpcPool.addSocket(this.id, this);
 
         this.app.logger(loggerLevel.debug, `${meFilename} get new rpc client named: ${this.id}`);
 
@@ -175,7 +174,7 @@ class RpcServerSocket {
         this.socket.send(buffer);
         this.heartbeatHandle();
 
-
+        this.app.rpcPool.addSocket(this.id, this);
     }
 
     /**

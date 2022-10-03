@@ -12,6 +12,7 @@ let version = require('../package.json').version;
 let DEFAULT_MASTER_HOST = '127.0.0.1';
 let DEFAULT_MASTER_PORT = 3005;
 let FILEREAD_ERROR = 'Fail to read the file, please check if the application is started legally.';
+let waitInterval: NodeJS.Timer = null as any;
 
 //#region  some class
 class clientProxy {
@@ -56,6 +57,7 @@ class clientProxy {
         let loginInfo_buf = msgCoder.encodeInnerData(loginInfo);
         this.socket.send(loginInfo_buf);
         this.heartbeat();
+        clearWait();
         this.connect_cb(this);
     }
 
@@ -628,9 +630,7 @@ function cli_list(opts: { "host": string, "port": number, "token": string, "inte
                     }
                 }
 
-                readline.cursorTo(process.stdout, 0);
-                readline.moveCursor(process.stdout, 0, -rowNum);
-                readline.clearScreenDown(process.stdout);
+                clearScreen(rowNum);
                 rowNum = endArr.length + 1;
                 mydogListPrint(msg.name, msg.env, endArr);
                 setTimeout(requestList, interval * 1000)
@@ -730,7 +730,9 @@ function cli_stop(opts: { "host": string, "port": number, "token": string }) {
             return;
         }
         connectToMaster(opts.host, opts.port, opts.token, function (client) {
+            waitMsg("connect ok! waiting");
             client.request({ "func": "stop" }, 3600, function (err) {
+                clearWait();
                 if (err) {
                     return abort(err);
                 }
@@ -756,7 +758,9 @@ function cli_remove(opts: { "host": string, "port": number, "token": string, "se
             return;
         }
         connectToMaster(opts.host, opts.port, opts.token, function (client) {
-            client.request({ "func": "remove", "args": serverIds }, 10, function (err) {
+            waitMsg("connect ok! waiting");
+            client.request({ "func": "remove", "args": serverIds }, 3600, function (err) {
+                clearWait();
                 if (err) {
                     return abort(err);
                 }
@@ -778,7 +782,9 @@ function cli_removeT(opts: { "host": string, "port": number, "token": string, "s
             return;
         }
         connectToMaster(opts.host, opts.port, opts.token, function (client) {
-            client.request({ "func": "removeT", "args": opts.serverTypes }, 10, function (err) {
+            waitMsg("connect ok! waiting");
+            client.request({ "func": "removeT", "args": opts.serverTypes }, 3600, function (err) {
+                clearWait();
                 if (err) {
                     return abort(err);
                 }
@@ -912,8 +918,10 @@ function cli_send(opts: { "host": string, "port": number, "token": string, "serv
             return;
         }
         connectToMaster(opts.host, opts.port, opts.token, function (client) {
-            console.log();
-            client.request({ "func": "send", "args": endMsg }, 60, function (err, data: { "err": string, "timeoutIds": string[], "data": any[] }) {
+            waitMsg("connect ok! waiting");
+            client.request({ "func": "send", "args": endMsg }, 600, function (err, data: { "err": string, "timeoutIds": string[], "data": any[] }) {
+                clearWait();
+                console.log();
                 client.close(false);
                 if (err) {
                     return abort(err);
@@ -1007,7 +1015,30 @@ function parseServerId(id: string): string[] {
 }
 
 
+function clearWait() {
+    clearInterval(waitInterval);
+}
+
+function waitMsg(msg: string) {
+    clearWait();
+    let index = 0;
+    console.log(msg);
+    waitInterval = setInterval(() => {
+        clearScreen(1);
+        console.log(msg + " " + ".".repeat(index));
+        index++;
+        index = index % 4;
+    }, 300)
+}
+
+function clearScreen(rowNum: number) {
+    readline.cursorTo(process.stdout, 0);
+    readline.moveCursor(process.stdout, 0, -rowNum);
+    readline.clearScreenDown(process.stdout);
+}
+
+
 function connectToMaster(host: string, port: number, token: string, cb: (client: clientProxy) => void) {
-    console.log("try to connect  " + host + ":" + port);
+    waitMsg("connecting " + host + ":" + port);
     let client = new clientProxy(host, port, token, cb);
 }

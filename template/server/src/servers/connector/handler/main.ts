@@ -8,6 +8,10 @@ export default class Handler {
 
     ping(msg: { "msg": string }, session: Session, next: Function) {
         next({ "msg": "pong" });
-        this.app.rpc("*").connector.main.test(msg.msg);
+
+        console.log("start rpc")
+        this.app.rpc("connector-server-1").connector.main.test(msg.msg, (err, data) => {
+            console.log("end rpc:", err, data);
+        });
     }
 }

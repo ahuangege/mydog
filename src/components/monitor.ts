@@ -12,6 +12,8 @@ import { encodeInnerData } from "./msgCoder";
 import * as rpcClient from "./rpcClient";
 import * as path from "path";
 let meFilename = `[${path.basename(__filename, ".js")}.ts]`;
+let serverIdsArr: string[] = [];
+let hasStartAll = false;
 
 export function start(_app: Application) {
     new monitor_client_proxy(_app);
@@ -33,6 +35,15 @@ export class monitor_client_proxy {
         this.app = app;
         this.monitorCli = new MonitorCli(app);
         this.doConnect(0);
+
+        let serversConfig = app.serversConfig;
+        for (let x in serversConfig) {
+            let arr = serversConfig[x];
+            for (let one of arr) {
+                serverIdsArr.push(one.id);
+            }
+        }
+        removeFromArr(serverIdsArr, app.serverId);
     }
 
     /**
@@ -259,6 +270,16 @@ export class monitor_client_proxy {
         process.nextTick(() => {
             this.app.emit("onAddServer", serverInfo);
         });
+
+        if (!hasStartAll) {
+            removeFromArr(serverIdsArr, serverInfo.id);
+            if (serverIdsArr.length === 0) {
+                hasStartAll = true;
+                process.nextTick(() => {
+                    this.app.emit("onStartAll");
+                });
+            }
+        }
     }
 
     /**
@@ -272,3 +293,9 @@ export class monitor_client_proxy {
 }
 
 
+function removeFromArr<T = any>(arr: T[], one: T) {
+    let index = arr.indexOf(one);
+    if (index !== -1) {
+        arr.splice(index, 1);
+    }
+}

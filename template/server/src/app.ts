@@ -1,6 +1,7 @@
 
 import { connector, createApp, Session } from "mydog";
 import { getCpuUsage } from "./cpuUsage";
+
 let app = createApp();
 
 app.setConfig("connector", { "connector": connector.Ws, "clientOnCb": clientOnCb, "heartbeat": 60, "clientOffCb": clientOffCb, "interval": 50 });
@@ -13,8 +14,7 @@ app.setConfig("logger", (level, msg) => {
 app.setConfig("rpc", { "interval": 33 });
 app.setConfig("mydogList", () => {
     return [{ "title": "cpu", "value": getCpuUsage() }]
-})
-
+});
 
 app.start();
 
@@ -43,5 +43,4 @@ function clientOnCb(session: Session) {
 function clientOffCb(session: Session) {
     console.log("one client off");
 }
-
 

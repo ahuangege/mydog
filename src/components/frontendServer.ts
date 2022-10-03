@@ -87,7 +87,6 @@ class ClientManager implements I_clientManager {
     private router: { [serverType: string]: (session: Session) => string };
     private clientOnCb: (session: Session) => void = null as any;
     private clientOffCb: (session: Session) => void = null as any;
-    private cmdFilter: (session: Session, cmd: number) => boolean = null as any;
     constructor(app: Application) {
         this.app = app;
         this.serverType = app.serverType;
@@ -95,7 +94,6 @@ class ClientManager implements I_clientManager {
         let connectorConfig = this.app.someconfig.connector || {};
         this.clientOnCb = connectorConfig.clientOnCb || clientOnOffCb;
         this.clientOffCb = connectorConfig.clientOffCb || clientOnOffCb;
-        this.cmdFilter = connectorConfig.cmdFilter as any || null;
         this.loadHandler();
     }
 
@@ -157,16 +155,24 @@ class ClientManager implements I_clientManager {
                 return;
             }
             let data = this.app.protoDecode(msgBuf);
-            if (this.cmdFilter && this.cmdFilter(client.session, data.cmd)) {
-                return;
-            }
-            let cmdArr = this.app.routeConfig2[data.cmd];
-            if (this.serverType === cmdArr[0]) {
-                let msg = this.app.msgDecode(data.cmd, data.msg);
-                this.msgHandler[cmdArr[1]][cmdArr[2]](msg, client.session, this.callBack(client, data.cmd));
-            } else {
-                this.doRemote(data, client.session, cmdArr);
-            }
+
+            this.app.filter.globalBeforeFilter(data, client.session, (hasError) => {
+                if (hasError) {
+                    return;
+                }
+                let cmdArr = this.app.routeConfig2[data.cmd];
+                if (this.serverType === cmdArr[0]) {
+                    let msg = this.app.msgDecode(data.cmd, data.msg);
+                    this.app.filter.beforeFilter(data.cmd, msg, client.session, (hasError) => {
+                        if (hasError) {
+                            return;
+                        }
+                        this.msgHandler[cmdArr[1]][cmdArr[2]](msg, client.session, this.callBack(client, data.cmd));
+                    });
+                } else {
+                    this.doRemote(data, client.session, cmdArr);
+                }
+            });
         } catch (e: any) {
             this.app.logger(loggerLevel.error, e);
         }
@@ -183,6 +189,7 @@ class ClientManager implements I_clientManager {
             }
             let buf = self.app.protoEncode(cmd, msg);
             client.send(buf);
+            self.app.filter.afterFilter(cmd, msg, client.session);
         }
     }
 

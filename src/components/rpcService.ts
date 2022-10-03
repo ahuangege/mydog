@@ -4,12 +4,11 @@
 
 
 import Application from "../application";
-import { I_rpcTimeout, I_rpcMsg, ServerInfo, rpcErr } from "../util/interfaceDefine";
+import { I_rpcTimeout, I_rpcMsg, ServerInfo } from "../util/interfaceDefine";
 import * as path from "path";
 import * as fs from "fs";
 import define = require("../util/define");
 import * as appUtil from "../util/appUtil";
-import { I_RpcSocket } from "./rpcSocketPool";
 
 let app: Application;
 let msgHandler: { [filename: string]: any } = {};
@@ -17,7 +16,8 @@ let rpcId = 1;  // Must start from 1, not 0
 let rpcRequest: { [id: number]: I_rpcTimeout } = {};
 let rpcTimeMax: number = 10 * 1000; //overtime time
 let outTime = 0;    // Current time + timeout
-
+let msgQueueDic: { [serverId: string]: { "rpcTimeout": I_rpcTimeout | null, "buf": Buffer, "time": number }[] } = {};
+let msgCacheLength = 5000;
 
 /**
  * init
@@ -26,18 +26,35 @@ let outTime = 0;    // Current time + timeout
 export function init(_app: Application) {
     app = _app;
     let rpcConfig = app.someconfig.rpc || {};
+    let cacheLen = parseInt(rpcConfig.msgCacheLength as any);
+    if (cacheLen >= 0) {
+        msgCacheLength = cacheLen;
+    }
+
     let timeout = Number(rpcConfig.timeout) || 0;
     if (timeout >= 5) {
         rpcTimeMax = timeout * 1000;
     }
 
+
     outTime = Date.now() + rpcTimeMax;
     setInterval(() => {
         outTime = Date.now() + rpcTimeMax;
     }, 100);
-    setInterval(checkTimeout, 3000);
+    setInterval(checkTimeout, 2000);
 
     new rpc_create();
+}
+
+export function rpcOnNewSocket(sid: string) {
+    let queue = msgQueueDic[sid];
+    if (!queue) {
+        return;
+    }
+    for (let one of queue) {
+        sendTo(sid, one.rpcTimeout, one.buf);
+    }
+    queue.length = 0;
 }
 
 
@@ -107,22 +124,20 @@ export function handleMsgAwait(sid: string, bufAll: Buffer) {
         }
 
         function cbFunc(data: any) {
-            let socket = app.rpcPool.getSocket(sid);
-            if (!socket) {
-                return;
-            }
             if (data === undefined) {
                 data = null;
             }
+            let bufEnd: Buffer;
             if (data instanceof Buffer) {
-                socket.send(getRpcMsg({ "id": rpcMsg.id }, Buffer.allocUnsafe(0), data, define.Rpc_Msg.rpcMsgAwait));
+                bufEnd = getRpcMsg({ "id": rpcMsg.id }, Buffer.allocUnsafe(0), data, define.Rpc_Msg.rpcMsgAwait);
             } else if (data instanceof Array && data[data.length - 1] instanceof Buffer) {
                 let tmpRes = [...data];
                 let buf: Buffer = tmpRes.pop();
-                socket.send(getRpcMsg({ "id": rpcMsg.id }, Buffer.from(JSON.stringify(tmpRes)), buf, define.Rpc_Msg.rpcMsgAwait));
+                bufEnd = getRpcMsg({ "id": rpcMsg.id }, Buffer.from(JSON.stringify(tmpRes)), buf, define.Rpc_Msg.rpcMsgAwait);
             } else {
-                socket.send(getRpcMsg({ "id": rpcMsg.id }, Buffer.from(JSON.stringify(data)), null as any, define.Rpc_Msg.rpcMsgAwait));
+                bufEnd = getRpcMsg({ "id": rpcMsg.id }, Buffer.from(JSON.stringify(data)), null as any, define.Rpc_Msg.rpcMsgAwait);
             }
+            sendTo(sid, null, bufEnd);
         }
 
     }
@@ -256,25 +271,16 @@ class rpc_create {
             return;
         }
 
-        let socket = app.rpcPool.getSocket(sid);
-        if (!socket) {
-            if (cb) {
-                process.nextTick(() => {
-                    cb(rpcErr.noServer);
-                });
-            }
-            return;
-        }
-
         let rpcMsg: I_rpcMsg = {
             "cmd": cmd.file_method
         };
+        let rpcTimeout: I_rpcTimeout = null as any;
         if (cb) {
-            let id = getRpcId();
-            rpcRequest[id] = { "cb": cb, "time": outTime, "await": false };
-            rpcMsg.id = id;
+            rpcTimeout = { "id": getRpcId(), "cb": cb, "time": outTime, "await": false };
+            rpcMsg.id = rpcTimeout.id;
         }
-        socket.send(getRpcMsg(rpcMsg, Buffer.from(JSON.stringify(args)), bufLast, define.Rpc_Msg.rpcMsg));
+        let bufEnd = getRpcMsg(rpcMsg, Buffer.from(JSON.stringify(args)), bufLast, define.Rpc_Msg.rpcMsg);
+        sendTo(sid, rpcTimeout, bufEnd);
     }
 
     sendT(cmd: { "serverType": string, "file_method": string }, args: any[]) {
@@ -294,8 +300,7 @@ class rpc_create {
             if (one.id === app.serverId) {
                 sendRpcMsgToSelf(cmd, msgBuf, bufLast);
             } else {
-                let socket = app.rpcPool.getSocket(one.id);
-                socket && socket.send(bufEnd);
+                sendTo(one.id, null, bufEnd);
             }
         }
     }
@@ -315,26 +320,22 @@ class rpc_create {
             return sendRpcMsgToSelfAwait(cmd, Buffer.from(JSON.stringify(args)), bufLast, notify);
         }
 
-        let socket = app.rpcPool.getSocket(sid);
-        if (!socket) {
-            return undefined;
-        }
-
         let rpcMsg: I_rpcMsg = {
             "cmd": cmd.file_method
         };
 
         let promise: Promise<any> = undefined as any;
+        let rpcTimeout: I_rpcTimeout = null as any;
         if (!notify) {
             let cb: Function = null as any;
             promise = new Promise((resolve) => {
                 cb = resolve;
             });
-            let id = getRpcId();
-            rpcRequest[id] = { "cb": cb, "time": outTime, "await": true };
-            rpcMsg.id = id;
+            rpcTimeout = { "id": getRpcId(), "cb": cb, "time": outTime, "await": true };
+            rpcMsg.id = rpcTimeout.id;
         }
-        socket.send(getRpcMsg(rpcMsg, Buffer.from(JSON.stringify(args)), bufLast, define.Rpc_Msg.rpcMsgAwait));
+        let bufEnd = getRpcMsg(rpcMsg, Buffer.from(JSON.stringify(args)), bufLast, define.Rpc_Msg.rpcMsgAwait);
+        sendTo(sid, rpcTimeout, bufEnd);
         return promise;
     }
 
@@ -355,8 +356,7 @@ class rpc_create {
             if (one.id === app.serverId) {
                 sendRpcMsgToSelfAwait(cmd, msgBuf, bufLast, true);
             } else {
-                let socket = app.rpcPool.getSocket(one.id);
-                socket && socket.send(bufEnd);
+                sendTo(one.id, null, bufEnd);
             }
         }
     }
@@ -364,13 +364,37 @@ class rpc_create {
 }
 
 
+function sendTo(sid: string, rpcTimeout: I_rpcTimeout | null, buf: Buffer) {
+    let socket = app.rpcPool.getSocket(sid);
+    if (socket) {
+        if (rpcTimeout) {
+            rpcRequest[rpcTimeout.id] = rpcTimeout;
+        }
+        socket.send(buf);
+        return;
+    }
+    let queue = msgQueueDic[sid];
+    if (!queue) {
+        queue = [];
+        msgQueueDic[sid] = queue;
+    }
+
+    if (queue.length < msgCacheLength) {
+        queue.push({ "rpcTimeout": rpcTimeout, "buf": buf, "time": outTime - 3000 });
+    } else if (rpcTimeout) {
+        process.nextTick(() => {
+            rpcTimeout.await ? rpcTimeout.cb(undefined) : rpcTimeout.cb(true);
+        });
+    }
+}
+
 
 /**
  * Get rpcId
  */
 function getRpcId() {
     let id = rpcId++;
-    if (rpcId > 9999999) {
+    if (rpcId > 99999999) {
         rpcId = 1;
     }
     return id;
@@ -381,11 +405,25 @@ function getRpcId() {
  */
 function checkTimeout() {
     let now = Date.now();
+
+    for (let sid in msgQueueDic) {
+        let queue = msgQueueDic[sid];
+        for (let one of queue) {
+            if (now < one.time) {
+                break;
+            }
+            queue.shift();
+            if (one.rpcTimeout) {
+                one.rpcTimeout.await ? one.rpcTimeout.cb(undefined) : one.rpcTimeout.cb(true);
+            }
+        }
+    }
+
     for (let id in rpcRequest) {
         if (rpcRequest[id].time < now) {
             let one = rpcRequest[id];
             delete rpcRequest[id];
-            one.await ? one.cb(undefined) : one.cb(rpcErr.timeout);
+            one.await ? one.cb(undefined) : one.cb(true);
         }
     }
 }
@@ -427,7 +465,7 @@ function sendRpcMsgToSelf(cmd: { "serverType": string, "file_method": string }, 
     }
     if (cb) {
         let id = getRpcId();
-        rpcRequest[id] = { "cb": cb, "time": outTime, "await": false };
+        rpcRequest[id] = { "id": id, "cb": cb, "time": outTime, "await": false };
         args.push(getCallBackFuncSelf(id));
     }
 
@@ -462,7 +500,7 @@ function sendRpcMsgToSelfAwait(cmd: { "serverType": string, "file_method": strin
     });
 
     let id = getRpcId();
-    rpcRequest[id] = { "cb": cb, "time": outTime, "await": true };
+    rpcRequest[id] = { "id": id, "cb": cb, "time": outTime, "await": true };
 
     process.nextTick(() => {
         let route = cmd.file_method.split('.');
@@ -511,10 +549,8 @@ function getCallBackFunc(sid: string, id: number) {
         if (args[args.length - 1] instanceof Buffer) {
             bufLast = args.pop();
         }
-        let socket = app.rpcPool.getSocket(sid);
-        if (socket) {
-            socket.send(getRpcMsg({ "id": id }, Buffer.from(JSON.stringify(args)), bufLast, define.Rpc_Msg.rpcMsg));
-        }
+        let bufEnd = getRpcMsg({ "id": id }, Buffer.from(JSON.stringify(args)), bufLast, define.Rpc_Msg.rpcMsg);
+        sendTo(sid, null, bufEnd);
     }
 }
 

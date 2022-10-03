@@ -11,6 +11,7 @@ import { RpcSocketPool } from "./components/rpcSocketPool";
 import { FrontendServer } from "./components/frontendServer";
 import { BackendServer } from "./components/backendServer";
 import { Session } from "./components/session";
+import { Filter, I_before, I_after, I_globalBefore } from "./components/filter";
 
 declare global {
     interface Rpc {
@@ -60,6 +61,8 @@ export default class Application extends EventEmitter {
     noRpcMatrix: { [svrT_svrT: string]: boolean } = {};                                      // The configuration of not establishing a socket connection between servers
     frontendServer: FrontendServer = null as any;
     backendServer: BackendServer = null as any;
+
+    filter = new Filter();
 
     constructor() {
         super();
@@ -240,6 +243,30 @@ export default class Application extends EventEmitter {
                 break;
             }
         }
+    }
+
+    /**
+     * Some front work before message processing
+     * @param filter 
+     */
+    before(filter: { "before": I_before }) {
+        this.filter.before(filter);
+    }
+
+    /**
+     * Some post work after message processing
+     * @param filter 
+     */
+    after(filter: { "after": I_after }) {
+        this.filter.after(filter);
+    }
+
+    /**
+     * Some processing of the message when it first reaches the gateway server
+     * @param filter 
+     */
+    globalBefore(filter: { "before": I_globalBefore }) {
+        this.filter.globalBefore(filter);
     }
 
 }

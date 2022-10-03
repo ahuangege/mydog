@@ -64,7 +64,7 @@ export class MasterCli {
         socket.send(data);
     }
 
-    private func_list(reqId: number, socket: Master_ClientProxy, args: any) {
+    private async func_list(reqId: number, socket: Master_ClientProxy, args: any) {
         let self = this;
         let num = 0;
         for (let sid in this.servers) {
@@ -75,7 +75,7 @@ export class MasterCli {
         let infos = getListInfo(this.app);
         let listFunc = this.app.someconfig.mydogList;
         if (typeof listFunc === "function") {
-            let resArr = listFunc();
+            let resArr = await listFunc();
             if (resArr && Array.isArray(resArr)) {
                 for (let one of resArr) {
                     titles.push(one.title);
@@ -125,7 +125,7 @@ export class MasterCli {
         this.exiting = true;
 
         for (let sid in this.servers) {
-            this.send_to_monitor(this.servers[sid], { "func": "stop" }, 3600, cb);    // stop 会导致 master 也关闭，且master在其他服关闭后才能关闭，所以超时时间设为很久
+            this.send_to_monitor(this.servers[sid], { "func": "stop" }, 3600, cb);
         }
 
         function cb(err: any, data: any) {
@@ -146,7 +146,7 @@ export class MasterCli {
                 continue;
             }
             num++;
-            this.send_to_monitor(this.servers[args[i]], { "func": "remove" }, 10, cb);
+            this.send_to_monitor(this.servers[args[i]], { "func": "remove" }, 3600, cb);
         }
         if (num === 0) {
             cb("no server", null);
@@ -168,7 +168,7 @@ export class MasterCli {
                 continue;
             }
             num++;
-            this.send_to_monitor(one, { "func": "removeT" }, 10, cb);
+            this.send_to_monitor(one, { "func": "removeT" }, 3600, cb);
         }
         if (num === 0) {
             cb("no serverType", null);
@@ -219,7 +219,7 @@ export class MasterCli {
         let endData: { "id": string, "serverType": string, "data": any }[] = [];
         let timeoutIds: string[] = [];
         for (let one of okArr) {
-            this.send_to_monitor(one, { "func": "send", "args": args.argv }, 60, (err: any, data: any) => {
+            this.send_to_monitor(one, { "func": "send", "args": args.argv }, 600, (err: any, data: any) => {
                 if (err) {
                     timeoutIds.push(one.sid);
                 } else {
@@ -274,11 +274,11 @@ export class MonitorCli {
     }
 
 
-    private func_list(reqId: number, socket: monitor_client_proxy, args: any) {
+    private async func_list(reqId: number, socket: monitor_client_proxy, args: any) {
         let infos = getListInfo(this.app);
         let listFunc = this.app.someconfig.mydogList;
         if (typeof listFunc === "function") {
-            let resArr = listFunc();
+            let resArr = await listFunc();
             if (resArr && Array.isArray(resArr)) {
                 for (let one of resArr) {
                     infos.push(one.value);
@@ -320,7 +320,6 @@ export class MonitorCli {
             "T": define.Monitor_To_Master.cliMsg,
             "reqId": reqId,
         };
-        this.send_to_master(socket, msg);
         if (this.exiting) {
             return;
         }
@@ -328,9 +327,11 @@ export class MonitorCli {
         let exitFunc = this.app.someconfig.onBeforeExit;
         if (exitFunc) {
             exitFunc(() => {
+                this.send_to_master(socket, msg);
                 exitCall();
             });
         } else {
+            this.send_to_master(socket, msg);
             exitCall();
         }
 
@@ -341,7 +342,6 @@ export class MonitorCli {
             "T": define.Monitor_To_Master.cliMsg,
             "reqId": reqId,
         };
-        this.send_to_master(socket, msg);
         if (this.exiting) {
             return;
         }
@@ -349,9 +349,11 @@ export class MonitorCli {
         let exitFunc = this.app.someconfig.onBeforeExit;
         if (exitFunc) {
             exitFunc(() => {
+                this.send_to_master(socket, msg);
                 exitCall();
             });
         } else {
+            this.send_to_master(socket, msg);
             exitCall();
         }
     }

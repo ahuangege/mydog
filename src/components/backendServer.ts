@@ -60,19 +60,25 @@ export class BackendServer {
         let cmd = msg.readUInt16BE(3 + sessionLen);
         let cmdArr = this.app.routeConfig2[cmd];
         let data = this.app.msgDecode(cmd, msg.slice(5 + sessionLen));
-        this.msgHandler[cmdArr[1]][cmdArr[2]](data, session, this.callback(id, cmd, session.uid));
+        this.app.filter.beforeFilter(cmd, data, session, (hasError) => {
+            if (hasError) {
+                return;
+            }
+            this.msgHandler[cmdArr[1]][cmdArr[2]](data, session, this.callback(id, cmd, session));
+        });
     }
 
 
-    private callback(id: string, cmd: number, uid: number) {
+    private callback(id: string, cmd: number, session: Session) {
         let self = this;
         return function (msg: any) {
             if (msg === undefined) {
                 msg = null;
             }
             let msgBuf = self.app.protoEncode(cmd, msg);
-            let buf = encodeRemoteData([uid], msgBuf);
+            let buf = encodeRemoteData([session.uid], msgBuf);
             self.app.rpcPool.sendMsg(id, buf);
+            self.app.filter.afterFilter(cmd, msg, session);
         };
     }
 

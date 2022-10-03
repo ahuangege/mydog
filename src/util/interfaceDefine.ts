@@ -85,6 +85,7 @@ export interface I_rpcMsg {
  * rpc request timeout
  */
 export interface I_rpcTimeout {
+    id: number;
     cb: Function;
     await: boolean;
     time: number;
@@ -167,10 +168,6 @@ export interface I_connectorConfig {
      * client leaving notification
      */
     "clientOffCb"?: (session: Session) => void,
-    /**
-     * message filtering. Return true, the message will be discarded.
-     */
-    "cmdFilter"?: (session: Session, cmd: number) => boolean,
 
     [key: string]: any,
 }
@@ -231,6 +228,10 @@ export interface I_rpcConfig {
      * matrix without socket connection
      */
     "noRpcMatrix"?: { [serverType: string]: string[] },
+    /**
+     * Message cache length. The default is 5000.
+     */
+    "msgCacheLength"?: number,
 }
 
 
@@ -264,22 +265,4 @@ export interface ServerInfo {
     readonly serverType: string;
 
     [key: string]: any;
-}
-
-/**
- * rpc call, internal error code
- */
-export const enum rpcErr {
-    /**
-     * no err
-     */
-    ok = 0,
-    /**
-     * no target server
-     */
-    noServer = 1,
-    /**
-     * rpc timeout
-     */
-    timeout = 2
 }
