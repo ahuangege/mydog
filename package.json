@@ -1,6 +1,6 @@
 {
 	"name": "mydog",
-	"version": "2.3.3",
+	"version": "2.3.4",
 	"description": "a framework of typescript game server",
 	"deprecated": false,
 	"main": "lib/mydog.js",
