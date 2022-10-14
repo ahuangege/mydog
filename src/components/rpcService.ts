@@ -408,11 +408,8 @@ function checkTimeout() {
 
     for (let sid in msgQueueDic) {
         let queue = msgQueueDic[sid];
-        for (let one of queue) {
-            if (now < one.time) {
-                break;
-            }
-            queue.shift();
+        while (queue[0] && queue[0].time < now) {
+            let one = queue.shift() as { "rpcTimeout": I_rpcTimeout | null, "buf": Buffer, "time": number };
             if (one.rpcTimeout) {
                 one.rpcTimeout.await ? one.rpcTimeout.cb(undefined) : one.rpcTimeout.cb(true);
             }
