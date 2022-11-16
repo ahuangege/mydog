@@ -73,12 +73,10 @@ export const enum loggerLevel {
  * 1. If there is cmd and id, it means the message is received and needs to be called back
  * 2. With cmd without id means no need to call back when the message is received
  * 3. If there is an id without cmd, it means it is a callback message
- * 4. len represents the length of the last Buffer parameter
  */
 export interface I_rpcMsg {
     cmd?: string;
     id?: number;
-    len?: number;
 }
 
 /**
@@ -229,9 +227,13 @@ export interface I_rpcConfig {
      */
     "noRpcMatrix"?: { [serverType: string]: string[] },
     /**
-     * Message cache length. The default is 5000.
+     * Rpc message cache count. The default is 5000.
      */
-    "msgCacheLength"?: number,
+    "rpcMsgCacheCount"?: number,
+    /**
+     * message cache max length when interval is on. The default is +Infinity.
+     */
+    "msgSendCacheLen"?: number,
 }
 
 

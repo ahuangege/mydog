@@ -47,7 +47,6 @@ export default class Application extends EventEmitter {
 
     router: { [serverType: string]: (session: Session) => string } = {};                     // Pre-selection when routing messages to the backend
     rpc: (serverId: string) => Rpc = null as any;                                            // Rpc packaging
-    rpcAwait: (serverId: string, notify: boolean) => Rpc = null as any;                      // Rpc await packaging
     rpcPool: RpcSocketPool = new RpcSocketPool();                                            // Rpc socket pool
 
     logger: (level: loggerLevel, err: Error | string) => void = function () { };                      // Internal msg log output
