@@ -1,6 +1,6 @@
 {
-	"name":  "mydog",
-	"version": "2.3.5",
+	"name": "mydog",
+	"version": "2.3.6",
 	"description": "a framework of typescript game server",
 	"deprecated": false,
 	"main": "lib/mydog.js",
@@ -32,6 +32,8 @@
 	"keywords": [
 		"pomelo",
 		"server",
+		"game",
+		"gameserver",
 		"nodejs"
 	],
 	"license": "MIT"

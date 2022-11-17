@@ -3,7 +3,7 @@
 /**
  * 
  * 官网: https://www.mydog.wiki
- * 版本: 2.3.4
+ * 版本: 2.3.6
  * 
  */
 
@@ -105,16 +105,9 @@ export interface Application {
     start(): void;
 
     /**
-     * rpc 调用，回调形式
+     * rpc 调用
      */
-    rpc(serverId: string): Rpc;
-
-    /**
-     * rpc 调用， await 形式
-     * @param serverId 服务器id
-     * @param notify 是否是通知类消息 （默认false）
-     */
-    rpcAwait(serverId: string, notify?: boolean): Rpc;
+    rpc(serverId: string, notify?: boolean): Rpc;
 
     /**
      * rpc 配置
@@ -450,7 +443,11 @@ interface I_rpcConfig {
     /**
      * rpc 消息缓存长度（默认 5000）
      */
-    "msgCacheLength"?: number,
+    "rpcMsgCacheCount"?: number,
+    /**
+     * 当开启 interval 时，为防止单次Buffer申请过大，可配置此值作为立即发送的阈值（默认 +Infinity）
+     */
+    "intervalCacheLen"?: number,
 }
 
 /**

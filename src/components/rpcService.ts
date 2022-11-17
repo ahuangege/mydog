@@ -26,9 +26,9 @@ let msgCacheCount = 5000;
 export function init(_app: Application) {
     app = _app;
     let rpcConfig = app.someconfig.rpc || {};
-    let cacheCount = parseInt(rpcConfig.rpcMsgCacheCount as any);
-    if (cacheCount >= 0) {
-        msgCacheCount = cacheCount;
+    let rpcMsgCacheCount = parseInt(rpcConfig.rpcMsgCacheCount as any);
+    if (rpcMsgCacheCount >= 0) {
+        msgCacheCount = rpcMsgCacheCount;
     }
 
     let timeout = Number(rpcConfig.timeout) || 0;
@@ -51,10 +51,10 @@ export function rpcOnNewSocket(sid: string) {
     if (!queue) {
         return;
     }
+    delete msgQueueDic[sid];
     for (let one of queue) {
         sendTo(sid, one.rpcTimeout, one.buf);
     }
-    queue.length = 0;
 }
 
 
@@ -283,8 +283,7 @@ function sendTo(sid: string, rpcTimeout: I_rpcTimeout | null, buf: Buffer) {
     queue.push({ "rpcTimeout": rpcTimeout, "buf": buf, "time": outTime - 3000 });
 
     if (queue.length > msgCacheCount) {
-        let arr = queue.splice(0, 20);
-        for (let one of arr) {
+        for (let one of queue.splice(0, 20)) {
             if (one.rpcTimeout) {
                 timeoutCall(one.rpcTimeout);
             }
@@ -312,10 +311,19 @@ function checkTimeout() {
 
     for (let sid in msgQueueDic) {
         let queue = msgQueueDic[sid];
-        while (queue[0] && queue[0].time < now) {
-            let one = queue.shift() as { "rpcTimeout": I_rpcTimeout | null, "buf": Buffer, "time": number };
-            if (one.rpcTimeout) {
-                timeoutCall(one.rpcTimeout);
+        let deleteCount = 0;
+        for (let one of queue) {
+            if (one.time < now) {
+                deleteCount++;
+            } else {
+                break;
+            }
+        }
+        if (deleteCount > 0) {
+            for (let one of queue.splice(0, deleteCount)) {
+                if (one.rpcTimeout) {
+                    timeoutCall(one.rpcTimeout);
+                }
             }
         }
     }
@@ -426,7 +434,7 @@ function getCallBackFunc(sid: string, id: number) {
 }
 
 /**
- * rpc server callback
+ * rpc callback self server
  */
 function getCallBackFuncSelf(id: number) {
     return function (...args: any[]) {

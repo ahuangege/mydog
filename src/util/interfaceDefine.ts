@@ -233,7 +233,7 @@ export interface I_rpcConfig {
     /**
      * message cache max length when interval is on. The default is +Infinity.
      */
-    "msgSendCacheLen"?: number,
+    "intervalCacheLen"?: number,
 }
 
 

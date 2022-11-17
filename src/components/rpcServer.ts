@@ -39,6 +39,9 @@ class RpcServerSocket {
     private sendCache: boolean = false;
     private sendArr: Buffer[] = [];
     private sendTimer: NodeJS.Timer = null as any;
+    private nowLen = 0;
+    private maxLen = +Infinity;
+
     constructor(app: Application, socket: SocketProxy) {
         this.app = app;
         this.socket = socket;
@@ -79,11 +82,11 @@ class RpcServerSocket {
             else if (type === define.Rpc_Msg.clientMsgOut) {
                 this.app.frontendServer.sendMsgByUids(data);
             }
-            else if (type === define.Rpc_Msg.rpcMsg) {
-                rpcService.handleMsg(this.id, data);
-            }
             else if (type === define.Rpc_Msg.rpcMsgAwait) {
                 rpcService.handleMsgAwait(this.id, data);
+            }
+            else if (type === define.Rpc_Msg.rpcMsg) {
+                rpcService.handleMsg(this.id, data);
             }
             else if (type === define.Rpc_Msg.applySession) {
                 this.app.frontendServer.applySession(data);
@@ -110,6 +113,7 @@ class RpcServerSocket {
         this.heartbeatTimer = null as any;
         clearInterval(this.sendTimer);
         this.sendArr = [];
+        this.nowLen = 0;
         if (this.registered) {
             this.app.rpcPool.removeSocket(this.id);
         }
@@ -165,6 +169,10 @@ class RpcServerSocket {
         if (interval >= 10) {
             this.sendCache = true;
             this.sendTimer = setInterval(this.sendInterval.bind(this), interval);
+            let tmpMaxLen = parseInt(rpcConfig.intervalCacheLen as any) || 0;
+            if (tmpMaxLen > 0) {
+                this.maxLen = tmpMaxLen;
+            }
         }
 
         // Registration is successful, respond
@@ -210,6 +218,10 @@ class RpcServerSocket {
     send(data: Buffer) {
         if (this.sendCache) {
             this.sendArr.push(data);
+            this.nowLen += data.length;
+            if (this.nowLen > this.maxLen) {
+                this.sendInterval();
+            }
         } else {
             this.socket.send(data);
         }
@@ -219,6 +231,7 @@ class RpcServerSocket {
         if (this.sendArr.length > 0) {
             this.socket.send(Buffer.concat(this.sendArr));
             this.sendArr.length = 0;
+            this.nowLen = 0;
         }
     }
 }
