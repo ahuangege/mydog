@@ -78,4 +78,5 @@ export const enum Rpc_Msg {
     clientMsgOut = 5,       // Send a message to the client
     rpcMsg = 6,              // rpc message
     rpcMsgAwait = 7,              // rpc message await
+    clientMsgInAwait = 8,        // Client message received await
 }

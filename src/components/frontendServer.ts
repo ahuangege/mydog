@@ -1,16 +1,24 @@
-
 import Application from "../application";
 import define = require("../util/define");
 import * as path from "path";
 import * as fs from "fs";
-import { sessionCopyJson, I_clientSocket, I_clientManager, I_connectorConstructor, I_encodeDecodeConfig, loggerLevel } from "../util/interfaceDefine";
-import { Session, initSessionApp } from "./session";
+import {
+    sessionCopyJson,
+    I_clientSocket,
+    I_clientManager,
+    I_connectorConstructor,
+    I_encodeDecodeConfig,
+    loggerLevel
+} from "../util/interfaceDefine";
+import {Session, initSessionApp} from "./session";
 import * as protocol from "../connector/protocol";
+
 let meFilename = `[${path.basename(__filename, ".js")}.ts]`;
 
 export class FrontendServer {
     private app: Application;
     private clientManager: ClientManager;
+
     constructor(app: Application) {
         this.app = app;
         initSessionApp(this.app);
@@ -57,6 +65,7 @@ export class FrontendServer {
             client.session.applySession(session.settings);
         }
     }
+
     /**
      * The front-end server forwards the message of the back-end server to the client
      */
@@ -87,6 +96,7 @@ class ClientManager implements I_clientManager {
     private router: { [serverType: string]: (session: Session) => string };
     private clientOnCb: (session: Session) => void = null as any;
     private clientOffCb: (session: Session) => void = null as any;
+
     constructor(app: Application) {
         this.app = app;
         this.serverType = app.serverType;
@@ -210,7 +220,9 @@ class ClientManager implements I_clientManager {
         let sessionBuf = session.sessionBuf;
         let buf = Buffer.allocUnsafe(9 + sessionBuf.length + msg.msg.length);
         buf.writeUInt32BE(5 + sessionBuf.length + msg.msg.length, 0);
-        buf.writeUInt8(define.Rpc_Msg.clientMsgIn, 4);
+        let useCallback = typeof cmdArr[cmdArr.length - 1] === "function";
+        let type = useCallback ? define.Rpc_Msg.clientMsgIn : define.Rpc_Msg.clientMsgInAwait
+        buf.writeUInt8(type, 4);
         buf.writeUInt16BE(sessionBuf.length, 5);
         sessionBuf.copy(buf, 7);
         buf.writeUInt16BE(msg.cmd, 7 + sessionBuf.length);

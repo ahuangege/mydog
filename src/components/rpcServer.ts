@@ -79,6 +79,9 @@ class RpcServerSocket {
             if (type === define.Rpc_Msg.clientMsgIn) {
                 this.app.backendServer.handleMsg(this.id, data);
             }
+            else if (type === define.Rpc_Msg.clientMsgInAwait) {
+                this.app.backendServer.handleMsgAwait(this.id, data);
+            }
             else if (type === define.Rpc_Msg.clientMsgOut) {
                 this.app.frontendServer.sendMsgByUids(data);
             }
