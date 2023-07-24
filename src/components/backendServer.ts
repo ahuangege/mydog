@@ -53,13 +53,7 @@ export class BackendServer {
      * The back-end server receives the client message forwarded by the front-end server
      */
     handleMsg(id: string, msg: Buffer) {
-        let sessionLen = msg.readUInt16BE(1);
-        let sessionBuf = msg.slice(3, 3 + sessionLen);
-        let session = new Session();
-        session.setAll(JSON.parse(sessionBuf.toString()));
-        let cmd = msg.readUInt16BE(3 + sessionLen);
-        let cmdArr = this.app.routeConfig2[cmd];
-        let data = this.app.msgDecode(cmd, msg.slice(5 + sessionLen));
+        let {session, cmd, cmdArr, data} = this.extractedMsgArgs(msg);
         this.app.filter.beforeFilter(cmd, data, session, (hasError) => {
             if (hasError) {
                 return;
@@ -69,13 +63,7 @@ export class BackendServer {
     }
 
     handleMsgAwait(id: string, msg: Buffer) {
-        let sessionLen = msg.readUInt16BE(1);
-        let sessionBuf = msg.slice(3, 3 + sessionLen);
-        let session = new Session();
-        session.setAll(JSON.parse(sessionBuf.toString()));
-        let cmd = msg.readUInt16BE(3 + sessionLen);
-        let cmdArr = this.app.routeConfig2[cmd];
-        let data = this.app.msgDecode(cmd, msg.slice(5 + sessionLen));
+        let {session, cmd, cmdArr, data} = this.extractedMsgArgs(msg);
         this.app.filter.beforeFilter(cmd, data, session, async (hasError) => {
             if (hasError) {
                 return;
@@ -86,6 +74,17 @@ export class BackendServer {
         });
     }
 
+
+    private extractedMsgArgs(msg: Buffer) {
+        let sessionLen = msg.readUInt16BE(1);
+        let sessionBuf = msg.slice(3, 3 + sessionLen);
+        let session = new Session();
+        session.setAll(JSON.parse(sessionBuf.toString()));
+        let cmd = msg.readUInt16BE(3 + sessionLen);
+        let cmdArr = this.app.routeConfig2[cmd];
+        let data = this.app.msgDecode(cmd, msg.slice(5 + sessionLen));
+        return {session, cmd, cmdArr, data};
+    }
 
     private callback(id: string, cmd: number, session: Session) {
         let self = this;
