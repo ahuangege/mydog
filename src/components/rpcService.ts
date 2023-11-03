@@ -18,6 +18,12 @@ let rpcTimeMax: number = 10 * 1000; //overtime time
 let outTime = 0;    // Current time + timeout
 let msgQueueDic: { [serverId: string]: { "rpcTimeout": I_rpcTimeout | null, "buf": Buffer, "time": number }[] } = {};
 let msgCacheCount = 5000;
+let errStack = false;
+
+const enum e_awaitRpcErrType {
+    timeout = "rpcTimeout",
+    error = "rpcError",
+}
 
 /**
  * init
@@ -36,6 +42,9 @@ export function init(_app: Application) {
         rpcTimeMax = timeout * 1000;
     }
 
+    if (rpcConfig.errStack) {
+        errStack = true;
+    }
 
     outTime = Date.now() + rpcTimeMax;
     setInterval(() => {
@@ -64,26 +73,6 @@ export function rpcOnNewSocket(sid: string) {
  *     [1]         [1]      [...]    [...]
  *   msgType    rpcBufLen   rpcBuf   msgBuf
  */
-export function handleMsg(sid: string, bufAll: Buffer) {
-    let rpcBufLen = bufAll.readUInt8(1);
-    let rpcMsg: I_rpcMsg = JSON.parse(bufAll.slice(2, 2 + rpcBufLen).toString());
-    let msg: any[] = JSON.parse(bufAll.slice(2 + rpcBufLen).toString());
-
-    if (!rpcMsg.cmd) {
-        let timeout = rpcRequest[rpcMsg.id as number];
-        if (timeout) {
-            delete rpcRequest[rpcMsg.id as number];
-            timeout.cb(...msg);
-        }
-    } else {
-        let cmd = (rpcMsg.cmd as string).split('.');
-        if (rpcMsg.id) {
-            msg.push(getCallBackFunc(sid, rpcMsg.id));
-        }
-        msgHandler[cmd[0]][cmd[1]](...msg);
-    }
-}
-
 export async function handleMsgAwait(sid: string, bufAll: Buffer) {
     let rpcBufLen = bufAll.readUInt8(1);
     let rpcMsg: I_rpcMsg = JSON.parse(bufAll.slice(2, 2 + rpcBufLen).toString());
@@ -93,19 +82,36 @@ export async function handleMsgAwait(sid: string, bufAll: Buffer) {
         let timeout = rpcRequest[rpcMsg.id as number];
         if (timeout) {
             delete rpcRequest[rpcMsg.id as number];
-            timeout.cb(msg);
+            if (rpcMsg.err) {
+                if (timeout.rpcErr) {
+                    timeout.rpcErr.setMsg(e_awaitRpcErrType.error);
+                    timeout.reject(timeout.rpcErr);
+                } else {
+                    timeout.reject(new RpcError(e_awaitRpcErrType.error));
+                }
+            } else {
+                timeout.resolve(msg);
+            }
         }
     } else {
         let cmd = (rpcMsg.cmd as string).split('.');
-        let data = await msgHandler[cmd[0]][cmd[1]](...msg);
+        let data = null;
+        let hasErr = false;
+        try {
+            data = await msgHandler[cmd[0]][cmd[1]](...msg);
+        } catch (e) {
+            hasErr = true;
+            process.nextTick(() => {
+                throw e;
+            });
+        }
         if (!rpcMsg.id) {
             return;
         }
-
         if (data === undefined) {
             data = null;
         }
-        let bufEnd = getRpcMsg({ "id": rpcMsg.id }, Buffer.from(JSON.stringify(data)), define.Rpc_Msg.rpcMsgAwait);
+        let bufEnd = getRpcMsg({ "id": rpcMsg.id, "err": hasErr ? 1 : undefined }, Buffer.from(JSON.stringify(data)), define.Rpc_Msg.rpcMsgAwait);
         sendTo(sid, null, bufEnd);
     }
 }
@@ -194,12 +200,6 @@ class rpc_create {
             this.sendT(cmd, args);
             return;
         }
-
-        if (typeof args[args.length - 1] === "function") {
-            this.sendCb(sid, cmd, args);
-            return;
-        }
-
         return this.sendAwait(sid, notify, cmd, args);
     }
 
@@ -211,54 +211,41 @@ class rpc_create {
         }
 
         let msgBuf = Buffer.from(JSON.stringify(args));
-        let bufEnd = getRpcMsg({ "cmd": cmd.file_method }, msgBuf, define.Rpc_Msg.rpcMsg);
+        let bufEnd = getRpcMsg({ "cmd": cmd.file_method }, msgBuf, define.Rpc_Msg.rpcMsgAwait);
         for (let one of servers) {
             if (one.id === app.serverId) {
-                sendRpcMsgToSelf(cmd, msgBuf);
+                sendRpcMsgToSelfAwait(cmd, msgBuf, true);
             } else {
                 sendTo(one.id, null, bufEnd);
             }
         }
     }
 
-    /** 回调形式，发送给某一服务器 */
-    sendCb(sid: string, cmd: { "serverType": string, "file_method": string }, args: any[]) {
-        let cb: Function = args.pop();
-        if (sid === app.serverId) {
-            sendRpcMsgToSelf(cmd, Buffer.from(JSON.stringify(args)), cb);
-            return;
-        }
-
-        let rpcTimeout: I_rpcTimeout = { "id": getRpcId(), "cb": cb, "time": outTime, "await": false };
-        let rpcMsg: I_rpcMsg = {
-            "cmd": cmd.file_method,
-            "id": rpcTimeout.id
-        };
-        let bufEnd = getRpcMsg(rpcMsg, Buffer.from(JSON.stringify(args)), define.Rpc_Msg.rpcMsg);
-        sendTo(sid, rpcTimeout, bufEnd);
-    }
-
     /** await 形式，发送给某一服务器 */
     sendAwait(sid: string, notify: boolean, cmd: { "serverType": string, "file_method": string }, args: any[]): Promise<any> | undefined {
+        let msgBuf = Buffer.from(JSON.stringify(args));
         if (sid === app.serverId) {
-            return sendRpcMsgToSelfAwait(cmd, Buffer.from(JSON.stringify(args)), notify);
+            return sendRpcMsgToSelfAwait(cmd, msgBuf, notify);
         }
 
         let rpcMsg: I_rpcMsg = {
             "cmd": cmd.file_method
         };
-
         let promise: Promise<any> = undefined as any;
         let rpcTimeout: I_rpcTimeout = null as any;
         if (!notify) {
-            let cb: Function = null as any;
-            promise = new Promise((resolve) => {
-                cb = resolve;
+            let resolveFunc: Function = null as any;
+            let rejectFunc: Function = null as any;
+            promise = new Promise((resolve, reject) => {
+                resolveFunc = resolve;
+                rejectFunc = reject;
             });
-            rpcTimeout = { "id": getRpcId(), "cb": cb, "time": outTime, "await": true };
+
+            let rpcError: RpcError = errStack ? new RpcError() : null as any;
+            rpcTimeout = { "id": getRpcId(), "resolve": resolveFunc, "reject": rejectFunc, "time": outTime, "rpcErr": rpcError };
             rpcMsg.id = rpcTimeout.id;
         }
-        let bufEnd = getRpcMsg(rpcMsg, Buffer.from(JSON.stringify(args)), define.Rpc_Msg.rpcMsgAwait);
+        let bufEnd = getRpcMsg(rpcMsg, msgBuf, define.Rpc_Msg.rpcMsgAwait);
         sendTo(sid, rpcTimeout, bufEnd);
         return promise;
     }
@@ -339,7 +326,12 @@ function checkTimeout() {
 
 function timeoutCall(one: I_rpcTimeout) {
     process.nextTick(() => {
-        one.await ? one.cb(undefined) : one.cb(true);
+        if (one.rpcErr) {
+            one.rpcErr.setMsg(e_awaitRpcErrType.timeout);
+            one.reject(one.rpcErr);
+        } else {
+            one.reject(new RpcError(e_awaitRpcErrType.timeout))
+        }
     });
 }
 
@@ -363,31 +355,12 @@ function getRpcMsg(rpcMsg: I_rpcMsg, msgBuf: Buffer, t: define.Rpc_Msg) {
 
 
 /**
- * Send rpc message to this server
- */
-function sendRpcMsgToSelf(cmd: { "serverType": string, "file_method": string }, msgBuf: Buffer, cb?: Function) {
-    let args = JSON.parse(msgBuf.toString());
-    if (cb) {
-        let id = getRpcId();
-        rpcRequest[id] = { "id": id, "cb": cb, "time": outTime, "await": false };
-        args.push(getCallBackFuncSelf(id));
-    }
-
-    process.nextTick(() => {
-        let route = cmd.file_method.split('.');
-        let file = msgHandler[route[0]];
-        file[route[1]](...args);
-    });
-}
-
-
-/**
  * Send rpc message to this server await
  */
 function sendRpcMsgToSelfAwait(cmd: { "serverType": string, "file_method": string }, msgBuf: Buffer, notify: boolean): Promise<any> | undefined {
     let args = JSON.parse(msgBuf.toString());
     if (notify) {
-        process.nextTick(() => {
+        setImmediate(() => {
             let route = cmd.file_method.split('.');
             let file = msgHandler[route[0]];
             file[route[1]](...args);
@@ -395,58 +368,63 @@ function sendRpcMsgToSelfAwait(cmd: { "serverType": string, "file_method": strin
         return;
     }
 
-    let cb: Function = null as any;
-    let promise = new Promise((resolve) => {
-        cb = resolve;
+    let resolveFunc: Function = null as any;
+    let rejectFunc: Function = null as any;
+    let promise = new Promise((resolve, reject) => {
+        resolveFunc = resolve;
+        rejectFunc = reject;
     });
+    let rpcError: RpcError = errStack ? new RpcError() : null as any;
 
     let id = getRpcId();
-    rpcRequest[id] = { "id": id, "cb": cb, "time": outTime, "await": true };
+    rpcRequest[id] = { "id": id, "resolve": resolveFunc, "reject": rejectFunc, "time": outTime, "rpcErr": rpcError };
 
     process.nextTick(async () => {
         let route = cmd.file_method.split('.');
         let file = msgHandler[route[0]];
-        let data = await file[route[1]](...args);
+        let data: any = null;
+        let hasErr = false;
+        try {
+            data = await file[route[1]](...args);
+        } catch (e) {
+            hasErr = true;
+            process.nextTick(() => {
+                throw e;
+            });
+        }
 
         let timeout = rpcRequest[id];
         if (!timeout) {
             return;
         }
         delete rpcRequest[id];
-        if (data === undefined) {
-            data = null;
+
+        if (hasErr) {
+            if (timeout.rpcErr) {
+                timeout.rpcErr.setMsg(e_awaitRpcErrType.error);
+                timeout.reject(timeout.rpcErr);
+            } else {
+                timeout.reject(new RpcError(e_awaitRpcErrType.error));
+            }
+        } else {
+            if (data === undefined) {
+                data = null;
+            }
+            timeout.resolve(JSON.parse(JSON.stringify(data)));
         }
-        timeout.cb(JSON.parse(JSON.stringify(data)));
     });
 
     return promise;
 }
 
 
-/**
- * rpc callback
- */
-function getCallBackFunc(sid: string, id: number) {
-    return function (...args: any[]) {
-        let bufEnd = getRpcMsg({ "id": id }, Buffer.from(JSON.stringify(args)), define.Rpc_Msg.rpcMsg);
-        sendTo(sid, null, bufEnd);
+
+export class RpcError extends Error {
+    constructor(message?: string) {
+        super(message);
+    }
+
+    setMsg(message: string) {
+        this.message = message;
     }
 }
-
-/**
- * rpc callback self server
- */
-function getCallBackFuncSelf(id: number) {
-    return function (...args: any[]) {
-        args = JSON.parse(JSON.stringify(args));
-        process.nextTick(() => {
-            let timeout = rpcRequest[id];
-            if (timeout) {
-                delete rpcRequest[id];
-                timeout.cb(...args);
-            }
-        });
-
-    }
-}
-

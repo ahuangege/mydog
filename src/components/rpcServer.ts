@@ -76,28 +76,27 @@ class RpcServerSocket {
     private onData(data: Buffer) {
         try {
             let type = data.readUInt8(0);
-            if (type === define.Rpc_Msg.clientMsgIn) {
-                this.app.backendServer.handleMsg(this.id, data);
-            }
-            else if (type === define.Rpc_Msg.clientMsgOut) {
-                this.app.frontendServer.sendMsgByUids(data);
-            }
-            else if (type === define.Rpc_Msg.rpcMsgAwait) {
-                rpcService.handleMsgAwait(this.id, data);
-            }
-            else if (type === define.Rpc_Msg.rpcMsg) {
-                rpcService.handleMsg(this.id, data);
-            }
-            else if (type === define.Rpc_Msg.applySession) {
-                this.app.frontendServer.applySession(data);
-            }
-            else if (type === define.Rpc_Msg.heartbeat) {
-                this.heartbeatHandle();
-                this.heartbeatResponse();
-            }
-            else {
-                this.app.logger(loggerLevel.error, `${meFilename} illegal data type, close rpc client named: ${this.id}`);
-                this.socket.close();
+            switch (type) {
+                case define.Rpc_Msg.clientMsgOut:
+                    this.app.frontendServer.sendMsgByUids(data);
+                    break;
+                case define.Rpc_Msg.clientMsgIn:
+                    this.app.backendServer.handleMsg(this.id, data);
+                    break;
+                case define.Rpc_Msg.rpcMsgAwait:
+                    rpcService.handleMsgAwait(this.id, data);
+                    break;
+                case define.Rpc_Msg.applySession:
+                    this.app.frontendServer.applySession(data);
+                    break;
+                case define.Rpc_Msg.heartbeat:
+                    this.heartbeatHandle();
+                    this.heartbeatResponse();
+                    break;
+                default:
+                    this.app.logger(loggerLevel.error, `${meFilename} illegal data type, close rpc client named: ${this.id}`);
+                    this.socket.close();
+                    break;
             }
         } catch (e: any) {
             this.app.logger(loggerLevel.error, e.stack);

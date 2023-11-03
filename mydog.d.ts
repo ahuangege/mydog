@@ -3,7 +3,7 @@
 /**
  * 
  * 官网: https://www.mydog.wiki
- * 版本: 2.3.6
+ * 版本: 2.4.0
  * 
  */
 
@@ -173,7 +173,7 @@ export interface Application {
     /**
      * 路由配置 （前端服调用）
      */
-    route(serverType: string, routeFunc: (session: Session) => string): void;
+    route(serverType: string, routeFunc: (session: Session, cmd: number) => string): void;
 
     /**
      * 获取客户端session （前端服调用）
@@ -448,6 +448,10 @@ interface I_rpcConfig {
      * 当开启 interval 时，为防止单次Buffer申请过大，可配置此值作为立即发送的阈值（默认 +Infinity）
      */
     "intervalCacheLen"?: number,
+    /**
+     * rpc调用发生错误时，记录堆栈（注意：会影响性能，建议开发模式开启，生产环境关闭。默认关闭。）
+     */
+    "errStack"?: boolean,
 }
 
 /**

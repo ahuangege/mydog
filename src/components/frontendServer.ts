@@ -84,7 +84,7 @@ class ClientManager implements I_clientManager {
     private app: Application;
     private msgHandler: { [filename: string]: any } = {};
     private serverType: string = "";
-    private router: { [serverType: string]: (session: Session) => string };
+    private router: { [serverType: string]: (session: Session, cmd: number) => string };
     private clientOnCb: (session: Session) => void = null as any;
     private clientOffCb: (session: Session) => void = null as any;
     constructor(app: Application) {
@@ -197,7 +197,7 @@ class ClientManager implements I_clientManager {
      * Forward client messages to the backend server
      */
     private doRemote(msg: { "cmd": number, "msg": Buffer }, session: Session, cmdArr: string[]) {
-        let id = this.router[cmdArr[0]](session);
+        let id = this.router[cmdArr[0]](session, msg.cmd);
         let socket = this.app.rpcPool.getSocket(id);
         if (!socket) {
             return;

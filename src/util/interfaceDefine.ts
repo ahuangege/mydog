@@ -1,6 +1,7 @@
 import { EventEmitter } from "events";
 import Application from "../application";
 import { Session } from "../components/session";
+import { RpcError } from "mydog/src/components/rpcService";
 
 /**
  * socket connection proxy
@@ -77,6 +78,7 @@ export const enum loggerLevel {
 export interface I_rpcMsg {
     cmd?: string;
     id?: number;
+    err?: number;
 }
 
 /**
@@ -84,9 +86,10 @@ export interface I_rpcMsg {
  */
 export interface I_rpcTimeout {
     id: number;
-    cb: Function;
-    await: boolean;
+    resolve: Function;
+    reject: Function;    // when await call, reject function
     time: number;
+    rpcErr?: RpcError;
 }
 
 
@@ -234,6 +237,10 @@ export interface I_rpcConfig {
      * message cache max length when interval is on. The default is +Infinity.
      */
     "intervalCacheLen"?: number,
+    /**
+     * keep rpc call stack when error happens. (may affect performance. default false )
+     */
+    "errStack"?: boolean
 }
 
 

@@ -45,7 +45,7 @@ export default class Application extends EventEmitter {
     startMode: "all" | "alone" = "all";                                                      // Start Mode:  all / alone
     startTime: number = 0;                                                                   // Start time
 
-    router: { [serverType: string]: (session: Session) => string } = {};                     // Pre-selection when routing messages to the backend
+    router: { [serverType: string]: (session: Session, cmd: number) => string } = {};                     // Pre-selection when routing messages to the backend
     rpc: (serverId: string) => Rpc = null as any;                                            // Rpc packaging
     rpcPool: RpcSocketPool = new RpcSocketPool();                                            // Rpc socket pool
 
@@ -139,7 +139,7 @@ export default class Application extends EventEmitter {
      * @param serverType Back-end server type
      * @param routeFunc Configuration function
      */
-    route(serverType: string, routeFunc: (session: Session) => string) {
+    route(serverType: string, routeFunc: (session: Session, cmd: number) => string) {
         this.router[serverType] = routeFunc;
     }
 

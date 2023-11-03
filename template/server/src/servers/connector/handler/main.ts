@@ -6,12 +6,11 @@ export default class Handler {
         this.app = app;
     }
 
-    ping(msg: { "msg": string }, session: Session, next: Function) {
+    async ping(msg: { "msg": string }, session: Session, next: Function) {
         next({ "msg": "pong" });
 
-        console.log("start rpc")
-        this.app.rpc("connector-server-1").connector.main.test(msg.msg, (err, data) => {
-            console.log("end rpc:", err, data);
-        });
+        console.log("rpc start")
+        const data = await this.app.rpc("connector-server-1").connector.main.test(msg.msg);
+        console.log("rpc end : ", data);
     }
 }

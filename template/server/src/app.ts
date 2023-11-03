@@ -1,6 +1,6 @@
 
 import { connector, createApp, Session } from "mydog";
-import { getCpuUsage } from "./cpuUsage";
+import { getCpuUsage } from "./app/cpuUsage";
 
 let app = createApp();
 

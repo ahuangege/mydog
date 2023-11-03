@@ -175,26 +175,27 @@ export class RpcClientSocket {
     private onData(data: Buffer) {
         try {
             let type = data.readUInt8(0);
-            if (type === define.Rpc_Msg.clientMsgIn) {
-                this.app.backendServer.handleMsg(this.id, data);
-            }
-            else if (type === define.Rpc_Msg.clientMsgOut) {
-                this.app.frontendServer.sendMsgByUids(data);
-            }
-            else if (type === define.Rpc_Msg.rpcMsgAwait) {
-                rpcService.handleMsgAwait(this.id, data);
-            }
-            else if (type === define.Rpc_Msg.rpcMsg) {
-                rpcService.handleMsg(this.id, data);
-            }
-            else if (type === define.Rpc_Msg.applySession) {
-                this.app.frontendServer.applySession(data);
-            }
-            else if (type === define.Rpc_Msg.register) {
-                this.registerHandle();
-            }
-            else if (type === define.Rpc_Msg.heartbeat) {
-                this.heartbeatResponse();
+            switch (type) {
+                case define.Rpc_Msg.clientMsgOut:
+                    this.app.frontendServer.sendMsgByUids(data);
+                    break;
+                case define.Rpc_Msg.clientMsgIn:
+                    this.app.backendServer.handleMsg(this.id, data);
+                    break;
+                case define.Rpc_Msg.rpcMsgAwait:
+                    rpcService.handleMsgAwait(this.id, data);
+                    break;
+                case define.Rpc_Msg.applySession:
+                    this.app.frontendServer.applySession(data);
+                    break;
+                case define.Rpc_Msg.register:
+                    this.registerHandle();
+                    break;
+                case define.Rpc_Msg.heartbeat:
+                    this.heartbeatResponse();
+                    break;
+                default:
+                    break;
             }
         } catch (e: any) {
             this.app.logger(loggerLevel.error, e);
