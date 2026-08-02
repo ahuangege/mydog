@@ -215,7 +215,6 @@ class ClientSocket implements I_clientSocket {
         if (this.sendCache) {
             this.sendArr.push(msg);
             this.nowLen += msg.length;
-            console.log("============isBig", this.nowLen, this.intervalCacheLen, this.nowLen > this.intervalCacheLen)
             if (this.nowLen > this.intervalCacheLen) {
                 this.sendInterval();
             }

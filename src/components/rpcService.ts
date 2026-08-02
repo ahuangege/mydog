@@ -37,13 +37,13 @@ export function rpcOnNewSocket(sid: string) {
 /**
  * Process rpc messages
  * 
- *     [1]         [1]      [...]    [...]
- *   msgType    rpcBufLen   rpcBuf   msgBuf
+ *     [1]     [...]
+ *   msgType   msgBuf
  */
 export async function handleMsgAwait(sid: string, bufAll: Buffer) {
-    let rpcBufLen = bufAll.readUInt8(1);
-    let rpcMsg: I_rpcMsg = JSON.parse(bufAll.slice(2, 2 + rpcBufLen).toString());
-    let msg = JSON.parse(bufAll.slice(2 + rpcBufLen).toString());
+    const msgAll: { head: I_rpcMsg, data: any } = JSON.parse(bufAll.slice(1).toString());
+    const rpcMsg: I_rpcMsg = msgAll.head;
+    const msg = msgAll.data;
 
     if (!rpcMsg.cmd) {
         // 收到 rpc 回调
@@ -76,7 +76,7 @@ export async function handleMsgAwait(sid: string, bufAll: Buffer) {
         if (data === undefined) {
             data = null;
         }
-        let bufEnd = getRpcMsg({ "id": rpcMsg.id, "err": hasErr ? 1 : undefined }, Buffer.from(JSON.stringify(data)), define.Rpc_Msg.rpcMsgAwait);
+        let bufEnd = getRpcMsg({ "id": rpcMsg.id, "err": hasErr ? 1 : undefined }, data, define.Rpc_Msg.rpcMsgAwait);
         timeoutUtil.sendTo(sid, null, bufEnd);
     }
 }
@@ -175,11 +175,10 @@ class rpc_create {
             return;
         }
 
-        let msgBuf = Buffer.from(JSON.stringify(args));
-        let bufEnd = getRpcMsg({ "cmd": cmd.file_method }, msgBuf, define.Rpc_Msg.rpcMsgAwait);
+        let bufEnd = getRpcMsg({ "cmd": cmd.file_method }, args, define.Rpc_Msg.rpcMsgAwait);
         for (let one of servers) {
             if (one.id === app.serverId) {
-                timeoutUtil.sendRpcMsgToSelfAwait(cmd, msgBuf, true);
+                timeoutUtil.sendRpcMsgToSelfAwait(cmd, args, true);
             } else {
                 timeoutUtil.sendTo(one.id, null, bufEnd);
             }
@@ -188,9 +187,8 @@ class rpc_create {
 
     /** await 形式，发送给某一服务器 */
     sendAwait(sid: string, notify: boolean, cmd: { "serverType": string, "file_method": string }, args: any[]): Promise<any> | undefined {
-        let msgBuf = Buffer.from(JSON.stringify(args));
         if (sid === app.serverId) {
-            return timeoutUtil.sendRpcMsgToSelfAwait(cmd, msgBuf, notify);
+            return timeoutUtil.sendRpcMsgToSelfAwait(cmd, args, notify);
         }
 
         let rpcMsg: I_rpcMsg = {
@@ -209,7 +207,7 @@ class rpc_create {
             rpcTimeout = timeoutUtil.createRpcTimeout(resolveFunc, rejectFunc, new RpcError());
             rpcMsg.id = rpcTimeout.id;
         }
-        const bufEnd = getRpcMsg(rpcMsg, msgBuf, define.Rpc_Msg.rpcMsgAwait);
+        const bufEnd = getRpcMsg(rpcMsg, args, define.Rpc_Msg.rpcMsgAwait);
         timeoutUtil.sendTo(sid, rpcTimeout, bufEnd);
         return promise;
     }
@@ -404,8 +402,8 @@ class RpcTimeoutUtil {
     /**
      * Send rpc message to this server await
      */
-    sendRpcMsgToSelfAwait(cmd: { "serverType": string, "file_method": string }, msgBuf: Buffer, notify: boolean): Promise<any> | undefined {
-        let args = JSON.parse(msgBuf.toString());
+    sendRpcMsgToSelfAwait(cmd: { "serverType": string, "file_method": string }, argsOrginal: any[], notify: boolean): Promise<any> | undefined {
+        let args = JSON.parse(JSON.stringify(argsOrginal));
         if (notify) {
             setImmediate(() => {
                 let route = cmd.file_method.split('.');
@@ -463,17 +461,15 @@ class RpcTimeoutUtil {
 /**
  *  Send rpc message
  * 
- *    [4]       [1]         [1]      [...]    [...] 
- *  allMsgLen  msgType   rpcBufLen   rpcBuf   msgBuf
+ *    [4]       [1]        [...] 
+ *  allMsgLen  msgType     msgBuf
  */
-function getRpcMsg(rpcMsg: I_rpcMsg, msgBuf: Buffer, t: define.Rpc_Msg) {
-    let rpcBuf = Buffer.from(JSON.stringify(rpcMsg));
-    let buffEnd = Buffer.allocUnsafe(6 + rpcBuf.length + msgBuf.length);
+function getRpcMsg(head: I_rpcMsg, data: any, t: define.Rpc_Msg) {
+    let msgBuf = Buffer.from(JSON.stringify({ head, data }));
+    let buffEnd = Buffer.allocUnsafe(5 + msgBuf.length);
     buffEnd.writeUInt32BE(buffEnd.length - 4, 0);
     buffEnd.writeUInt8(t, 4);
-    buffEnd.writeUInt8(rpcBuf.length, 5);
-    rpcBuf.copy(buffEnd, 6);
-    msgBuf.copy(buffEnd, 6 + rpcBuf.length);
+    msgBuf.copy(buffEnd, 5);
     return buffEnd;
 }
 
