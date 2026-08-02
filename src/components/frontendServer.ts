@@ -162,6 +162,9 @@ class ClientManager implements I_clientManager {
             }
 
             let cmdArr = this.app.routeConfig2[data.cmd];
+            if (!cmdArr || cmdArr.length !== 3) {
+                return;
+            }
             if (this.serverType === cmdArr[0]) {
                 let msg = this.app.msgDecode(data.cmd, data.msg);
                 const ok = await this.app.filter.beforeFilter(data.cmd, msg, client.session);

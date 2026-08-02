@@ -20,6 +20,7 @@ export class ConnectorTcp {
     public nowConnectionNum: number = 0;
     public sendCache = false;
     public interval: number = 0;
+    public intervalCacheLen = +Infinity;
     public md5 = "";    // route array md5
 
     constructor(info: { app: Application, clientManager: I_clientManager, config: I_connectorConfig, startCb: () => void }) {
@@ -37,6 +38,10 @@ export class ConnectorTcp {
         if (interval >= 10) {
             this.sendCache = true;
             this.interval = interval;
+            let tmpMaxLen = Number(connectorConfig.intervalCacheLen) || 0;
+            if (tmpMaxLen > 0) {
+                this.intervalCacheLen = tmpMaxLen;
+            }
         }
 
         tcpServer(info.app.serverInfo.clientPort, noDelay, info.startCb, this.newClientCb.bind(this));
@@ -86,12 +91,15 @@ class ClientSocket implements I_clientSocket {
     private interval: number = 0;
     private sendTimer: NodeJS.Timer = null as any;
     private sendArr: Buffer[] = [];
+    private intervalCacheLen = 0;
+    private nowLen = 0;
 
     constructor(connector: ConnectorTcp, clientManager: I_clientManager, socket: SocketProxy) {
         this.connector = connector;
         this.connector.nowConnectionNum++;
         this.sendCache = connector.sendCache;
         this.interval = connector.interval;
+        this.intervalCacheLen = connector.intervalCacheLen;
         this.clientManager = clientManager;
         this.socket = socket;
         this.remoteAddress = socket.remoteAddress;
@@ -137,6 +145,7 @@ class ClientSocket implements I_clientSocket {
         this.heartbeatTimer = null as any;
         clearInterval(this.sendTimer);
         this.sendArr = [];
+        this.nowLen = 0;
         this.clientManager.removeClient(this);
     }
 
@@ -198,6 +207,10 @@ class ClientSocket implements I_clientSocket {
     send(msg: Buffer) {
         if (this.sendCache) {
             this.sendArr.push(msg);
+            this.nowLen += msg.length;
+            if (this.nowLen > this.intervalCacheLen) {
+                this.sendInterval();
+            }
         } else {
             this.socket.send(msg);
         }
@@ -207,6 +220,7 @@ class ClientSocket implements I_clientSocket {
         if (this.sendArr.length > 0) {
             this.socket.send(Buffer.concat(this.sendArr));
             this.sendArr.length = 0;
+            this.nowLen = 0;
         }
     }
 

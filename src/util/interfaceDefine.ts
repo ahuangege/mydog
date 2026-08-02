@@ -162,6 +162,10 @@ export interface I_connectorConfig {
      */
     "interval"?: number,
     /**
+     * message cache max length when interval is on. The default is +Infinity.
+     */
+    "intervalCacheLen"?: number,
+    /**
      * client connection notification
      */
     "clientOnCb"?: (session: Session) => void,
