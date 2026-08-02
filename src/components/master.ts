@@ -119,7 +119,7 @@ class UnregSocket_proxy {
                 return;
             }
             this.registerOk();
-            new Master_ClientProxy(socket);
+            new Master_CLI_Proxy(socket);
             return;
         }
 
@@ -263,7 +263,7 @@ export class Master_ServerProxy {
 /**
  * master handles cli agent
  */
-export class Master_ClientProxy {
+export class Master_CLI_Proxy {
     private socket: SocketProxy;
     private heartbeatTimeoutTimer: NodeJS.Timeout = null as any;
     constructor(socket: SocketProxy) {

@@ -102,7 +102,6 @@ export interface I_someConfig {
     "logger": (level: loggerLevel, msg: string) => void,           // Internal log output
     "mydogList": () => { "title": string, "value": string }[],      // Custom monitoring
     "onBeforeExit": (cb: () => void) => void,       // beforeExit notice
-    "onMydogSend": (args: string[], cb: (data: any) => void) => void,       // mydog send msg callback
 }
 
 /**
@@ -225,10 +224,6 @@ export interface I_rpcConfig {
      * heartbeat (seconds, use more than 5, default 60)
      */
     "heartbeat"?: number,
-    /**
-     * reconnection interval (seconds, default 2)
-     */
-    "reconnectDelay"?: number,
     /**
      * matrix without socket connection
      */

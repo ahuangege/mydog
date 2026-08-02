@@ -123,8 +123,7 @@ export class RpcClientSocket {
         this.heartbeatTimeoutTimer = null as any;
         this.socket = null as any;
         this.app.logger(loggerLevel.error, `${meFilename} socket closed, reconnect the rpc server later: ${this.id}`);
-        let rpcConfig = this.app.someconfig.rpc || {};
-        let delay = rpcConfig.reconnectDelay || define.some_config.Time.Rpc_Reconnect_Time;
+        let delay = define.some_config.Time.Rpc_Reconnect_Time;
         this.doConnect(delay * 1000);
     }
 

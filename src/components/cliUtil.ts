@@ -5,7 +5,7 @@
 
 import Application from "../application";
 import * as define from "../util/define";
-import { Master_ServerProxy, Master_ClientProxy } from "./master";
+import { Master_ServerProxy, Master_CLI_Proxy } from "./master";
 import { monitor_client_proxy } from "./monitor";
 
 let serverTypeSort: string[] = [];
@@ -30,7 +30,7 @@ export class MasterCli {
         }
     }
 
-    deal_cli_msg(socket: Master_ClientProxy, data: any) {
+    deal_cli_msg(socket: Master_CLI_Proxy, data: any) {
         let reqId = data.reqId;
         data = data.msg;
         if ((this as any)["func_" + data.func]) {
@@ -64,7 +64,7 @@ export class MasterCli {
         socket.send(data);
     }
 
-    private async func_list(reqId: number, socket: Master_ClientProxy, args: any) {
+    private async func_list(reqId: number, socket: Master_CLI_Proxy, args: any) {
         let self = this;
         let num = 0;
         for (let sid in this.servers) {
@@ -108,7 +108,7 @@ export class MasterCli {
         }
     }
 
-    private func_stop(reqId: number, socket: Master_ClientProxy, args: string[]) {
+    private func_stop(reqId: number, socket: Master_CLI_Proxy, args: string[]) {
         let num = 0;
         for (let sid in this.servers) {
             num++;
@@ -138,7 +138,7 @@ export class MasterCli {
     }
 
 
-    private func_remove(reqId: number, socket: Master_ClientProxy, args: string[]) {
+    private func_remove(reqId: number, socket: Master_CLI_Proxy, args: string[]) {
         args = Array.from(new Set(args));
         let num = 0;
         for (let i = 0; i < args.length; i++) {
@@ -159,7 +159,7 @@ export class MasterCli {
         }
     }
 
-    private func_removeT(reqId: number, socket: Master_ClientProxy, args: string[]) {
+    private func_removeT(reqId: number, socket: Master_CLI_Proxy, args: string[]) {
         args = Array.from(new Set(args));
         let num = 0;
         for (let x in this.servers) {
@@ -178,58 +178,6 @@ export class MasterCli {
             if (num <= 0) {
                 socket.send({ "reqId": reqId });
             }
-        }
-    }
-
-    private func_send(reqId: number, socket: Master_ClientProxy, args: { "serverIds": string[], "serverTypes": string[], "argv": string[] }) {
-        let okArrSet: Set<Master_ServerProxy> = new Set();
-        if (args.serverIds.length) {
-            for (let id of args.serverIds) {
-                if (this.servers[id]) {
-                    okArrSet.add(this.servers[id]);
-                }
-            }
-        }
-        if (args.serverTypes.length) {
-            for (let x in this.servers) {
-                let one = this.servers[x];
-                if (args.serverTypes.includes(one.serverType)) {
-                    okArrSet.add(one);
-                }
-            }
-        }
-
-        if (args.serverIds.length === 0 && args.serverTypes.length === 0) {
-            for (let x in this.servers) {
-                okArrSet.add(this.servers[x]);
-            }
-        }
-        let okArr = Array.from(okArrSet);
-        if (okArr.length === 0) {
-            socket.send({
-                "reqId": reqId,
-                "msg": {
-                    "err": "no target serverIds"
-                }
-            });
-            return;
-        }
-
-        let num = okArr.length;
-        let endData: { "id": string, "serverType": string, "data": any }[] = [];
-        let timeoutIds: string[] = [];
-        for (let one of okArr) {
-            this.send_to_monitor(one, { "func": "send", "args": args.argv }, 600, (err: any, data: any) => {
-                if (err) {
-                    timeoutIds.push(one.sid);
-                } else {
-                    endData.push({ "id": one.sid, "serverType": one.serverType, "data": data });
-                }
-                num--;
-                if (num <= 0) {
-                    socket.send({ "reqId": reqId, "msg": { "err": "", "timeoutIds": timeoutIds, "data": endData } });
-                }
-            });
         }
     }
 
@@ -355,26 +303,6 @@ export class MonitorCli {
         } else {
             this.send_to_master(socket, msg);
             exitCall();
-        }
-    }
-
-    private func_send(reqId: number, socket: monitor_client_proxy, args: string[]) {
-        let msg = {
-            "T": define.Monitor_To_Master.cliMsg,
-            "reqId": reqId,
-            "msg": null,
-        };
-        let sendFunc = this.app.someconfig.onMydogSend;
-        if (sendFunc) {
-            sendFunc(args, (data) => {
-                if (data === undefined) {
-                    data = null;
-                }
-                msg.msg = data;
-                this.send_to_master(socket, msg);
-            });
-        } else {
-            this.send_to_master(socket, msg);
         }
     }
 }

@@ -397,6 +397,10 @@ interface I_connectorConfig {
      */
     "interval"?: number,
     /**
+     * 当开启 interval 时，为防止单次Buffer申请过大，可配置此值作为立即发送的阈值（默认 +Infinity）
+     */
+    "intervalCacheLen"?: number,
+    /**
      * 客户端连接通知
      */
     "clientOnCb"?: (session: Session) => void,
@@ -425,6 +429,10 @@ interface I_rpcConfig {
      */
     "interval"?: number | { "default": number, [serverType: string]: number }
     /**
+     * 当开启 interval 时，为防止单次Buffer申请过大，可配置此值作为立即发送的阈值（默认 +Infinity）
+     */
+    "intervalCacheLen"?: number,
+    /**
      * 是否开启Nagle算法（默认不开启）
      */
     "noDelay"?: boolean,
@@ -433,10 +441,6 @@ interface I_rpcConfig {
      */
     "heartbeat"?: number,
     /**
-     * 重连间隔（秒，默认 2）
-     */
-    "reconnectDelay"?: number,
-    /**
      * 不建立socket连接的矩阵
      */
     "noRpcMatrix"?: { [serverType: string]: string[] },
@@ -444,14 +448,6 @@ interface I_rpcConfig {
      * rpc 消息缓存长度（默认 5000）
      */
     "rpcMsgCacheCount"?: number,
-    /**
-     * 当开启 interval 时，为防止单次Buffer申请过大，可配置此值作为立即发送的阈值（默认 +Infinity）
-     */
-    "intervalCacheLen"?: number,
-    /**
-     * rpc调用发生错误时，记录堆栈（注意：会影响性能，建议开发模式开启，生产环境关闭。默认关闭。）
-     */
-    "errStack"?: boolean,
 }
 
 /**

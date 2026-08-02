@@ -461,22 +461,6 @@ commond.addCommond({
     }
 });
 
-commond.addCommond({
-    "name": "send",
-    "des": "send msg to mydog",
-    "options": [
-        { "opt": "-h", "name": "host", "des": "master server host", "mustNeed": false, "type": "string", "default": DEFAULT_MASTER_HOST },
-        { "opt": "-p", "name": "port", "des": "master server port", "mustNeed": false, "type": "number", "default": DEFAULT_MASTER_PORT },
-        { "opt": "-t", "name": "token", "des": "cli token", "mustNeed": false, "type": "string", "default": define.some_config.Cli_Token },
-        { "opt": "-id", "name": "serverId", "des": "serverId will get msg", "mustNeed": false, "type": "string" },
-        { "opt": "-svrT", "name": "serverType", "des": "serverType will get msg", "mustNeed": false, "type": "string" },
-    ],
-    "usage": "mydog send [-id id1,id2] [-svrT svrT1,svrT2] [argv0 argv1...]",
-    "cb": (opts: { "host": string, "port": number, "token": string, "serverId": string, "serverType": string }, argv) => {
-        cli_send(opts, argv);
-    }
-});
-
 commond.parse();
 
 //#endregion
@@ -882,68 +866,6 @@ function cli_cmd(lans: string[]) {
 
 }
 
-function cli_send(opts: { "host": string, "port": number, "token": string, "serverId": string, "serverType": string }, argv: string[]) {
-    if (argv.length === 0) {
-        return abort("cannot send empty msg");
-    }
-    for (let i = 0; i < argv.length; i++) {
-        argv[i] = argv[i].replace(/ /g, ",");
-    }
-    let serverIds: string[] = [];
-    let serverTypes: string[] = [];
-    let endMsg: { "serverIds": string[], "serverTypes": string[], "argv": string[] } = { "serverIds": [], "serverTypes": [], "argv": argv };
-    if (opts.serverId) {
-        opts.serverId = opts.serverId.replace(/ /g, ",");
-        for (let id of opts.serverId.split(",")) {
-            serverIds.push(...parseServerId(id));
-        }
-        serverIds = Array.from(new Set(serverIds));
-        endMsg["serverIds"] = serverIds;
-    }
-    if (opts.serverType) {
-        opts.serverType = opts.serverType.replace(/ /g, ",");
-        serverTypes = Array.from(new Set(opts.serverType.split(",")));
-        endMsg["serverTypes"] = serverTypes;
-    }
-    let msg = `sendMsg:
-{
-    "serverIds": ${JSON.stringify(serverIds)}
-    "serverTypes": ${JSON.stringify(serverTypes)}
-    "argv": ${JSON.stringify(argv)}
-}
-(y/n)[no] ?    `
-    confirm(msg, (yes) => {
-        if (!yes) {
-            abort("[ canceled ]")
-            return;
-        }
-        connectToMaster(opts.host, opts.port, opts.token, function (client) {
-            waitMsg("connect ok! waiting");
-            client.request({ "func": "send", "args": endMsg }, 600, function (err, data: { "err": string, "timeoutIds": string[], "data": any[] }) {
-                clearWait();
-                console.log();
-                client.close(false);
-                if (err) {
-                    return abort(err);
-                }
-                if (data.err) {
-                    return abort(data.err);
-                }
-                let clipath = path.join(process.cwd(), "mydog_cli.js");
-                if (!fs.existsSync(clipath)) {
-                    console.log(data);
-                    return;
-                }
-                let file = require(path.join(process.cwd(), "mydog_cli.js"));
-                if (file.mydog_send && typeof file.mydog_send === "function") {
-                    file.mydog_send(endMsg, data.timeoutIds, data.data);
-                } else {
-                    console.log(data);
-                }
-            });
-        });
-    });
-}
 //#endregion
 
 
