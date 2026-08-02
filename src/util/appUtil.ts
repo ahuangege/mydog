@@ -12,6 +12,7 @@ import { FrontendServer } from "../components/frontendServer";
 import { BackendServer } from "../components/backendServer";
 import { ServerInfo } from "./interfaceDefine";
 import { msgCoderSetApp } from "../components/msgCoder";
+import packageJson from "../../package.json";
 
 
 /**
@@ -91,39 +92,53 @@ let parseArgs = function (args: any[]) {
 };
 
 
-let loadBaseConfig = function (app: Application) {
-    loadConfigBaseApp(app, "masterConfig", path.join(some_config.File_Dir.Config, 'master.js'));
-    loadConfigBaseApp(app, "serversConfig", path.join(some_config.File_Dir.Config, 'servers.js'));
-    loadConfigBaseApp(app, "routeConfig", path.join(some_config.File_Dir.Config, 'route.js'));
-
-    function loadConfigBaseApp(app: Application, key: "masterConfig" | "serversConfig" | "routeConfig", val: string) {
-        let env = app.env;
-        let originPath = path.join(app.base, val);
-        if (fs.existsSync(originPath)) {
-            let file = require(originPath).default;
-            if (key === "masterConfig" || key === "serversConfig") {
-                if (!file[env]) {
-                    console.error("ERROR-- no such environment: " + key + "/" + env);
-                    process.exit();
-                }
-                file = file[env];
-            }
-            if (key === "serversConfig") {
-                parseServersConfig(file);
-            } else if (key === "routeConfig") {
-                let arr: string[][] = [];
-                for (let one of file) {
-                    arr.push((one as string).split("."));
-                }
-                app.routeConfig2 = arr;
-            }
-
-            app[key] = file;
-        } else {
-            console.error("ERROR-- no such file: " + originPath);
-            process.exit();
-        }
+function loadCfgFile(app: Application, file: "master" | "servers" | "route") {
+    try {
+        const filePath = path.join(app.base, some_config.File_Dir.Config, file + ".js");
+        return require(filePath).default;
+    } catch (err) {
+        console.error(err);
+        process.exit();
     }
+}
+
+
+function loadMasterConfig(app: Application) {
+    let env = app.env;
+    const cfg: Record<string, ServerInfo> = loadCfgFile(app, "master");
+    if (!cfg[env]) {
+        console.error("ERROR-- no such environment: master.ts " + env);
+        process.exit();
+    }
+    app.masterConfig = cfg[env];
+}
+
+function loadServersConfig(app: Application) {
+    let env = app.env;
+    const cfg: Record<string, { [serverType: string]: ServerInfo[] }> = loadCfgFile(app, "servers");
+    if (!cfg[env]) {
+        console.error("ERROR-- no such environment: servers.ts " + env);
+        process.exit();
+    }
+    parseServersConfig(cfg[env]);
+    app.serversConfig = cfg[env];
+}
+
+
+function loadRouteConfig(app: Application) {
+    const cfg: string[] = loadCfgFile(app, "route");
+    let arr: string[][] = [];
+    for (let one of cfg) {
+        arr.push((one as string).split("."));
+    }
+    app.routeConfig2 = arr;
+    app.routeConfig = cfg;
+}
+
+let loadBaseConfig = function (app: Application) {
+    loadMasterConfig(app);
+    loadServersConfig(app);
+    loadRouteConfig(app);
 };
 
 /** Parse the servers configuration */
@@ -210,7 +225,7 @@ function startPng(app: Application) {
         "  ※                      ※",
         "  ※----------------------※",
     ];
-    let version = require("../mydog").version;
+    let version = packageJson.version;
     version = "Ver: " + version;
     console.log("      ");
     for (let i = 0; i < lines.length; i++) {

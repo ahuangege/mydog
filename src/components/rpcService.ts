@@ -7,7 +7,7 @@ import Application from "../application";
 import { I_rpcTimeout, I_rpcMsg, ServerInfo } from "../util/interfaceDefine";
 import * as path from "path";
 import * as fs from "fs";
-import define = require("../util/define");
+import * as define from "../util/define";
 import * as appUtil from "../util/appUtil";
 
 let app: Application;

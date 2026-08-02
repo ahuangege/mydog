@@ -1,6 +1,6 @@
 
 import Application from "../application";
-import define = require("../util/define");
+import * as  define from "../util/define";
 import { loggerLevel, SocketProxy } from "../util/interfaceDefine";
 import * as path from "path";
 let meFilename = `[${path.basename(__filename, ".js")}.ts]`;

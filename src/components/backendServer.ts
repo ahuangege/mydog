@@ -4,7 +4,7 @@ import Application from "../application";
 import { encodeRemoteData } from "./msgCoder";
 import * as path from "path";
 import * as fs from "fs";
-import define = require("../util/define");
+import * as define from "../util/define";
 import { I_encodeDecodeConfig } from "../util/interfaceDefine";
 
 import { Session, initSessionApp } from "./session";
@@ -52,7 +52,7 @@ export class BackendServer {
     /**
      * The back-end server receives the client message forwarded by the front-end server
      */
-    handleMsg(id: string, msg: Buffer) {
+    async handleMsg(id: string, msg: Buffer) {
         let sessionLen = msg.readUInt16BE(1);
         let sessionBuf = msg.slice(3, 3 + sessionLen);
         let session = new Session();
@@ -60,27 +60,19 @@ export class BackendServer {
         let cmd = msg.readUInt16BE(3 + sessionLen);
         let cmdArr = this.app.routeConfig2[cmd];
         let data = this.app.msgDecode(cmd, msg.slice(5 + sessionLen));
-        this.app.filter.beforeFilter(cmd, data, session, (hasError) => {
-            if (hasError) {
-                return;
-            }
-            this.msgHandler[cmdArr[1]][cmdArr[2]](data, session, this.callback(id, cmd, session));
-        });
-    }
-
-
-    private callback(id: string, cmd: number, session: Session) {
-        let self = this;
-        return function (msg: any) {
-            if (msg === undefined) {
-                msg = null;
-            }
-            let msgBuf = self.app.protoEncode(cmd, msg);
+        const ok = await this.app.filter.beforeFilter(cmd, data, session);
+        if (!ok) {
+            return;
+        }
+        const rsp = await this.msgHandler[cmdArr[1]][cmdArr[2]](data, session);
+        if (rsp) {
+            let msgBuf = this.app.protoEncode(cmd, rsp);
             let buf = encodeRemoteData([session.uid], msgBuf);
-            self.app.rpcPool.sendMsg(id, buf);
-            self.app.filter.afterFilter(cmd, msg, session);
-        };
+            this.app.rpcPool.sendMsg(id, buf);
+        }
+        this.app.filter.afterFilter(cmd, msg, session);
     }
+
 
     /**
      * Synchronize back-end session to front-end
@@ -97,6 +89,9 @@ export class BackendServer {
      * The back-end server sends a message to the client
      */
     sendMsgByUidSid(cmd: number, msg: any, uidsid: { "uid": number, "sid": string }[]) {
+        if (uidsid.length === 0) {
+            return;
+        }
         let groups: { [sid: string]: number[] } = {};
         let group: number[];
         let one: { "uid": number, "sid": string };
@@ -112,10 +107,13 @@ export class BackendServer {
             group.push(one.uid);
         }
         let app = this.app;
-        let msgBuf: Buffer = app.protoEncode(cmd, msg);
+        let msgBuf: Buffer = null as any;
         let sid: string;
         let buf: Buffer;
         for (sid in groups) {
+            if (!msgBuf) {
+                msgBuf = app.protoEncode(cmd, msg);
+            }
             buf = encodeRemoteData(groups[sid], msgBuf);
             app.rpcPool.sendMsg(sid, buf);
         }
@@ -126,12 +124,18 @@ export class BackendServer {
      */
     sendMsgByGroup(cmd: number, msg: any, group: { [sid: string]: number[] }) {
         let app = this.app;
-        let msgBuf: Buffer = app.protoEncode(cmd, msg);
+        let msgBuf: Buffer = null as any;
         let sid: string;
         let buf: Buffer;
         for (sid in group) {
+            if (!sid) {
+                continue;
+            }
             if (group[sid].length === 0) {
                 continue;
+            }
+            if (!msgBuf) {
+                msgBuf = app.protoEncode(cmd, msg);
             }
             buf = encodeRemoteData(group[sid], msgBuf);
             app.rpcPool.sendMsg(sid, buf);

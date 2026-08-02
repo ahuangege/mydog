@@ -297,7 +297,7 @@ class WsSocket extends EventEmitter implements SocketProxy {
 
     close() {
         this.socket.close();
-        this.socket.emit("close");
+        this.onClose();
     }
 }
 

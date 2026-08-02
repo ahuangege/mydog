@@ -8,7 +8,7 @@ import { MasterCli } from "./cliUtil";
 import { SocketProxy, monitor_get_new_server, monitor_remove_server, monitor_reg_master, loggerLevel } from "../util/interfaceDefine";
 import tcpServer from "./tcpServer";
 import { runServers } from "../util/starter";
-import define = require("../util/define");
+import * as define from "../util/define";
 import * as msgCoder from "./msgCoder";
 import * as path from "path";
 let meFilename = `[${path.basename(__filename, ".js")}.ts]`;

@@ -61,6 +61,6 @@ export class TcpClient extends EventEmitter implements SocketProxy {
                 this.socket.destroy();
             }, 1000)
         });
-        this.socket.emit("close");
+        this.onClose();
     }
 }

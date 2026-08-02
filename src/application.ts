@@ -3,15 +3,15 @@
  */
 
 
-import * as path from "path"
-import { I_someConfig, I_clientSocket, I_connectorConfig, I_encodeDecodeConfig, I_rpcConfig, ServerInfo, loggerLevel } from "./util/interfaceDefine";
-import * as appUtil from "./util/appUtil";
 import { EventEmitter } from "events";
-import { RpcSocketPool } from "./components/rpcSocketPool";
-import { FrontendServer } from "./components/frontendServer";
+import * as path from "path";
 import { BackendServer } from "./components/backendServer";
+import { Filter, I_after, I_before, I_globalBefore } from "./components/filter";
+import { FrontendServer } from "./components/frontendServer";
+import { RpcSocketPool } from "./components/rpcSocketPool";
 import { Session } from "./components/session";
-import { Filter, I_before, I_after, I_globalBefore } from "./components/filter";
+import * as appUtil from "./util/appUtil";
+import { I_clientSocket, I_connectorConstructor, I_encodeDecodeConfig, I_someConfig, ServerInfo, loggerLevel } from "./util/interfaceDefine";
 
 declare global {
     interface Rpc {
@@ -169,6 +169,9 @@ export default class Application extends EventEmitter {
      * @param uids  uid array [1,2]
      */
     sendMsgByUid(cmd: number, msg: any, uids: number[]) {
+        if (uids.length === 0) {
+            return;
+        }
         if (msg === undefined) {
             msg = null;
         }
@@ -264,8 +267,19 @@ export default class Application extends EventEmitter {
      * Some processing of the message when it first reaches the gateway server
      * @param filter 
      */
-    globalBefore(filter: { "before": I_globalBefore }) {
+    globalBefore(filter: { "globalBefore": I_globalBefore }) {
         this.filter.globalBefore(filter);
     }
 
 }
+
+export interface I_mydog {
+    version: string,
+    createApp: () => Application,
+    app: Application,
+    connector: {
+        Tcp: I_connectorConstructor,
+        Ws: I_connectorConstructor,
+    }
+}
+
