@@ -89,7 +89,7 @@ export interface I_rpcTimeout {
     resolve: Function;
     reject: Function;    // when await call, reject function
     time: number;
-    rpcErr?: RpcError;
+    rpcErr: RpcError;
 }
 
 
@@ -237,10 +237,6 @@ export interface I_rpcConfig {
      * message cache max length when interval is on. The default is +Infinity.
      */
     "intervalCacheLen"?: number,
-    /**
-     * keep rpc call stack when error happens. (may affect performance. default false )
-     */
-    "errStack"?: boolean
 }
 
 

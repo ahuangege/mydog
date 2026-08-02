@@ -3,22 +3,16 @@
  */
 
 
-import Application from "../application";
-import { I_rpcTimeout, I_rpcMsg, ServerInfo } from "../util/interfaceDefine";
-import * as path from "path";
 import * as fs from "fs";
-import * as define from "../util/define";
+import * as path from "path";
+import Application from "../application";
 import * as appUtil from "../util/appUtil";
+import * as define from "../util/define";
+import { I_rpcMsg, I_rpcTimeout } from "../util/interfaceDefine";
 
 let app: Application;
 let msgHandler: { [filename: string]: any } = {};
-let rpcId = 1;  // Must start from 1, not 0
-let rpcRequest: { [id: number]: I_rpcTimeout } = {};
-let rpcTimeMax: number = 10 * 1000; //overtime time
-let outTime = 0;    // Current time + timeout
-let msgQueueDic: { [serverId: string]: { "rpcTimeout": I_rpcTimeout | null, "buf": Buffer, "time": number }[] } = {};
-let msgCacheCount = 5000;
-let errStack = false;
+let timeoutUtil: RpcTimeoutUtil = null as any;
 
 const enum e_awaitRpcErrType {
     timeout = "rpcTimeout",
@@ -31,39 +25,12 @@ const enum e_awaitRpcErrType {
  */
 export function init(_app: Application) {
     app = _app;
-    let rpcConfig = app.someconfig.rpc || {};
-    let rpcMsgCacheCount = parseInt(rpcConfig.rpcMsgCacheCount as any);
-    if (rpcMsgCacheCount >= 0) {
-        msgCacheCount = rpcMsgCacheCount;
-    }
-
-    let timeout = Number(rpcConfig.timeout) || 0;
-    if (timeout >= 5) {
-        rpcTimeMax = timeout * 1000;
-    }
-
-    if (rpcConfig.errStack) {
-        errStack = true;
-    }
-
-    outTime = Date.now() + rpcTimeMax;
-    setInterval(() => {
-        outTime = Date.now() + rpcTimeMax;
-    }, 100);
-    setInterval(checkTimeout, 2000);
-
+    timeoutUtil = new RpcTimeoutUtil()
     new rpc_create();
 }
 
 export function rpcOnNewSocket(sid: string) {
-    let queue = msgQueueDic[sid];
-    if (!queue) {
-        return;
-    }
-    delete msgQueueDic[sid];
-    for (let one of queue) {
-        sendTo(sid, one.rpcTimeout, one.buf);
-    }
+    timeoutUtil.rpcOnNewSocket(sid);
 }
 
 
@@ -79,40 +46,38 @@ export async function handleMsgAwait(sid: string, bufAll: Buffer) {
     let msg = JSON.parse(bufAll.slice(2 + rpcBufLen).toString());
 
     if (!rpcMsg.cmd) {
-        let timeout = rpcRequest[rpcMsg.id as number];
+        // 收到 rpc 回调
+        const timeout = timeoutUtil.delRpcTimeout(rpcMsg.id as number);
         if (timeout) {
-            delete rpcRequest[rpcMsg.id as number];
             if (rpcMsg.err) {
-                if (timeout.rpcErr) {
-                    timeout.rpcErr.setMsg(e_awaitRpcErrType.error);
-                    timeout.reject(timeout.rpcErr);
-                } else {
-                    timeout.reject(new RpcError(e_awaitRpcErrType.error));
-                }
+                timeout.rpcErr.setMsg(e_awaitRpcErrType.error);
+                timeout.reject(timeout.rpcErr);
             } else {
                 timeout.resolve(msg);
             }
         }
     } else {
+        // 收到rpc调用
         let cmd = (rpcMsg.cmd as string).split('.');
         let data = null;
         let hasErr = false;
         try {
             data = await msgHandler[cmd[0]][cmd[1]](...msg);
-        } catch (e) {
+        } catch (err) {
             hasErr = true;
             process.nextTick(() => {
-                throw e;
+                throw err;
             });
         }
         if (!rpcMsg.id) {
+            // notify 为 true 的通知类rpc， 不需要回调
             return;
         }
         if (data === undefined) {
             data = null;
         }
         let bufEnd = getRpcMsg({ "id": rpcMsg.id, "err": hasErr ? 1 : undefined }, Buffer.from(JSON.stringify(data)), define.Rpc_Msg.rpcMsgAwait);
-        sendTo(sid, null, bufEnd);
+        timeoutUtil.sendTo(sid, null, bufEnd);
     }
 }
 
@@ -214,9 +179,9 @@ class rpc_create {
         let bufEnd = getRpcMsg({ "cmd": cmd.file_method }, msgBuf, define.Rpc_Msg.rpcMsgAwait);
         for (let one of servers) {
             if (one.id === app.serverId) {
-                sendRpcMsgToSelfAwait(cmd, msgBuf, true);
+                timeoutUtil.sendRpcMsgToSelfAwait(cmd, msgBuf, true);
             } else {
-                sendTo(one.id, null, bufEnd);
+                timeoutUtil.sendTo(one.id, null, bufEnd);
             }
         }
     }
@@ -225,7 +190,7 @@ class rpc_create {
     sendAwait(sid: string, notify: boolean, cmd: { "serverType": string, "file_method": string }, args: any[]): Promise<any> | undefined {
         let msgBuf = Buffer.from(JSON.stringify(args));
         if (sid === app.serverId) {
-            return sendRpcMsgToSelfAwait(cmd, msgBuf, notify);
+            return timeoutUtil.sendRpcMsgToSelfAwait(cmd, msgBuf, notify);
         }
 
         let rpcMsg: I_rpcMsg = {
@@ -241,99 +206,258 @@ class rpc_create {
                 rejectFunc = reject;
             });
 
-            let rpcError: RpcError = errStack ? new RpcError() : null as any;
-            rpcTimeout = { "id": getRpcId(), "resolve": resolveFunc, "reject": rejectFunc, "time": outTime, "rpcErr": rpcError };
+            rpcTimeout = timeoutUtil.createRpcTimeout(resolveFunc, rejectFunc, new RpcError());
             rpcMsg.id = rpcTimeout.id;
         }
-        let bufEnd = getRpcMsg(rpcMsg, msgBuf, define.Rpc_Msg.rpcMsgAwait);
-        sendTo(sid, rpcTimeout, bufEnd);
+        const bufEnd = getRpcMsg(rpcMsg, msgBuf, define.Rpc_Msg.rpcMsgAwait);
+        timeoutUtil.sendTo(sid, rpcTimeout, bufEnd);
         return promise;
     }
 
+
+
 }
 
+class RpcTimeoutUtil {
+    private rpcId = 1;  // Must start from 1, not 0
+    private rpcRequest = new Map<number, I_rpcTimeout>(); // id -> any
+    private rpcRequestBySeconds = new Map<number, Set<number>>(); // seconds -> id 列表
 
-function sendTo(sid: string, rpcTimeout: I_rpcTimeout | null, buf: Buffer) {
-    let socket = app.rpcPool.getSocket(sid);
-    if (socket) {
-        if (rpcTimeout) {
-            rpcRequest[rpcTimeout.id] = rpcTimeout;
+    private rpcTimeMax: number = 10; //overtime time
+    private outTime = 0;    // Current time + timeout   超时时间（时间戳 秒）
+
+    private msgCacheCount = 5000; // rpc目标服不存在时，最多缓存个数
+    private msgCacheMap = new Map<string, { "rpcTimeout": I_rpcTimeout | null, "buf": Buffer, "time": number }[]>();  // serverId -> any
+
+    constructor() {
+        this.init();
+    }
+
+    private init() {
+        let rpcConfig = app.someconfig.rpc || {};
+        let rpcMsgCacheCount = parseInt(rpcConfig.rpcMsgCacheCount as any);
+        if (rpcMsgCacheCount >= 0) {
+            this.msgCacheCount = rpcMsgCacheCount;
         }
-        socket.send(buf);
-        return;
-    }
-    let queue = msgQueueDic[sid];
-    if (!queue) {
-        queue = [];
-        msgQueueDic[sid] = queue;
-    }
-    queue.push({ "rpcTimeout": rpcTimeout, "buf": buf, "time": outTime - 3000 });
 
-    if (queue.length > msgCacheCount) {
-        for (let one of queue.splice(0, 20)) {
-            if (one.rpcTimeout) {
-                timeoutCall(one.rpcTimeout);
+        let timeout = Math.floor(rpcConfig.timeout || 0) || 0;
+        if (timeout >= 5) {
+            this.rpcTimeMax = timeout
+        }
+
+        this.tick();
+    }
+
+    private tick() {
+        try {
+            this.outTime = Math.floor(Date.now() / 1000 + this.rpcTimeMax);
+
+            this.checkMsgCacheTimeout();
+            this.checkRpcTimeout();
+        } finally {
+            setTimeout(() => {
+                this.tick();
+            }, 1000)
+        }
+    }
+
+
+    private getRpcId() {
+        let findCnt = 0;
+        while (findCnt < 100000) {
+            this.rpcId++;
+            if (this.rpcId > 99999999) {
+                this.rpcId = 1;
             }
-        }
-    }
-}
-
-
-/**
- * Get rpcId
- */
-function getRpcId() {
-    let id = rpcId++;
-    if (rpcId > 99999999) {
-        rpcId = 1;
-    }
-    return id;
-}
-
-/**
- * rpc timeout detection
- */
-function checkTimeout() {
-    let now = Date.now();
-
-    for (let sid in msgQueueDic) {
-        let queue = msgQueueDic[sid];
-        let deleteCount = 0;
-        for (let one of queue) {
-            if (one.time < now) {
-                deleteCount++;
-            } else {
-                break;
+            if (!this.rpcRequest.has(this.rpcId)) {
+                return this.rpcId;
             }
+            findCnt++;
         }
-        if (deleteCount > 0) {
-            for (let one of queue.splice(0, deleteCount)) {
-                if (one.rpcTimeout) {
-                    timeoutCall(one.rpcTimeout);
+        throw new Error("rpcId exhausted, too many in-flight requests");
+    }
+
+    createRpcTimeout(resolve: Function, reject: Function, rpcErr: RpcError) {
+        const data: I_rpcTimeout = { "id": this.getRpcId(), resolve, reject, rpcErr, "time": this.outTime, };
+        this.rpcRequest.set(data.id, data);
+
+        let set = this.rpcRequestBySeconds.get(data.time);
+        if (!set) {
+            set = new Set();
+            this.rpcRequestBySeconds.set(data.time, set);
+        }
+        set.add(data.id)
+
+        return data;
+    }
+
+    delRpcTimeout(id: number): I_rpcTimeout {
+        const data = this.rpcRequest.get(id);
+        if (!data) {
+            return null as any;
+        }
+        this.rpcRequest.delete(id);
+        this.rpcRequestBySeconds.get(data.time)?.delete(data.id);
+
+        return data;
+    }
+
+    /** 检测缓存的消息超时 */
+    private checkMsgCacheTimeout() {
+        const nowSeconds = Math.floor(Date.now() / 1000);
+
+        for (const [sid, msgList] of this.msgCacheMap) {
+            let deleteCount = 0;
+            for (let one of msgList) {
+                if (nowSeconds >= one.time) {
+                    deleteCount++;
+                } else {
+                    break;
+                }
+            }
+            if (deleteCount > 0) {
+                for (let one of msgList.splice(0, deleteCount)) {
+                    if (one.rpcTimeout) {
+                        this.delRpcTimeout(one.rpcTimeout.id);
+                        this.timeoutCall(one.rpcTimeout);
+                    }
+                }
+                if (msgList.length === 0) {
+                    this.msgCacheMap.delete(sid);
                 }
             }
         }
     }
 
-    for (let id in rpcRequest) {
-        if (rpcRequest[id].time < now) {
-            let one = rpcRequest[id];
-            delete rpcRequest[id];
-            timeoutCall(one);
+    /** 检测 rpc 超时 */
+    private checkRpcTimeout() {
+        let nowSeconds = Math.floor(Date.now() / 1000);
+
+        for (const [seconds, set] of this.rpcRequestBySeconds) {
+            if (nowSeconds < seconds) {
+                continue;
+            }
+            this.rpcRequestBySeconds.delete(seconds);
+
+            for (const id of set) {
+                const one = this.rpcRequest.get(id);
+                if (one) {
+                    this.rpcRequest.delete(id);
+                    this.timeoutCall(one);
+                }
+            }
+
         }
+    }
+
+
+    timeoutCall(one: I_rpcTimeout) {
+        if (one) {
+            one.rpcErr.setMsg(e_awaitRpcErrType.timeout);
+            one.reject(one.rpcErr);
+        }
+
+    }
+
+
+    sendTo(sid: string, rpcTimeout: I_rpcTimeout | null, buf: Buffer) {
+        let socket = app.rpcPool.getSocket(sid);
+        if (socket) {
+            socket.send(buf);
+            return;
+        }
+
+        let msgList = this.msgCacheMap.get(sid);
+        if (!msgList) {
+            msgList = [];
+            this.msgCacheMap.set(sid, msgList);
+        }
+
+        // 注意：这里超时时间需要更短，以防连接后发送出去来不及等待返回。同时在检测超时的时候，需要早于 rpcRequestBySeconds 检测
+        msgList.push({ "rpcTimeout": rpcTimeout, "buf": buf, "time": this.outTime - 3 });
+
+        if (msgList.length > this.msgCacheCount) {
+            for (let one of msgList.splice(0, 20)) {
+                if (one.rpcTimeout) {
+                    this.delRpcTimeout(one.rpcTimeout.id);
+                    this.timeoutCall(one.rpcTimeout);
+                }
+            }
+        }
+    }
+
+
+
+    rpcOnNewSocket(sid: string) {
+        const msgList = this.msgCacheMap.get(sid);
+        if (!msgList) {
+            return;
+        }
+        this.msgCacheMap.delete(sid);
+
+        for (let one of msgList) {
+            this.sendTo(sid, one.rpcTimeout, one.buf);
+        }
+    }
+
+
+    /**
+     * Send rpc message to this server await
+     */
+    sendRpcMsgToSelfAwait(cmd: { "serverType": string, "file_method": string }, msgBuf: Buffer, notify: boolean): Promise<any> | undefined {
+        let args = JSON.parse(msgBuf.toString());
+        if (notify) {
+            setImmediate(() => {
+                let route = cmd.file_method.split('.');
+                let file = msgHandler[route[0]];
+                file[route[1]](...args);
+            });
+            return;
+        }
+
+        let resolveFunc: Function = null as any;
+        let rejectFunc: Function = null as any;
+        let promise = new Promise((resolve, reject) => {
+            resolveFunc = resolve;
+            rejectFunc = reject;
+        });
+
+        const timeoutInfo = this.createRpcTimeout(resolveFunc, rejectFunc, new RpcError());
+        const rpcId = timeoutInfo.id;
+
+        setImmediate(async () => {
+            let route = cmd.file_method.split('.');
+            let file = msgHandler[route[0]];
+            let data: any = null;
+            let hasErr = false;
+            try {
+                data = await file[route[1]](...args);
+            } catch (err) {
+                hasErr = true;
+                process.nextTick(() => {
+                    throw err;
+                });
+            }
+
+            const timeout = this.delRpcTimeout(rpcId);
+            if (!timeout) {
+                return;
+            }
+            if (hasErr) {
+                timeout.rpcErr.setMsg(e_awaitRpcErrType.error);
+                timeout.reject(timeout.rpcErr);
+            } else {
+                if (data === undefined) {
+                    data = null;
+                }
+                timeout.resolve(JSON.parse(JSON.stringify(data)));
+            }
+        });
+
+        return promise;
     }
 }
 
-function timeoutCall(one: I_rpcTimeout) {
-    process.nextTick(() => {
-        if (one.rpcErr) {
-            one.rpcErr.setMsg(e_awaitRpcErrType.timeout);
-            one.reject(one.rpcErr);
-        } else {
-            one.reject(new RpcError(e_awaitRpcErrType.timeout))
-        }
-    });
-}
 
 
 /**
@@ -354,72 +478,11 @@ function getRpcMsg(rpcMsg: I_rpcMsg, msgBuf: Buffer, t: define.Rpc_Msg) {
 }
 
 
-/**
- * Send rpc message to this server await
- */
-function sendRpcMsgToSelfAwait(cmd: { "serverType": string, "file_method": string }, msgBuf: Buffer, notify: boolean): Promise<any> | undefined {
-    let args = JSON.parse(msgBuf.toString());
-    if (notify) {
-        setImmediate(() => {
-            let route = cmd.file_method.split('.');
-            let file = msgHandler[route[0]];
-            file[route[1]](...args);
-        });
-        return;
-    }
-
-    let resolveFunc: Function = null as any;
-    let rejectFunc: Function = null as any;
-    let promise = new Promise((resolve, reject) => {
-        resolveFunc = resolve;
-        rejectFunc = reject;
-    });
-    let rpcError: RpcError = errStack ? new RpcError() : null as any;
-
-    let id = getRpcId();
-    rpcRequest[id] = { "id": id, "resolve": resolveFunc, "reject": rejectFunc, "time": outTime, "rpcErr": rpcError };
-
-    process.nextTick(async () => {
-        let route = cmd.file_method.split('.');
-        let file = msgHandler[route[0]];
-        let data: any = null;
-        let hasErr = false;
-        try {
-            data = await file[route[1]](...args);
-        } catch (e) {
-            hasErr = true;
-            process.nextTick(() => {
-                throw e;
-            });
-        }
-
-        let timeout = rpcRequest[id];
-        if (!timeout) {
-            return;
-        }
-        delete rpcRequest[id];
-
-        if (hasErr) {
-            if (timeout.rpcErr) {
-                timeout.rpcErr.setMsg(e_awaitRpcErrType.error);
-                timeout.reject(timeout.rpcErr);
-            } else {
-                timeout.reject(new RpcError(e_awaitRpcErrType.error));
-            }
-        } else {
-            if (data === undefined) {
-                data = null;
-            }
-            timeout.resolve(JSON.parse(JSON.stringify(data)));
-        }
-    });
-
-    return promise;
-}
 
 
 
 export class RpcError extends Error {
+    name = "RpcError";
     constructor(message?: string) {
         super(message);
     }
