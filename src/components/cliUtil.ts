@@ -5,7 +5,7 @@
 
 import Application from "../application";
 import * as define from "../util/define";
-import { Master_ServerProxy, Master_CLI_Proxy } from "./master";
+import { Master, Master_CLI_Proxy, Master_ServerProxy } from "./master";
 import { monitor_client_proxy } from "./monitor";
 
 let serverTypeSort: string[] = [];
@@ -17,13 +17,13 @@ interface requset {
 
 export class MasterCli {
     private app: Application;
-    private servers: { [id: string]: Master_ServerProxy };
+    private master: Master;
     private monitorRequests: { [reqId: number]: requset } = {};
     private reqId: number = 1;
     private exiting = false;    // 进程是否正在退出
-    constructor(app: Application, servers: { [id: string]: Master_ServerProxy }) {
+    constructor(app: Application, master: Master) {
         this.app = app;
-        this.servers = servers;
+        this.master = master;
         serverTypeSort.push("master");
         for (let svrType in app.serversConfig) {
             serverTypeSort.push(svrType);
@@ -67,9 +67,9 @@ export class MasterCli {
     private async func_list(reqId: number, socket: Master_CLI_Proxy, args: any) {
         let self = this;
         let num = 0;
-        for (let sid in this.servers) {
+        for (const [sid, serverProxy] of this.master.getServersMap()) {
             num++;
-            this.send_to_monitor(this.servers[sid], { "func": "list" }, 10, cb)
+            this.send_to_monitor(serverProxy, { "func": "list" }, 10, cb)
         }
         let titles = ["id", "serverType", "pid", "rss(M)", "upTime(d-h-m)"];
         let infos = getListInfo(this.app);
@@ -110,7 +110,7 @@ export class MasterCli {
 
     private func_stop(reqId: number, socket: Master_CLI_Proxy, args: string[]) {
         let num = 0;
-        for (let sid in this.servers) {
+        for (const [sid] of this.master.getServersMap()) {
             num++;
         }
         if (num === 0) {
@@ -124,8 +124,8 @@ export class MasterCli {
         }
         this.exiting = true;
 
-        for (let sid in this.servers) {
-            this.send_to_monitor(this.servers[sid], { "func": "stop" }, 3600, cb);
+        for (const [sid, serverProxy] of this.master.getServersMap()) {
+            this.send_to_monitor(serverProxy, { "func": "stop" }, 3600, cb);
         }
 
         function cb(err: any, data: any) {
@@ -142,11 +142,12 @@ export class MasterCli {
         args = Array.from(new Set(args));
         let num = 0;
         for (let i = 0; i < args.length; i++) {
-            if (!this.servers[args[i]]) {
+            const serverProxy = this.master.getServer(args[i]);
+            if (!serverProxy) {
                 continue;
             }
             num++;
-            this.send_to_monitor(this.servers[args[i]], { "func": "remove" }, 3600, cb);
+            this.send_to_monitor(serverProxy, { "func": "remove" }, 3600, cb);
         }
         if (num === 0) {
             cb("no server", null);
@@ -162,13 +163,12 @@ export class MasterCli {
     private func_removeT(reqId: number, socket: Master_CLI_Proxy, args: string[]) {
         args = Array.from(new Set(args));
         let num = 0;
-        for (let x in this.servers) {
-            let one = this.servers[x];
-            if (args.indexOf(one.serverType) === -1) {
+        for (const [sid, serverProxy] of this.master.getServersMap()) {
+            if (args.indexOf(serverProxy.serverType) === -1) {
                 continue;
             }
             num++;
-            this.send_to_monitor(one, { "func": "removeT" }, 3600, cb);
+            this.send_to_monitor(serverProxy, { "func": "removeT" }, 3600, cb);
         }
         if (num === 0) {
             cb("no serverType", null);
@@ -242,7 +242,7 @@ export class MonitorCli {
         this.send_to_master(socket, msg);
     }
 
-    private func_stop(reqId: number, socket: monitor_client_proxy, args: any) {
+    private async func_stop(reqId: number, socket: monitor_client_proxy, args: any) {
         let msg = {
             "T": define.Monitor_To_Master.cliMsg,
             "reqId": reqId,
@@ -253,17 +253,13 @@ export class MonitorCli {
         this.exiting = true;
         let exitFunc = this.app.someconfig.onBeforeExit;
         if (exitFunc) {
-            exitFunc(() => {
-                this.send_to_master(socket, msg);
-                exitCall();
-            });
-        } else {
-            this.send_to_master(socket, msg);
-            exitCall();
+            await exitFunc();
         }
+        this.send_to_master(socket, msg);
+        exitCall();
     }
 
-    private func_remove(reqId: number, socket: monitor_client_proxy, args: any) {
+    private async func_remove(reqId: number, socket: monitor_client_proxy, args: any) {
         let msg = {
             "T": define.Monitor_To_Master.cliMsg,
             "reqId": reqId,
@@ -274,18 +270,14 @@ export class MonitorCli {
         this.exiting = true;
         let exitFunc = this.app.someconfig.onBeforeExit;
         if (exitFunc) {
-            exitFunc(() => {
-                this.send_to_master(socket, msg);
-                exitCall();
-            });
-        } else {
-            this.send_to_master(socket, msg);
-            exitCall();
+            await exitFunc();
         }
+        this.send_to_master(socket, msg);
+        exitCall();
 
     }
 
-    private func_removeT(reqId: number, socket: monitor_client_proxy, args: any) {
+    private async func_removeT(reqId: number, socket: monitor_client_proxy, args: any) {
         let msg = {
             "T": define.Monitor_To_Master.cliMsg,
             "reqId": reqId,
@@ -296,14 +288,10 @@ export class MonitorCli {
         this.exiting = true;
         let exitFunc = this.app.someconfig.onBeforeExit;
         if (exitFunc) {
-            exitFunc(() => {
-                this.send_to_master(socket, msg);
-                exitCall();
-            });
-        } else {
-            this.send_to_master(socket, msg);
-            exitCall();
+            await exitFunc();
         }
+        this.send_to_master(socket, msg);
+        exitCall();
     }
 }
 

@@ -11,9 +11,8 @@ import { SocketProxy, monitor_get_new_server, monitor_remove_server, loggerLevel
 import { encodeInnerData } from "./msgCoder";
 import * as rpcClient from "./rpcClient";
 import * as path from "path";
+import { delayMs, randBetweenInt } from "mydog/src/util/starter";
 let meFilename = `[${path.basename(__filename, ".js")}.ts]`;
-let serverIdsArr: string[] = [];
-let hasStartAll = false;
 
 export function start(_app: Application) {
     new monitor_client_proxy(_app);
@@ -27,44 +26,44 @@ export class monitor_client_proxy {
     private heartbeatTimer: NodeJS.Timeout = null as any;
     private heartbeatTimeoutTimer: NodeJS.Timeout = null as any;
 
+    private serversIdMap = new Map<string, ServerInfo>(); // 从 master 那里获得的所有服务器
+
     private removeDiffServers: { [id: string]: string } = {}; // After the monitor is reconnected, the server set to be compared and removed
     private needDiff: boolean = false; // whether need to compare
     private diffTimer: NodeJS.Timeout = null as any;    // diff timeout
+    private reconnectCnt = 0;
 
     constructor(app: Application) {
         this.app = app;
         this.monitorCli = new MonitorCli(app);
-        this.doConnect(0);
 
-        let serversConfig = app.serversConfig;
-        for (let x in serversConfig) {
-            let arr = serversConfig[x];
-            for (let one of arr) {
-                serverIdsArr.push(one.id);
-            }
-        }
-        removeFromArr(serverIdsArr, app.serverId);
+        const selfServerInfo = app.serverInfo;
+        this.serversIdMap.set(selfServerInfo.id, selfServerInfo);
+
+        const rand = randBetweenInt(1000, 5000);
+        this.doConnect(rand);
     }
 
     /**
      * Connect master
      */
     private doConnect(delay: number) {
-        let self = this;
-        setTimeout(function () {
-            let connectCb = function () {
-                self.app.logger(loggerLevel.debug, `${meFilename} connected to master success`);
+        setTimeout(() => {
+            const connectCb = () => {
+                this.app.logger(loggerLevel.debug, `${meFilename} connected to master success`);
+
+                this.reconnectCnt = 0;
 
                 // Register with the master
-                self.register();
+                this.register();
 
                 // Heartbeat package
-                self.heartbeat();;
+                this.heartbeat();;
             };
-            self.app.logger(loggerLevel.debug, `${meFilename} try to connect to master now`);
-            self.socket = new TcpClient(self.app.masterConfig.port, self.app.masterConfig.host, define.some_config.SocketBufferMaxLen, false, connectCb);
-            self.socket.on("data", self.onData.bind(self));
-            self.socket.on("close", self.onClose.bind(self));
+            this.app.logger(loggerLevel.debug, `${meFilename} try to connect to master now`);
+            this.socket = new TcpClient(this.app.masterConfig.port, this.app.masterConfig.host, define.some_config.SocketBufferMaxLen, false, connectCb);
+            this.socket.on("data", this.onData.bind(this));
+            this.socket.on("close", this.onClose.bind(this));
         }, delay);
     }
 
@@ -99,6 +98,8 @@ export class monitor_client_proxy {
             } else if (data.T === define.Master_To_Monitor.heartbeatResponse) {
                 clearTimeout(this.heartbeatTimeoutTimer);
                 this.heartbeatTimeoutTimer = null as any;
+            } else if (data.T === define.Master_To_Monitor.invalidCloseSelf) {
+                this.invalidCloseSelf(data);
             }
         }
         catch (e: any) {
@@ -117,7 +118,11 @@ export class monitor_client_proxy {
         clearTimeout(this.heartbeatTimer);
         clearTimeout(this.heartbeatTimeoutTimer);
         this.heartbeatTimeoutTimer = null as any;
-        this.doConnect(define.some_config.Time.Monitor_Reconnect_Time * 1000);
+
+        this.reconnectCnt++;
+        let delayMs = define.some_config.Time.Monitor_Reconnect_Time * 1000 * this.reconnectCnt;
+        delayMs = Math.min(delayMs, 30 * 1000);
+        this.doConnect(randBetweenInt(delayMs, delayMs + 2000));
     }
 
     /**
@@ -181,14 +186,12 @@ export class monitor_client_proxy {
                     if (serversApp[serverInfo.serverType][i].id === tmpServer.id) {
                         serversApp[serverInfo.serverType].splice(i, 1);
                         rpcClient.removeSocket(tmpServer.id);
-                        this.emitRemoveServer(tmpServer);
                         break;
                     }
                 }
             }
             serversApp[serverInfo.serverType].push(serverInfo);
             serversIdMap[serverInfo.id] = serverInfo;
-            this.emitAddServer(serverInfo);
             rpcClient.ifCreateRpcClient(this.app, serverInfo)
         }
     }
@@ -206,10 +209,8 @@ export class monitor_client_proxy {
         if (serversApp[msg.serverType]) {
             for (let i = 0; i < serversApp[msg.serverType].length; i++) {
                 if (serversApp[msg.serverType][i].id === msg.id) {
-                    let tmpInfo = serversApp[msg.serverType][i];
                     serversApp[msg.serverType].splice(i, 1);
                     rpcClient.removeSocket(msg.id)
-                    this.emitRemoveServer(tmpInfo);
                     break;
                 }
             }
@@ -256,46 +257,29 @@ export class monitor_client_proxy {
                     delete this.app.serversIdMap[id];
                     servers[serverType].splice(i, 1);
                     rpcClient.removeSocket(id);
-                    this.emitRemoveServer(tmpInfo);
                 }
             }
         }
         this.removeDiffServers = {};
     }
 
-    /**
-     * Launch add server event
-     */
-    private emitAddServer(serverInfo: ServerInfo) {
-        process.nextTick(() => {
-            this.app.emit("onAddServer", serverInfo);
-        });
+    /** 被master认定非法，关闭进程 */
+    async invalidCloseSelf(data: { errMsg: string }) {
+        try {
+            this.app.logger(loggerLevel.error, "mydog_monitor_close_self : " + data.errMsg);
+            setImmediate(() => {
+                throw new Error("mydog_monitor_close_self : " + data.errMsg);
+            });
 
-        if (!hasStartAll) {
-            removeFromArr(serverIdsArr, serverInfo.id);
-            if (serverIdsArr.length === 0) {
-                hasStartAll = true;
-                process.nextTick(() => {
-                    this.app.emit("onStartAll");
-                });
+            let exitFunc = this.app.someconfig.onBeforeExit;
+            if (exitFunc) {
+                await Promise.race([delayMs(10 * 1000), exitFunc()]);
             }
+        } finally {
+            setTimeout(() => {
+                process.exit();
+            }, 1000)
         }
     }
 
-    /**
-     * Launch remove server event
-     */
-    private emitRemoveServer(serverInfo: ServerInfo) {
-        process.nextTick(() => {
-            this.app.emit("onRemoveServer", serverInfo);
-        });
-    }
-}
-
-
-function removeFromArr<T = any>(arr: T[], one: T) {
-    let index = arr.indexOf(one);
-    if (index !== -1) {
-        arr.splice(index, 1);
-    }
 }

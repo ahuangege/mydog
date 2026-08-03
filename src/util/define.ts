@@ -28,7 +28,8 @@ export const enum Master_To_Monitor {
     addServer = 1,
     removeServer = 2,
     cliMsg = 3,
-    heartbeatResponse = 4
+    heartbeatResponse = 4,
+    invalidCloseSelf = 5, // 非法连接，退出进程
 }
 
 /**

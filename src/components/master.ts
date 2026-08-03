@@ -5,7 +5,7 @@
 
 import Application from "../application";
 import { MasterCli } from "./cliUtil";
-import { SocketProxy, monitor_get_new_server, monitor_remove_server, monitor_reg_master, loggerLevel } from "../util/interfaceDefine";
+import { SocketProxy, monitor_get_new_server, monitor_remove_server, monitor_reg_master, loggerLevel, ServerInfo } from "../util/interfaceDefine";
 import tcpServer from "./tcpServer";
 import { runServers } from "../util/starter";
 import * as define from "../util/define";
@@ -13,51 +13,90 @@ import * as msgCoder from "./msgCoder";
 import * as path from "path";
 let meFilename = `[${path.basename(__filename, ".js")}.ts]`;
 
-let servers: { [id: string]: Master_ServerProxy } = {};
-let serversDataTmp: monitor_get_new_server = { "T": define.Master_To_Monitor.addServer, "servers": {} };
-let masterCli: MasterCli;
-let app: Application;
-let serverToken = "";
-let cliToken = "";
 
-export function start(_app: Application, cb?: Function) {
-    app = _app;
-    masterCli = new MasterCli(_app, servers);
-    startServer(cb);
-}
+export class Master {
+    app: Application = null as any;
+    serverToken = "";
+    cliToken = "";
 
-function startServer(cb?: Function) {
-    let tokenConfig = app.someconfig.recognizeToken || {};
-    serverToken = tokenConfig.serverToken || define.some_config.Server_Token;
-    cliToken = tokenConfig.cliToken || define.some_config.Cli_Token;
+    masterCli: MasterCli = null as any;
+
+    private serversMap = new Map<string, Master_ServerProxy>(); // 当前连接成功的服务器
+
+    constructor(app: Application) {
+        this.app = app;
+    }
+
+    start(cb?: Function) {
+        this.masterCli = new MasterCli(this.app, this);
+        this.startServer(cb);
+    }
+
+    startServer(cb?: Function) {
+        let tokenConfig = this.app.someconfig.recognizeToken || {};
+        this.serverToken = tokenConfig.serverToken || define.some_config.Server_Token;
+        this.cliToken = tokenConfig.cliToken || define.some_config.Cli_Token;
 
 
-    tcpServer(app.serverInfo.port, false, startCb, newClientCb);
-
-    function startCb() {
-        let str = `listening at [${app.serverInfo.host}:${app.serverInfo.port}]  ${app.serverId}`;
-        console.log(str);
-        cb && cb();
-        if (app.startMode === "all") {
-            runServers(app);
+        const startCb = () => {
+            let str = `listening at [${this.app.serverInfo.host}:${this.app.serverInfo.port}]  ${this.app.serverId}`;
+            console.log(str);
+            cb && cb();
+            if (this.app.startMode === "all") {
+                runServers(this.app);
+            }
         }
+
+
+        const newClientCb = (socket: SocketProxy) => {
+            new UnregSocket_proxy(socket, this);
+        }
+
+        tcpServer(this.app.serverInfo.port, false, startCb, newClientCb);
+
     }
 
-    function newClientCb(socket: SocketProxy) {
-        new UnregSocket_proxy(socket);
+    getServer(serverId: string) {
+        return this.serversMap.get(serverId);
+    }
+
+    getServersMap() {
+        return this.serversMap;
+    }
+
+    onAddServer(server: Master_ServerProxy) {
+        if (this.serversMap.has(server.sid)) {
+            return;
+        }
+        this.serversMap.set(server.sid, server);
+    }
+
+    onRemoveServer(server: Master_ServerProxy) {
+        if (this.serversMap.get(server.sid) !== server) {
+            return;
+        }
+        this.serversMap.delete(server.sid);
     }
 }
+
+
+
+
 
 /**
  * Unregistered socket proxy
  */
 class UnregSocket_proxy {
+    private app: Application;
     private socket: SocketProxy;
+    master: Master;
     private registerTimer: NodeJS.Timeout = null as any;
     private onDataFunc: (data: Buffer) => void;
     private onCloseFunc: () => void;
-    constructor(socket: SocketProxy) {
+    constructor(socket: SocketProxy, master: Master) {
         this.socket = socket;
+        this.master = master;
+        this.app = master.app;
 
         this.onDataFunc = this.onData.bind(this);
         this.onCloseFunc = this.onClose.bind(this);
@@ -68,8 +107,8 @@ class UnregSocket_proxy {
 
     private registerTimeout() {
         let self = this;
-        this.registerTimer = setTimeout(function () {
-            app.logger(loggerLevel.error, `${meFilename} unregistered socket, register timeout, close it, ${self.socket.remoteAddress}`);
+        this.registerTimer = setTimeout(() => {
+            this.app.logger(loggerLevel.error, `${meFilename} unregistered socket, register timeout, close it, ${self.socket.remoteAddress}`);
             self.socket.close();
         }, 5000);
 
@@ -78,58 +117,78 @@ class UnregSocket_proxy {
     private onData(_data: Buffer) {
         let socket = this.socket;
 
+        let invalidCloseInfo = {
+            "T": define.Master_To_Monitor.invalidCloseSelf,
+            "errMsg": ""
+        };
+
         let data: monitor_reg_master;
         try {
             data = JSON.parse(_data.toString());
         } catch (err) {
-            app.logger(loggerLevel.error, `${meFilename} unregistered socket, JSON parse error, close it, ${socket.remoteAddress}`);
+            this.app.logger(loggerLevel.error, `${meFilename} unregistered socket, JSON parse error, close it, ${socket.remoteAddress}`);
+            invalidCloseInfo.errMsg = "JSON parse error";
+            socket.send(msgCoder.encodeInnerData(invalidCloseInfo));
             socket.close();
             return;
         }
 
         // The first packet must be registered
         if (!data || data.T !== define.Monitor_To_Master.register) {
-            app.logger(loggerLevel.error, `${meFilename} unregistered socket, illegal data, close it, ${socket.remoteAddress}`);
+            this.app.logger(loggerLevel.error, `${meFilename} unregistered socket, illegal data, close it, ${socket.remoteAddress}`);
+            invalidCloseInfo.errMsg = "invalid data type";
+            socket.send(msgCoder.encodeInnerData(invalidCloseInfo));
             socket.close();
             return;
         }
 
         // Is it a server?
         if (data.serverToken) {
-            if (data.serverToken !== serverToken) {
-                app.logger(loggerLevel.error, `${meFilename} unregistered socket, illegal serverToken, close it, ${socket.remoteAddress}`);
+            if (data.serverToken !== this.master.serverToken) {
+                this.app.logger(loggerLevel.error, `${meFilename} unregistered socket, illegal serverToken, close it, ${socket.remoteAddress}`);
+                invalidCloseInfo.errMsg = "serverToken wrong";
+                socket.send(msgCoder.encodeInnerData(invalidCloseInfo));
                 socket.close();
                 return;
             }
             if (!data.serverInfo || !data.serverInfo.id || !data.serverInfo.host || !data.serverInfo.port || !data.serverInfo.serverType) {
-                app.logger(loggerLevel.error, `${meFilename} unregistered socket, illegal serverInfo, close it, ${socket.remoteAddress}`);
+                this.app.logger(loggerLevel.error, `${meFilename} unregistered socket, illegal serverInfo, close it, ${socket.remoteAddress}`);
+                invalidCloseInfo.errMsg = "invalid serverInfo";
+                socket.send(msgCoder.encodeInnerData(invalidCloseInfo));
+                socket.close();
+                return;
+            }
+            if (this.master.getServer(data.serverInfo.id)) {
+                this.app.logger(loggerLevel.error, `${meFilename} already has a monitor named: ${data.serverInfo.id}, close it, ${socket.remoteAddress}`);
+                invalidCloseInfo.errMsg = "already same monitor";
+                socket.send(msgCoder.encodeInnerData(invalidCloseInfo));
                 socket.close();
                 return;
             }
             this.registerOk();
-            new Master_ServerProxy(data, socket);
+            new Master_ServerProxy(data, socket, this.master);
             return;
         }
 
         // Is it a cli？
         if (data.cliToken) {
-            if (data.cliToken !== cliToken) {
-                app.logger(loggerLevel.error, `${meFilename} unregistered socket, illegal cliToken, close it, ${socket.remoteAddress}`);
+            if (data.cliToken !== this.master.cliToken) {
+                this.app.logger(loggerLevel.error, `${meFilename} unregistered socket, illegal cliToken, close it, ${socket.remoteAddress}`);
                 socket.close();
                 return;
             }
             this.registerOk();
-            new Master_CLI_Proxy(socket);
+            new Master_CLI_Proxy(socket, this.master);
             return;
         }
 
-        app.logger(loggerLevel.error, `${meFilename} unregistered socket, illegal socket, close it, ${socket.remoteAddress}`);
+        this.app.logger(loggerLevel.error, `${meFilename} unregistered socket, illegal socket, close it, ${socket.remoteAddress}`);
         socket.close();
     }
 
     private onClose() {
         clearTimeout(this.registerTimer);
-        app.logger(loggerLevel.error, `${meFilename} unregistered socket closed, ${this.socket.remoteAddress}`);
+        this.app.logger(loggerLevel.error, `${meFilename} unregistered socket closed, ${this.socket.remoteAddress}`);
     }
 
     private registerOk() {
@@ -148,23 +207,23 @@ class UnregSocket_proxy {
  * master processing server agent
  */
 export class Master_ServerProxy {
+    master: Master;
+    app: Application;
     private socket: SocketProxy;
     public sid: string = "";
     public serverType: string = "";
     private heartbeatTimeoutTimer: NodeJS.Timeout = null as any;
-    constructor(data: monitor_reg_master, socket: SocketProxy) {
+
+    serverInfo: ServerInfo = null as any;
+    constructor(data: monitor_reg_master, socket: SocketProxy, master: Master) {
+        this.master = master;
+        this.app = master.app;
         this.socket = socket;
         this.init(data);
     }
 
     private init(data: monitor_reg_master) {
         let socket = this.socket;
-
-        if (!!servers[data.serverInfo.id]) {
-            app.logger(loggerLevel.error, `${meFilename} already has a monitor named: ${data.serverInfo.id}, close it, ${socket.remoteAddress}`);
-            socket.close();
-            return;
-        }
         socket.maxLen = define.some_config.SocketBufferMaxLen;
 
         this.heartbeatTimeout();
@@ -174,34 +233,16 @@ export class Master_ServerProxy {
 
         this.sid = data.serverInfo.id;
         this.serverType = data.serverInfo.serverType;
+        this.serverInfo = data.serverInfo;
 
-        // Construct a new server message
-        let socketInfo: monitor_get_new_server = {
-            "T": define.Master_To_Monitor.addServer,
-            "servers": {}
-        };
-        socketInfo.servers[this.sid] = data.serverInfo;
-        let socketInfoBuf: Buffer = msgCoder.encodeInnerData(socketInfo);
+        this.master.onAddServer(this);
 
-        // Notify other servers that there are new servers
-        for (let sid in servers) {
-            servers[sid].socket.send(socketInfoBuf);
-        }
-
-        // Notify the newly added server, which servers are currently available
-        let result = msgCoder.encodeInnerData(serversDataTmp);
-        this.socket.send(result);
-
-
-        servers[this.sid] = this;
-        serversDataTmp.servers[this.sid] = data.serverInfo;
-
-        app.logger(loggerLevel.debug, `${meFilename} get a new monitor named: ${this.sid}, ${this.socket.remoteAddress}`);
+        this.app.logger(loggerLevel.debug, `${meFilename} get a new monitor named: ${this.sid}, ${this.socket.remoteAddress}`);
     }
 
     private heartbeatTimeout() {
         this.heartbeatTimeoutTimer = setTimeout(() => {
-            app.logger(loggerLevel.error, `${meFilename} heartbeat timeout, close the monitor named: ${this.sid}, ${this.socket.remoteAddress}`);
+            this.app.logger(loggerLevel.error, `${meFilename} heartbeat timeout, close the monitor named: ${this.sid}, ${this.socket.remoteAddress}`);
             this.socket.close();
         }, define.some_config.Time.Monitor_Heart_Beat_Time * 1000 * 2);
     }
@@ -222,7 +263,7 @@ export class Master_ServerProxy {
         try {
             data = JSON.parse(_data.toString());
         } catch (err) {
-            app.logger(loggerLevel.error, `${meFilename} JSON parse error，close the monitor named: ${this.sid}, ${this.socket.remoteAddress}`);
+            this.app.logger(loggerLevel.error, `${meFilename} JSON parse error，close the monitor named: ${this.sid}, ${this.socket.remoteAddress}`);
             this.socket.close();
             return;
         }
@@ -232,31 +273,21 @@ export class Master_ServerProxy {
                 this.heartbeatTimeoutTimer.refresh();
                 this.heartbeatResponse();
             } else if (data.T === define.Monitor_To_Master.cliMsg) {
-                masterCli.deal_monitor_msg(data);
+                this.master.masterCli.deal_monitor_msg(data);
             } else {
-                app.logger(loggerLevel.error, `${meFilename} the monitor illegal data type close it: ${this.sid} ${this.socket.remoteAddress}`);
+                this.app.logger(loggerLevel.error, `${meFilename} the monitor illegal data type close it: ${this.sid} ${this.socket.remoteAddress}`);
                 this.socket.close();
             }
         } catch (e: any) {
-            app.logger(loggerLevel.error, e);
+            this.app.logger(loggerLevel.error, e);
             this.socket.close();
         }
     }
 
     private onClose() {
         clearTimeout(this.heartbeatTimeoutTimer);
-        delete servers[this.sid];
-        delete serversDataTmp.servers[this.sid];
-        let serverInfo: monitor_remove_server = {
-            "T": define.Master_To_Monitor.removeServer,
-            "id": this.sid,
-            "serverType": this.serverType
-        };
-        let serverInfoBuf: Buffer = msgCoder.encodeInnerData(serverInfo);
-        for (let sid in servers) {
-            servers[sid].socket.send(serverInfoBuf);
-        }
-        app.logger(loggerLevel.error, `${meFilename} a monitor disconnected: ${this.sid}, ${this.socket.remoteAddress}`);
+        this.master.onRemoveServer(this);
+        this.app.logger(loggerLevel.error, `${meFilename} a monitor disconnected: ${this.sid}, ${this.socket.remoteAddress}`);
     }
 }
 
@@ -264,9 +295,13 @@ export class Master_ServerProxy {
  * master handles cli agent
  */
 export class Master_CLI_Proxy {
+    app: Application;
+    master: Master;
     private socket: SocketProxy;
     private heartbeatTimeoutTimer: NodeJS.Timeout = null as any;
-    constructor(socket: SocketProxy) {
+    constructor(socket: SocketProxy, master: Master) {
+        this.app = master.app;
+        this.master = master;
         this.socket = socket;
         this.init();
     }
@@ -280,12 +315,12 @@ export class Master_CLI_Proxy {
         socket.on('data', this.onData.bind(this));
         socket.on('close', this.onClose.bind(this));
 
-        app.logger(loggerLevel.info, `${meFilename}  get a new cli: ${socket.remoteAddress}`);
+        this.app.logger(loggerLevel.info, `${meFilename}  get a new cli: ${socket.remoteAddress}`);
     }
 
     private heartbeatTimeOut() {
         this.heartbeatTimeoutTimer = setTimeout(() => {
-            app.logger(loggerLevel.error, `${meFilename} heartbeat timeout, close the cli: ${this.socket.remoteAddress}`);
+            this.app.logger(loggerLevel.error, `${meFilename} heartbeat timeout, close the cli: ${this.socket.remoteAddress}`);
             this.socket.close();
         }, define.some_config.Time.Monitor_Heart_Beat_Time * 1000 * 2);
     }
@@ -295,7 +330,7 @@ export class Master_CLI_Proxy {
         try {
             data = JSON.parse(_data.toString());
         } catch (err) {
-            app.logger(loggerLevel.error, `${meFilename} JSON parse error，close the cli: ${this.socket.remoteAddress}`);
+            this.app.logger(loggerLevel.error, `${meFilename} JSON parse error，close the cli: ${this.socket.remoteAddress}`);
             this.socket.close();
             return;
         }
@@ -304,14 +339,14 @@ export class Master_CLI_Proxy {
             if (data.T === define.Cli_To_Master.heartbeat) {
                 this.heartbeatTimeoutTimer.refresh();
             } else if (data.T === define.Cli_To_Master.cliMsg) {
-                app.logger(loggerLevel.info, `${meFilename} get command from the cli: ${this.socket.remoteAddress} ==> ${_data.toString()}`);
-                masterCli.deal_cli_msg(this, data);
+                this.app.logger(loggerLevel.info, `${meFilename} get command from the cli: ${this.socket.remoteAddress} ==> ${_data.toString()}`);
+                this.master.masterCli.deal_cli_msg(this, data);
             } else {
-                app.logger(loggerLevel.error, `${meFilename} the cli illegal data type close it: ${this.socket.remoteAddress}`);
+                this.app.logger(loggerLevel.error, `${meFilename} the cli illegal data type close it: ${this.socket.remoteAddress}`);
                 this.socket.close();
             }
         } catch (e: any) {
-            app.logger(loggerLevel.error, `${meFilename} cli handle msg err, close it: ${this.socket.remoteAddress}\n ${e.stack}`);
+            this.app.logger(loggerLevel.error, `${meFilename} cli handle msg err, close it: ${this.socket.remoteAddress}\n ${e.stack}`);
             this.socket.close();
         }
     }
@@ -322,6 +357,6 @@ export class Master_CLI_Proxy {
 
     private onClose() {
         clearTimeout(this.heartbeatTimeoutTimer);
-        app.logger(loggerLevel.info, `${meFilename}  a cli disconnected: ${this.socket.remoteAddress}`);
+        this.app.logger(loggerLevel.info, `${meFilename}  a cli disconnected: ${this.socket.remoteAddress}`);
     }
 }

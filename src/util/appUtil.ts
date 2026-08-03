@@ -4,7 +4,6 @@ import * as path from "path";
 import * as fs from "fs";
 import Application from "../application";
 import { some_config } from "./define";
-import * as master from "../components/master";
 import * as monitor from "../components/monitor";
 import * as rpcServer from "../components/rpcServer";
 import * as rpcService from "../components/rpcService";
@@ -13,6 +12,7 @@ import { BackendServer } from "../components/backendServer";
 import { ServerInfo } from "./interfaceDefine";
 import { msgCoderSetApp } from "../components/msgCoder";
 import packageJson from "../../package.json";
+import { Master } from "mydog/src/components/master";
 
 
 /**
@@ -34,7 +34,7 @@ export function startServer(app: Application) {
     startPng(app);
     msgCoderSetApp(app);
     if (app.serverType === "master") {
-        master.start(app);
+        new Master(app).start();
     } else if (app.frontend) {
         rpcService.init(app);
         app.frontendServer = new FrontendServer(app);

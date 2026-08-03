@@ -101,7 +101,7 @@ export interface I_someConfig {
     "recognizeToken": { "serverToken": string, "cliToken": string },    // Authentication key
     "logger": (level: loggerLevel, msg: string) => void,           // Internal log output
     "mydogList": () => { "title": string, "value": string }[],      // Custom monitoring
-    "onBeforeExit": (cb: () => void) => void,       // beforeExit notice
+    "onBeforeExit": () => Promise<void>,       // beforeExit notice
 }
 
 /**

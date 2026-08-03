@@ -7,7 +7,7 @@ import { ServerInfo } from "../util/interfaceDefine";
 
 let app: Application = null as any;
 
-export function runServers(_app: Application) {
+export async function runServers(_app: Application) {
     app = _app;
     let servers = app.serversConfig;
     let server: ServerInfo;
@@ -15,9 +15,16 @@ export function runServers(_app: Application) {
         let serverTypes = servers[serverType];
         for (let i = 0; i < serverTypes.length; i++) {
             server = serverTypes[i];
+            await delayMs(200);
             run(server);
         }
     }
+}
+
+export async function delayMs(ms: number) {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+    });
 }
 
 
@@ -119,3 +126,7 @@ let localIps = function () {
     }
     return ips;
 }();
+
+export function randBetweenInt(num1: number, num2: number) {
+    return num1 + Math.floor(Math.random() * (num2 - num1));
+}
