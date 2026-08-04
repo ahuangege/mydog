@@ -12,6 +12,7 @@ import { RpcSocketPool } from "./components/rpcSocketPool";
 import { Session } from "./components/session";
 import * as appUtil from "./util/appUtil";
 import { I_clientSocket, I_connectorConstructor, I_encodeDecodeConfig, I_someConfig, ServerInfo, loggerLevel } from "./util/interfaceDefine";
+import { addRpcClient, removeRpcClient } from "mydog/src/components/rpcClient";
 
 declare global {
     interface Rpc {
@@ -33,8 +34,8 @@ export default class Application extends EventEmitter {
     clients: { [uid: number]: I_clientSocket } = {};                                         // Sockets that have been binded
     settings: { [key: string]: any } = {};                                                   // User set，get  
 
-    servers: { [serverType: string]: ServerInfo[] } = {};                                    // All user servers that are running
-    serversIdMap: { [id: string]: ServerInfo } = {};                                         // All user servers that are running (Dictionary format)
+    private servers = new Map<string, ServerInfo[]>();                                    // All user servers that are running
+    private serversIdMap = new Map<string, ServerInfo>();                                         // All user servers that are running (Dictionary format)
 
     serverInfo: ServerInfo = {} as ServerInfo;                                               // The configuration of this server
     isDaemon: boolean = false;                                                               // Whether to run in the background
@@ -124,14 +125,14 @@ export default class Application extends EventEmitter {
      * Get the server array according to the server type
      */
     getServersByType(serverType: string) {
-        return this.servers[serverType] || [];
+        return this.servers.get(serverType) || [];
     }
 
     /**
      * Get a server configuration
      */
-    getServerById(serverId: string) {
-        return this.serversIdMap[serverId];
+    getServerById(serverId: string): ServerInfo {
+        return this.serversIdMap.get(serverId) as ServerInfo;
     }
 
     /**
@@ -274,12 +275,36 @@ export default class Application extends EventEmitter {
 
     /** 新增或更新服务器 */
     addServer(info: ServerInfo) {
+        const oldInfo = this.getServerById(info.id);
+        if (oldInfo) {
+            Object.assign(oldInfo, info);
+        } else {
+            this.serversIdMap.set(info.id, info);
+            let list = this.servers.get(info.serverType);
+            if (!list) {
+                list = [];
+                this.servers.set(info.serverType, list);
+            }
+            list.push(info);
+        }
 
+        addRpcClient(this, info);
     }
 
     /** 移除服务器 */
     removeServer(sid: string) {
+        const oldInfo = this.getServerById(sid);
+        if (oldInfo) {
+            this.serversIdMap.delete(oldInfo.id);
+            const list = this.servers.get(oldInfo.serverType) as ServerInfo[];
+            const idx = list.findIndex(el => el === oldInfo);
+            if (idx !== -1) {
+                list[idx] = list[list.length - 1];
+                list.pop();
+            }
 
+            removeRpcClient(sid);
+        }
     }
 }
 

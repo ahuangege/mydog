@@ -197,7 +197,7 @@ class ClientManager implements I_clientManager {
         if (!socket) {
             return;
         }
-        let svr = this.app.serversIdMap[id];
+        let svr = this.app.getServerById(id);
         if (svr.serverType !== cmdArr[0] || svr.frontend) {
             this.app.logger(loggerLevel.error, `${meFilename} illegal doRemote`);
             return;

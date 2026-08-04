@@ -10,10 +10,18 @@ let meFilename = `[${path.basename(__filename, ".js")}.ts]`;
 /**
  * Whether to establish a socket connection
  */
-export function ifCreateRpcClient(app: Application, server: ServerInfo) {
+export function addRpcClient(app: Application, server: ServerInfo) {
+    if (app.serverId === server.id) {
+        return;
+    }
     // Only one socket connection is established between the two servers
     if (app.serverId < server.id && !app.noRpcMatrix[appUtil.getNoRpcKey(app.serverType, server.serverType)]) {
-        removeSocket(server.id);
+        const oldSocket = rpcClientSockets[server.id]
+        if (oldSocket && oldSocket.host === server.host && oldSocket.port === server.port) {
+            return;
+        }
+
+        removeRpcClient(server.id);
         new RpcClientSocket(app, server);
     }
 }
@@ -21,7 +29,7 @@ export function ifCreateRpcClient(app: Application, server: ServerInfo) {
 /**
  * Remove socket connection
  */
-export function removeSocket(id: string) {
+export function removeRpcClient(id: string) {
     let socket = rpcClientSockets[id];
     if (socket) {
         socket.remove();
@@ -34,8 +42,8 @@ let rpcClientSockets: { [id: string]: RpcClientSocket } = {};
 export class RpcClientSocket {
     private app: Application;
     public id: string;
-    private host: string;
-    private port: number;
+    host: string;
+    port: number;
     private socket: SocketProxy = null as any;
     private connectTimer: NodeJS.Timer = null as any;
     private heartbeatTimer: NodeJS.Timer = null as any;

@@ -203,12 +203,6 @@ let processArgs = function (app: Application, args: any) {
         }
         app.serverInfo = serverConfig;
         app.frontend = !!serverConfig.frontend;
-
-        let servers: { [serverType: string]: ServerInfo[] } = {};
-        servers[app.serverType] = [];
-        servers[app.serverType].push(serverConfig);
-        app.servers = servers;
-        app.serversIdMap[serverConfig.id] = serverConfig;
     }
 };
 
