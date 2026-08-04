@@ -26,8 +26,14 @@ export class monitor_client_proxy {
     private heartbeatTimer: NodeJS.Timeout = null as any;
     private heartbeatTimeoutTimer: NodeJS.Timeout = null as any;
     private reconnectCnt = 0;
+    private isDie = false;
 
+    private isFirstSyncAll = true;
     private serversIdMap = new Map<string, ServerInfo>(); // 从 master 那里获得的所有服务器
+
+    private tmpServersIdMap = new Map<string, ServerInfo>(); // 断线重连后，临时存储的最终服务器
+    private delaySyncTimer: NodeJS.Timeout = null as any; // 延迟比对计时器
+    private delayStartTime = 0;
 
 
     constructor(app: Application) {
@@ -43,7 +49,14 @@ export class monitor_client_proxy {
      * Connect master
      */
     private doConnect(delay: number) {
+        if (this.isDie) {
+            return;
+        }
         setTimeout(() => {
+            if (this.isDie) {
+                return;
+            }
+
             const connectCb = () => {
                 this.app.logger(loggerLevel.debug, `${meFilename} connected to master success`);
 
@@ -110,11 +123,17 @@ export class monitor_client_proxy {
         clearTimeout(this.heartbeatTimer);
         clearTimeout(this.heartbeatTimeoutTimer);
         this.heartbeatTimeoutTimer = null as any;
+        clearTimeout(this.delaySyncTimer);
+        this.delaySyncTimer = null as any;
+        this.tmpServersIdMap.clear();
+
+        let delayMs = define.some_config.Time.Monitor_Reconnect_Time * 1000 * Math.pow(2, this.reconnectCnt); // 指数退避
+        const rand = 0.7 + Math.random() * 0.4;
+        delayMs = Math.floor(delayMs * rand); // 随机抖动
+        delayMs = Math.min(delayMs, 30 * 1000); // 封顶
 
         this.reconnectCnt++;
-        let delayMs = define.some_config.Time.Monitor_Reconnect_Time * 1000 * this.reconnectCnt;
-        delayMs = Math.min(delayMs, 30 * 1000);
-        this.doConnect(randBetweenInt(delayMs, delayMs + 2000));
+        this.doConnect(delayMs);
     }
 
     /**
@@ -123,10 +142,11 @@ export class monitor_client_proxy {
     private heartbeat() {
         let timeDelay = define.some_config.Time.Monitor_Heart_Beat_Time * 1000 - 5000 + Math.floor(5000 * Math.random());
         this.heartbeatTimer = setTimeout(() => {
+            this.heartbeat(); // 重新随机抖动发送心跳
+
             let heartbeatMsg = { "T": define.Monitor_To_Master.heartbeat };
             this.send(heartbeatMsg);
             this.heartbeatTimeout();
-            this.heartbeatTimer.refresh();
         }, timeDelay)
     }
 
@@ -155,6 +175,11 @@ export class monitor_client_proxy {
     /** 被master认定非法，关闭进程 */
     async invalidCloseSelf(data: { errMsg: string }) {
         try {
+            this.isDie = true;
+            clearTimeout(this.heartbeatTimer);
+            clearTimeout(this.heartbeatTimeoutTimer);
+            clearTimeout(this.delaySyncTimer);
+
             this.app.logger(loggerLevel.error, "mydog_monitor_close_self : " + data.errMsg);
             setImmediate(() => {
                 throw new Error("mydog_monitor_close_self : " + data.errMsg);
@@ -172,11 +197,78 @@ export class monitor_client_proxy {
     }
 
     syncAllServers(data: monitor_syncAllServers) {
-        this.serversIdMap = data.
+        if (this.isFirstSyncAll) {
+            // 首次，直接抛出所有服务器
+            this.isFirstSyncAll = false;
+            for (const one of data.all) {
+                this.serversIdMap.set(one.id, one);
+                this.app.addServer(one);
+            }
+            return;
+        }
+
+        /**
+         * 断线重连情况，可能是 master 异常，此时本地维护的服务器列表暂时不变，一定时间待master基本同步完后，再比对
+         */
+        this.tmpServersIdMap.clear();
+        for (const one of data.all) {
+            this.tmpServersIdMap.set(one.id, one);
+        }
+
+        this.delayStartTime = Date.now();
+        clearTimeout(this.delaySyncTimer);
+        this.delaySyncTimer = setTimeout(() => {
+            // 5秒内没有 updateServers 更新，则认为master已同步完毕
+            this.checkSyncServers();
+        }, 5000);
+
     }
 
     updateServers(data: monitor_updateServers) {
+        if (this.delaySyncTimer) {
+            // 待比对中，临时存储
+            for (const one of data.update) {
+                this.tmpServersIdMap.set(one.id, one);
+            }
+            for (const sid of data.del) {
+                this.tmpServersIdMap.delete(sid);
+            }
 
+            if (Date.now() - this.delayStartTime > 35 * 1000) {
+                // 延迟已足够久，开始比对
+                this.checkSyncServers();
+            } else {
+                this.delaySyncTimer.refresh();
+            }
+        } else {
+            for (const one of data.update) {
+                this.serversIdMap.set(one.id, one);
+                this.app.addServer(one);
+            }
+            for (const sid of data.del) {
+                this.serversIdMap.delete(sid);
+                this.app.removeServer(sid);
+            }
+        }
     }
 
+    /** 比对 */
+    checkSyncServers() {
+        clearTimeout(this.delaySyncTimer);
+        this.delaySyncTimer = null as any;
+
+        const oldMap = this.serversIdMap;
+        this.serversIdMap = this.tmpServersIdMap;
+        this.tmpServersIdMap = new Map();
+
+        for (const [sid] of oldMap) {
+            if (!this.serversIdMap.has(sid)) {
+                this.app.removeServer(sid);
+            }
+        }
+
+        for (const [sid, one] of this.serversIdMap) {
+            this.app.addServer(one);
+        }
+    }
 }

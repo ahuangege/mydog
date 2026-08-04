@@ -127,6 +127,8 @@ export class Master {
             }
         }
 
+        this.changedServers.clear();
+
         if (sendChangedList.length > 0) {
             // 向始终保持连接的， 推送变化和删除的
             const msg: monitor_updateServers = {
@@ -244,9 +246,8 @@ class UnregSocket_proxy {
                 return;
             }
             if (this.master.getServer(data.serverInfo.id)) {
+                // 为防止socket半连接状态，这里不能发送 invalidCloseInfo
                 this.app.logger(loggerLevel.error, `${meFilename} already has a monitor named: ${data.serverInfo.id}, close it, ${socket.remoteAddress}`);
-                invalidCloseInfo.errMsg = "already same monitor";
-                socket.send(msgCoder.encodeInnerData(invalidCloseInfo));
                 socket.close();
                 return;
             }

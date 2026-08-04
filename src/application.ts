@@ -271,6 +271,16 @@ export default class Application extends EventEmitter {
         this.filter.globalBefore(filter);
     }
 
+
+    /** 新增或更新服务器 */
+    addServer(info: ServerInfo) {
+
+    }
+
+    /** 移除服务器 */
+    removeServer(sid: string) {
+
+    }
 }
 
 export interface I_mydog {
