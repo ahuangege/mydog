@@ -19,24 +19,18 @@ export interface SocketProxy extends EventEmitter {
     send(data: Buffer): void;
 }
 
-/**
- * The monitor receives the new server information format from the master
- */
-export interface monitor_get_new_server {
+
+export interface monitor_syncAllServers {
     "T": number;
-    "servers": {
-        [id: string]: ServerInfo
-    };
+    "all": ServerInfo[]
 }
 
-/**
- * The monitor receives the removal server information format from the master
- */
-export interface monitor_remove_server {
+export interface monitor_updateServers {
     "T": number;
-    "id": string;
-    "serverType": string;
+    "update": ServerInfo[];
+    "del": string[];
 }
+
 
 /**
  * The message format when the monitor registers with the master

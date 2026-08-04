@@ -25,8 +25,8 @@ export let some_config = {
  * master to monitor, message type
  */
 export const enum Master_To_Monitor {
-    addServer = 1,
-    removeServer = 2,
+    syncAllServers = 1, // 全量同步所有服务器信息
+    updateServers = 2, // 更新和删除了的
     cliMsg = 3,
     heartbeatResponse = 4,
     invalidCloseSelf = 5, // 非法连接，退出进程

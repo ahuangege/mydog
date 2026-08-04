@@ -3,14 +3,14 @@
  */
 
 
-import Application from "../application";
-import { MasterCli } from "./cliUtil";
-import { SocketProxy, monitor_get_new_server, monitor_remove_server, monitor_reg_master, loggerLevel, ServerInfo } from "../util/interfaceDefine";
-import tcpServer from "./tcpServer";
-import { runServers } from "../util/starter";
-import * as define from "../util/define";
-import * as msgCoder from "./msgCoder";
 import * as path from "path";
+import Application from "../application";
+import * as define from "../util/define";
+import { ServerInfo, SocketProxy, loggerLevel, monitor_reg_master, monitor_syncAllServers, monitor_updateServers } from "../util/interfaceDefine";
+import { runServers } from "../util/starter";
+import { MasterCli } from "./cliUtil";
+import * as msgCoder from "./msgCoder";
+import tcpServer from "./tcpServer";
 let meFilename = `[${path.basename(__filename, ".js")}.ts]`;
 
 
@@ -23,6 +23,10 @@ export class Master {
 
     private serversMap = new Map<string, Master_ServerProxy>(); // 当前连接成功的服务器
 
+    private lastAllServers = new Set<string>(); // 上次检测后的所有服务器
+    private changedServers = new Set<string>(); // 变化了的服务器
+
+
     constructor(app: Application) {
         this.app = app;
     }
@@ -30,6 +34,8 @@ export class Master {
     start(cb?: Function) {
         this.masterCli = new MasterCli(this.app, this);
         this.startServer(cb);
+
+        this.tick();
     }
 
     startServer(cb?: Function) {
@@ -56,8 +62,8 @@ export class Master {
 
     }
 
-    getServer(serverId: string) {
-        return this.serversMap.get(serverId);
+    getServer(serverId: string): Master_ServerProxy {
+        return this.serversMap.get(serverId) as Master_ServerProxy;
     }
 
     getServersMap() {
@@ -69,6 +75,7 @@ export class Master {
             return;
         }
         this.serversMap.set(server.sid, server);
+        this.changedServers.add(server.sid);
     }
 
     onRemoveServer(server: Master_ServerProxy) {
@@ -76,6 +83,84 @@ export class Master {
             return;
         }
         this.serversMap.delete(server.sid);
+        this.changedServers.add(server.sid);
+    }
+
+    tick() {
+        try {
+            this.checkServerChanged();
+        } finally {
+            setTimeout(() => {
+                this.tick();
+            }, 1000)
+        }
+    }
+
+    /** 检测服务器变化，推送变动 */
+    checkServerChanged() {
+        if (this.changedServers.size === 0) {
+            return;
+        }
+
+        const updateList = new Set<string>(); // 有变化（新增或重连）的
+        const removeList = new Set<string>(); // 删除了的
+
+        for (const sid of this.changedServers) {
+            if (this.getServer(sid)) {
+                updateList.add(sid);
+                this.lastAllServers.add(sid);
+            } else if (this.lastAllServers.has(sid)) {
+                removeList.add(sid)
+                this.lastAllServers.delete(sid);
+            }
+        }
+
+        if (updateList.size === 0 && removeList.size === 0) {
+            this.changedServers.clear();
+            return;
+        }
+
+        const sendChangedList: Master_ServerProxy[] = [];
+        for (const [sid, server] of this.serversMap) {
+            if (!this.changedServers.has(sid)) {
+                sendChangedList.push(server);
+            }
+        }
+
+        if (sendChangedList.length > 0) {
+            // 向始终保持连接的， 推送变化和删除的
+            const msg: monitor_updateServers = {
+                "T": define.Master_To_Monitor.updateServers,
+                "update": [],
+                "del": Array.from(removeList),
+            };
+            for (const sid of updateList) {
+                const server = this.getServer(sid);
+                msg.update.push(server.serverInfo);
+            }
+            const msgBuffer = msgCoder.encodeInnerData(msg);
+            for (const server of sendChangedList) {
+                server.send(msgBuffer);
+            }
+        }
+
+        if (updateList.size > 0) {
+            // 向新增或重连了的，推送全量信息
+            const msg: monitor_syncAllServers = {
+                "T": define.Master_To_Monitor.syncAllServers,
+                "all": [],
+            };
+            for (const [sid, server] of this.serversMap) {
+                msg.all.push(server.serverInfo);
+            }
+
+            const msgBuffer = msgCoder.encodeInnerData(msg);
+            for (const sid of updateList) {
+                const server = this.getServer(sid);
+                server.send(msgBuffer);
+            }
+        }
+
     }
 }
 
@@ -250,6 +335,10 @@ export class Master_ServerProxy {
 
     send(msg: any) {
         this.socket.send(msgCoder.encodeInnerData(msg));
+    }
+
+    sendBuffer(msg: Buffer) {
+        this.socket.send(msg);
     }
 
     private heartbeatResponse() {

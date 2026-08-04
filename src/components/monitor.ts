@@ -7,7 +7,7 @@ import Application from "../application";
 import { MonitorCli } from "./cliUtil";
 import { TcpClient } from "./tcpClient";
 import * as define from "../util/define";
-import { SocketProxy, monitor_get_new_server, monitor_remove_server, loggerLevel, monitor_reg_master, ServerInfo } from "../util/interfaceDefine";
+import { SocketProxy, loggerLevel, monitor_reg_master, ServerInfo, monitor_syncAllServers, monitor_updateServers } from "../util/interfaceDefine";
 import { encodeInnerData } from "./msgCoder";
 import * as rpcClient from "./rpcClient";
 import * as path from "path";
@@ -25,22 +25,17 @@ export class monitor_client_proxy {
     private monitorCli: MonitorCli;
     private heartbeatTimer: NodeJS.Timeout = null as any;
     private heartbeatTimeoutTimer: NodeJS.Timeout = null as any;
+    private reconnectCnt = 0;
 
     private serversIdMap = new Map<string, ServerInfo>(); // 从 master 那里获得的所有服务器
 
-    private removeDiffServers: { [id: string]: string } = {}; // After the monitor is reconnected, the server set to be compared and removed
-    private needDiff: boolean = false; // whether need to compare
-    private diffTimer: NodeJS.Timeout = null as any;    // diff timeout
-    private reconnectCnt = 0;
 
     constructor(app: Application) {
         this.app = app;
         this.monitorCli = new MonitorCli(app);
 
-        const selfServerInfo = app.serverInfo;
-        this.serversIdMap.set(selfServerInfo.id, selfServerInfo);
 
-        const rand = randBetweenInt(1000, 5000);
+        const rand = randBetweenInt(200, 2000);
         this.doConnect(rand);
     }
 
@@ -58,7 +53,7 @@ export class monitor_client_proxy {
                 this.register();
 
                 // Heartbeat package
-                this.heartbeat();;
+                this.heartbeat();
             };
             this.app.logger(loggerLevel.debug, `${meFilename} try to connect to master now`);
             this.socket = new TcpClient(this.app.masterConfig.port, this.app.masterConfig.host, define.some_config.SocketBufferMaxLen, false, connectCb);
@@ -89,10 +84,10 @@ export class monitor_client_proxy {
         try {
             let data: any = JSON.parse(_data.toString());
 
-            if (data.T === define.Master_To_Monitor.addServer) {
-                this.addServer((data as monitor_get_new_server).servers);
-            } else if (data.T === define.Master_To_Monitor.removeServer) {
-                this.removeServer(data as monitor_remove_server);
+            if (data.T === define.Master_To_Monitor.syncAllServers) {
+                this.syncAllServers((data as monitor_syncAllServers));
+            } else if (data.T === define.Master_To_Monitor.updateServers) {
+                this.updateServers(data as monitor_updateServers);
             } else if (data.T === define.Master_To_Monitor.cliMsg) {
                 this.monitorCli.deal_master_msg(this, data);
             } else if (data.T === define.Master_To_Monitor.heartbeatResponse) {
@@ -112,9 +107,6 @@ export class monitor_client_proxy {
      */
     private onClose() {
         this.app.logger(loggerLevel.error, `${meFilename} socket closed, try to reconnect master later`);
-        this.needDiff = true;
-        this.removeDiffServers = {};
-        clearTimeout(this.diffTimer);
         clearTimeout(this.heartbeatTimer);
         clearTimeout(this.heartbeatTimeoutTimer);
         this.heartbeatTimeoutTimer = null as any;
@@ -159,109 +151,6 @@ export class monitor_client_proxy {
         this.socket.send(encodeInnerData(msg));
     }
 
-    /**
-     * Add server
-     */
-    private addServer(servers: { [id: string]: ServerInfo }) {
-        if (this.needDiff) {
-            this.diffTimerStart();
-        }
-        let serversApp = this.app.servers;
-        let serversIdMap = this.app.serversIdMap;
-        let serverInfo: ServerInfo;
-        for (let sid in servers) {
-            serverInfo = servers[sid];
-            if (this.needDiff) {
-                this.addOrRemoveDiffServer(serverInfo.id, true, serverInfo.serverType);
-            }
-            let tmpServer: ServerInfo = serversIdMap[serverInfo.id];
-            if (tmpServer && tmpServer.host === serverInfo.host && tmpServer.port === serverInfo.port) {    // If it already exists and the ip configuration is the same, ignore it (other configurations are not considered, please guarantee by the developer)
-                continue;
-            }
-            if (!serversApp[serverInfo.serverType]) {
-                serversApp[serverInfo.serverType] = [];
-            }
-            if (!!tmpServer) {
-                for (let i = serversApp[serverInfo.serverType].length - 1; i >= 0; i--) {
-                    if (serversApp[serverInfo.serverType][i].id === tmpServer.id) {
-                        serversApp[serverInfo.serverType].splice(i, 1);
-                        rpcClient.removeSocket(tmpServer.id);
-                        break;
-                    }
-                }
-            }
-            serversApp[serverInfo.serverType].push(serverInfo);
-            serversIdMap[serverInfo.id] = serverInfo;
-            rpcClient.ifCreateRpcClient(this.app, serverInfo)
-        }
-    }
-
-    /**
-     * Remove server
-     */
-    private removeServer(msg: monitor_remove_server) {
-        if (this.needDiff) {
-            this.diffTimerStart();
-            this.addOrRemoveDiffServer(msg.id, false);
-        }
-        delete this.app.serversIdMap[msg.id];
-        let serversApp = this.app.servers;
-        if (serversApp[msg.serverType]) {
-            for (let i = 0; i < serversApp[msg.serverType].length; i++) {
-                if (serversApp[msg.serverType][i].id === msg.id) {
-                    serversApp[msg.serverType].splice(i, 1);
-                    rpcClient.removeSocket(msg.id)
-                    break;
-                }
-            }
-        }
-    }
-
-    private addOrRemoveDiffServer(sid: string, add: boolean, serverType?: string) {
-        if (add) {
-            this.removeDiffServers[sid] = serverType as string;
-        } else {
-            delete this.removeDiffServers[sid];
-        }
-    }
-
-    private diffTimerStart() {
-        clearTimeout(this.diffTimer);
-        let self = this;
-        this.diffTimer = setTimeout(function () {
-            self.diffFunc();
-        }, 5000);     // Compare after 5 seconds
-    }
-
-    /**
-     * 比对原因：与master断开连接期间，如果另一台逻辑服挂了，本服不能断定该服是否移除，
-     * 因为添加和删除统一由master通知，所以与master断开期间，不可更改与其他服的关系，
-     * 待本服重新连接上master后，通过比对，移除无效服务器
-     * 
-     * (Reason for comparison: During the disconnection from the master, if another logical server hangs up, 
-     * the server cannot determine whether the server will be removed, because the addition and deletion are uniformly notified by the master,
-     *  so during the disconnection from the master, it cannot be changed. Server relationship, 
-     * after the server reconnects to the master, through the comparison, remove the invalid server)
-     */
-    private diffFunc() {
-        this.needDiff = false;
-        let servers = this.app.servers;
-        for (let serverType in servers) {
-            for (let i = servers[serverType].length - 1; i >= 0; i--) {
-                let id = servers[serverType][i].id;
-                if (id === this.app.serverId) {
-                    continue;
-                }
-                if (!this.removeDiffServers[id]) {
-                    let tmpInfo = this.app.serversIdMap[id];
-                    delete this.app.serversIdMap[id];
-                    servers[serverType].splice(i, 1);
-                    rpcClient.removeSocket(id);
-                }
-            }
-        }
-        this.removeDiffServers = {};
-    }
 
     /** 被master认定非法，关闭进程 */
     async invalidCloseSelf(data: { errMsg: string }) {
@@ -273,13 +162,21 @@ export class monitor_client_proxy {
 
             let exitFunc = this.app.someconfig.onBeforeExit;
             if (exitFunc) {
-                await Promise.race([delayMs(10 * 1000), exitFunc()]);
+                await Promise.race([delayMs(30 * 1000), exitFunc()]);
             }
         } finally {
             setTimeout(() => {
                 process.exit();
             }, 1000)
         }
+    }
+
+    syncAllServers(data: monitor_syncAllServers) {
+        this.serversIdMap = data.
+    }
+
+    updateServers(data: monitor_updateServers) {
+
     }
 
 }
