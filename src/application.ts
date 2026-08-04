@@ -12,7 +12,7 @@ import { RpcSocketPool } from "./components/rpcSocketPool";
 import { Session } from "./components/session";
 import * as appUtil from "./util/appUtil";
 import { I_clientSocket, I_connectorConstructor, I_encodeDecodeConfig, I_someConfig, ServerInfo, loggerLevel } from "./util/interfaceDefine";
-import { addRpcClient, removeRpcClient } from "mydog/src/components/rpcClient";
+import { addRpcClient, removeRpcClient } from "./components/rpcClient";
 
 declare global {
     interface Rpc {

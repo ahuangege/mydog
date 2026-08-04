@@ -12,7 +12,7 @@ import { BackendServer } from "../components/backendServer";
 import { ServerInfo } from "./interfaceDefine";
 import { msgCoderSetApp } from "../components/msgCoder";
 import packageJson from "../../package.json";
-import { Master } from "mydog/src/components/master";
+import { Master } from "../components/master";
 
 
 /**

@@ -11,7 +11,8 @@ import { SocketProxy, loggerLevel, monitor_reg_master, ServerInfo, monitor_syncA
 import { encodeInnerData } from "./msgCoder";
 import * as rpcClient from "./rpcClient";
 import * as path from "path";
-import { delayMs, randBetweenInt } from "mydog/src/util/starter";
+import { delayMs, randBetweenInt } from "../util/starter";
+
 let meFilename = `[${path.basename(__filename, ".js")}.ts]`;
 
 export function start(_app: Application) {
