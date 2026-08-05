@@ -211,6 +211,10 @@ export interface I_rpcConfig {
      */
     "interval"?: number | { "default": number, [serverType: string]: number }
     /**
+     * message cache max length when interval is on. The default is +Infinity.
+     */
+    "intervalCacheLen"?: number,
+    /**
      * whether to enable Nagle algorithm (not enabled by default)
      */
     "noDelay"?: boolean,
@@ -227,9 +231,9 @@ export interface I_rpcConfig {
      */
     "rpcMsgCacheCount"?: number,
     /**
-     * message cache max length when interval is on. The default is +Infinity.
+     * The frequency of  Rpc socket  establishment
      */
-    "intervalCacheLen"?: number,
+    "socketPerSecond"?: number,
 }
 
 
