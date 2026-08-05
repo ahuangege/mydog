@@ -11,7 +11,7 @@ import * as define from "../util/define";
 import { I_rpcMsg, I_rpcTimeout, loggerLevel } from "../util/interfaceDefine";
 
 let app: Application;
-let msgHandler: { [filename: string]: any } = {};
+let userMsgHandler: { [filename: string]: any } = {};
 let sysMsgHandler: { [filename: string]: any } = {};
 let timeoutUtil: RpcTimeoutUtil = null as any;
 
@@ -63,7 +63,7 @@ export async function handleMsgAwait(sid: string, bufAll: Buffer) {
         let data = null;
         let hasErr = false;
         try {
-            const handlerObj = rpcMsg.isSys ? sysMsgHandler : msgHandler;
+            const handlerObj = rpcMsg.isSys ? sysMsgHandler : userMsgHandler;
             data = await handlerObj[cmd[0]][cmd[1]](...msg);
         } catch (err) {
             hasErr = true;
@@ -89,7 +89,7 @@ export async function handleMsgAwait(sid: string, bufAll: Buffer) {
 class rpc_create {
     private toId: string = "";
     private notify: boolean = false;
-    private rpcObj: Rpc = {};
+    private userRpcObj: Rpc = {};
     private sysRpcObj: MyDogSysRpc = {} as any;
 
     constructor() {
@@ -100,7 +100,7 @@ class rpc_create {
     loadRemoteMethod() {
         let self = this;
         app.rpc = this.rpcFunc.bind(this);
-        let tmp_rpc_obj = this.rpcObj as any;
+        let tmp_rpc_obj = this.userRpcObj as any;
         let dirName = path.join(app.base, define.some_config.File_Dir.Servers);
         let exists = fs.existsSync(dirName);
         if (!exists) {
@@ -136,7 +136,7 @@ class rpc_create {
             }
         });
         for (let one of thisSvrHandler) {
-            msgHandler[one.filename] = new one.con(app);
+            userMsgHandler[one.filename] = new one.con(app);
         }
     }
 
@@ -144,7 +144,7 @@ class rpc_create {
         let self = this;
         app.sysRpc = this.sysRpcFunc.bind(this);
         let tmp_rpc_obj = this.sysRpcObj as any;
-        let dirName = path.join("../sysRpc");
+        let dirName = path.join(__dirname, "../sysRpc");
         let exists = fs.existsSync(dirName);
         if (!exists) {
             return;
@@ -185,7 +185,7 @@ class rpc_create {
     rpcFunc(serverId: string, notify = false) {
         this.toId = serverId;
         this.notify = notify;
-        return this.rpcObj;
+        return this.userRpcObj;
     }
 
     sysRpcFunc(serverId: string, notify = false) {
@@ -463,7 +463,7 @@ class RpcTimeoutUtil {
      */
     sendRpcMsgToSelfAwait(cmd: { "isSys": number, "serverType": string, "file_method": string }, argsOrginal: any[], notify: boolean): Promise<any> | undefined {
 
-        const handlerObj = cmd.isSys ? sysMsgHandler : msgHandler;
+        const handlerObj = cmd.isSys ? sysMsgHandler : userMsgHandler;
         let args = JSON.parse(JSON.stringify(argsOrginal));
         if (notify) {
             setImmediate(() => {

@@ -48,16 +48,6 @@ export class FrontendServer {
     }
 
     /**
-     * Sync session
-     */
-    applySession(data: Buffer) {
-        let session = JSON.parse(data.slice(1).toString()) as sessionCopyJson;
-        let client = this.app.clients[session.uid];
-        if (client) {
-            client.session.applySession(session.settings);
-        }
-    }
-    /**
      * The front-end server forwards the message of the back-end server to the client
      */
     sendMsgByUids(data: Buffer) {
@@ -165,6 +155,7 @@ class ClientManager implements I_clientManager {
             if (!cmdArr || cmdArr.length !== 3) {
                 return;
             }
+
             if (this.serverType === cmdArr[0]) {
                 let msg = this.app.msgDecode(data.cmd, data.msg);
                 const ok = await this.app.filter.beforeFilter(data.cmd, msg, client.session);
@@ -180,6 +171,9 @@ class ClientManager implements I_clientManager {
                 this.app.filter.afterFilter(data.cmd, rsp, client.session);
 
             } else {
+                if (!client.session.uid) {
+                    return;
+                }
                 this.doRemote(data, client.session, cmdArr);
             }
 
@@ -202,14 +196,13 @@ class ClientManager implements I_clientManager {
             this.app.logger(loggerLevel.error, `${meFilename} illegal doRemote`);
             return;
         }
-        let sessionBuf = session.sessionBuf;
-        let buf = Buffer.allocUnsafe(9 + sessionBuf.length + msg.msg.length);
-        buf.writeUInt32BE(5 + sessionBuf.length + msg.msg.length, 0);
+        let buf = Buffer.allocUnsafe(15 + msg.msg.length);
+        buf.writeUInt32BE(11 + msg.msg.length, 0);
         buf.writeUInt8(define.Rpc_Msg.clientMsgIn, 4);
-        buf.writeUInt16BE(sessionBuf.length, 5);
-        sessionBuf.copy(buf, 7);
-        buf.writeUInt16BE(msg.cmd, 7 + sessionBuf.length);
-        msg.msg.copy(buf, 9 + sessionBuf.length);
+        buf.writeUInt16BE(msg.cmd, 5);
+        buf.writeUInt32BE(session.uid, 7);
+        buf.writeUInt32BE(session.version, 11);
+        msg.msg.copy(buf, 15);
         socket.send(buf);
     }
 }

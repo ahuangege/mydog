@@ -86,9 +86,6 @@ class RpcServerSocket {
                 case define.Rpc_Msg.rpcMsgAwait:
                     rpcService.handleMsgAwait(this.id, data);
                     break;
-                case define.Rpc_Msg.applySession:
-                    this.app.frontendServer.applySession(data);
-                    break;
                 case define.Rpc_Msg.heartbeat:
                     this.heartbeatHandle();
                     this.heartbeatResponse();

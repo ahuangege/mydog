@@ -14,23 +14,16 @@ export function initSessionApp(_app: Application) {
 
 export class Session {
     uid: number = 0;                                        // The bound uid, the unique identifier of the player
-    private sid: string = "";                               // Front-end server id
+    sid: string = "";                                       // Front-end server id
+    version = 1;
+
     private settings: { [key: string]: any } = {};          // user set,get
-    private settingsLocal: { [key: string]: any } = {};     // user set,get（Local, will not exist in buf）
-    sessionBuf: Buffer = null as any;                       // buff
+    private settingsLocal: { [key: string]: any } = {};     // user set,get（Local, will not sync to backend）
 
     socket: I_clientSocket = null as any;                   // Player's socket connection
 
     constructor(sid: string = "") {
         this.sid = sid;
-        this.resetBuf();
-    }
-
-    private resetBuf() {
-        if (app.frontend) {
-            let tmpBuf = Buffer.from(JSON.stringify({ "uid": this.uid, "sid": this.sid, "settings": this.settings }));
-            this.sessionBuf = Buffer.alloc(tmpBuf.length).fill(tmpBuf); // Copy reason: Buffer.from may be allocated from the internal buffer pool, while sessionBuf is almost resident
-        }
     }
 
     /**
@@ -45,7 +38,6 @@ export class Session {
         }
         app.clients[_uid] = this.socket;
         this.uid = _uid;
-        this.resetBuf();
         return true;
     }
 
@@ -53,9 +45,8 @@ export class Session {
         for (let f in _settings) {
             this.settings[f] = _settings[f];
         }
-        this.resetBuf();
+        this.addVersion();
     }
-
 
     get(key: string | number) {
         return this.settings[key];
@@ -65,7 +56,7 @@ export class Session {
         for (let one of keys) {
             delete this.settings[one];
         }
-        this.resetBuf();
+        this.addVersion();
     }
 
 
@@ -102,24 +93,6 @@ export class Session {
         }
     }
 
-    /**
-     * Push the back-end session to the front-end [Note: back-end call]
-     */
-    apply() {
-        if (!app.frontend) {
-            app.backendServer.sendSession(this.sid, Buffer.from(JSON.stringify({
-                "uid": this.uid,
-                "settings": this.settings
-            })));
-        }
-    }
-    /**
-     * After the back-end calls apply, the processing received by the front-end
-     */
-    applySession(settings: { [key: string]: any }) {
-        this.settings = settings;
-        this.resetBuf();
-    }
 
     /**
      * Get ip
@@ -142,5 +115,21 @@ export class Session {
         }
         let msgBuf = app.protoEncode(cmd, msg);
         this.socket.send(msgBuf);
+    }
+
+    addVersion() {
+        this.version++;
+        if (this.version > 4000000000) {
+            this.version = 1;
+        }
+    }
+
+    getSettings() {
+        return { "version": this.version, "settings": this.settings }
+    }
+
+    syncSettings(info: { version: number, settings: { [key: string]: any } }) {
+        this.version = info.version;
+        this.settings = info.settings;
     }
 }

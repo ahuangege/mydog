@@ -98,8 +98,8 @@ export class RpcClientSocket {
         let tokenConfig = app.someconfig.recognizeToken || {};
         this.serverToken = tokenConfig.serverToken || define.some_config.Server_Token;
 
-        const rand = randBetweenInt(200, 2000);
-        this.doConnect(0);
+        const rand = randBetweenInt(200, 1000);
+        this.doConnect(rand);
     }
 
     private doConnect(delay: number) {
@@ -173,7 +173,7 @@ export class RpcClientSocket {
         delayMs = Math.min(delayMs, 30 * 1000); // 封顶
 
         this.reconnectCnt++;
-        this.doConnect(delayMs * 1000);
+        this.doConnect(delayMs);
     }
 
     /**
@@ -233,9 +233,6 @@ export class RpcClientSocket {
                     break;
                 case define.Rpc_Msg.rpcMsgAwait:
                     rpcService.handleMsgAwait(this.id, data);
-                    break;
-                case define.Rpc_Msg.applySession:
-                    this.app.frontendServer.applySession(data);
                     break;
                 case define.Rpc_Msg.register:
                     this.registerHandle();

@@ -74,7 +74,6 @@ export const enum Server_To_Client {
 export const enum Rpc_Msg {
     register = 1,           // registered
     heartbeat = 2,          // heartbeat
-    applySession = 3,       // Synchronize session from backend to frontend
     clientMsgIn = 4,        // Client message received
     clientMsgOut = 5,       // Send a message to the client
     rpcMsgAwait = 6,              // rpc message await

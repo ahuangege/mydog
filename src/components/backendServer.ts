@@ -1,19 +1,22 @@
 
 
-import Application from "../application";
-import { encodeRemoteData } from "./msgCoder";
-import * as path from "path";
 import * as fs from "fs";
+import * as path from "path";
+import Application from "../application";
 import * as define from "../util/define";
 import { I_encodeDecodeConfig } from "../util/interfaceDefine";
+import { encodeRemoteData } from "./msgCoder";
 
-import { Session, initSessionApp } from "./session";
 import * as protocol from "../connector/protocol";
+import { Session, initSessionApp } from "./session";
 
 
 export class BackendServer {
     private app: Application;
     private msgHandler: { [filename: string]: any } = {};
+    private sessionMap = new Map<number, Session>();
+    private sessionFetchingMap = new Map<number, Promise<void>>();
+
     constructor(app: Application) {
         this.app = app;
         initSessionApp(this.app);
@@ -53,13 +56,21 @@ export class BackendServer {
      * The back-end server receives the client message forwarded by the front-end server
      */
     async handleMsg(id: string, msg: Buffer) {
-        let sessionLen = msg.readUInt16BE(1);
-        let sessionBuf = msg.slice(3, 3 + sessionLen);
-        let session = new Session();
-        session.setAll(JSON.parse(sessionBuf.toString()));
-        let cmd = msg.readUInt16BE(3 + sessionLen);
-        let cmdArr = this.app.routeConfig2[cmd];
-        let data = this.app.msgDecode(cmd, msg.slice(5 + sessionLen));
+        const cmd = msg.readUInt16BE(1);
+        const uid = msg.readUint32BE(3);
+        const version = msg.readUint32BE(7);
+        const data = this.app.msgDecode(cmd, msg.slice(11));
+        const cmdArr = this.app.routeConfig2[cmd];
+
+        let session = this.sessionMap.get(uid);
+        if (!session || session.version !== version || session.sid !== id) {
+            session = await this.fetchSession(uid, id);
+        }
+
+        if (!session) {
+            return;
+        }
+
         const ok = await this.app.filter.beforeFilter(cmd, data, session);
         if (!ok) {
             return;
@@ -70,20 +81,10 @@ export class BackendServer {
             let buf = encodeRemoteData([session.uid], msgBuf);
             this.app.rpcPool.sendMsg(id, buf);
         }
-        this.app.filter.afterFilter(cmd, msg, session);
+        this.app.filter.afterFilter(cmd, rsp, session);
     }
 
 
-    /**
-     * Synchronize back-end session to front-end
-     */
-    sendSession(sid: string, sessionBuf: Buffer) {
-        let buf = Buffer.allocUnsafe(5 + sessionBuf.length);
-        buf.writeUInt32BE(1 + sessionBuf.length, 0);
-        buf.writeUInt8(define.Rpc_Msg.applySession, 4);
-        sessionBuf.copy(buf, 5);
-        this.app.rpcPool.sendMsg(sid, buf);
-    }
 
     /**
      * The back-end server sends a message to the client
@@ -140,5 +141,36 @@ export class BackendServer {
             buf = encodeRemoteData(group[sid], msgBuf);
             app.rpcPool.sendMsg(sid, buf);
         }
+    }
+
+    async fetchSession(uid: number, sid: string): Promise<Session> {
+        const fetching = this.sessionFetchingMap.get(uid);
+        if (fetching) {
+            await fetching;
+            return this.sessionMap.get(uid) as Session;
+        }
+
+        const promise = new Promise(async (resolve) => {
+            try {
+                const info = await this.app.sysRpc(sid).frontend.sessionRemote.getSession(uid);
+                if (!info) {
+                    this.sessionMap.delete(uid)
+                } else {
+                    const session = new Session(sid);
+                    session.uid = uid;
+                    session.syncSettings(info);
+                    this.sessionMap.set(uid, session)
+                }
+            } finally {
+                this.sessionFetchingMap.delete(uid);
+                resolve(null);
+            }
+        });
+
+        this.sessionFetchingMap.set(uid, promise as any);
+
+        await promise;
+        return this.sessionMap.get(uid) as Session;
+
     }
 }

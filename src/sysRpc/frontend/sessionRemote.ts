@@ -9,12 +9,16 @@ declare global {
 }
 
 export default class SessionRemote {
-
+    app: Application;
     constructor(app: Application) {
+        this.app = app;
     }
 
-    async test(msg: string) {
-        console.log("rpc get:", msg);
-        return "haha";
+    async getSession(uid: number) {
+        const session = this.app.getSession(uid);
+        if (!session) {
+            return null;
+        }
+        return session.getSettings();
     }
 }

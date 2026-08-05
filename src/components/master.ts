@@ -142,7 +142,7 @@ export class Master {
             }
             const msgBuffer = msgCoder.encodeInnerData(msg);
             for (const server of sendChangedList) {
-                server.send(msgBuffer);
+                server.sendBuffer(msgBuffer);
             }
         }
 
@@ -159,7 +159,7 @@ export class Master {
             const msgBuffer = msgCoder.encodeInnerData(msg);
             for (const sid of updateList) {
                 const server = this.getServer(sid);
-                server.send(msgBuffer);
+                server.sendBuffer(msgBuffer);
             }
         }
 
