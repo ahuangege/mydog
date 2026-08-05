@@ -8,10 +8,11 @@ import * as path from "path";
 import Application from "../application";
 import * as appUtil from "../util/appUtil";
 import * as define from "../util/define";
-import { I_rpcMsg, I_rpcTimeout } from "../util/interfaceDefine";
+import { I_rpcMsg, I_rpcTimeout, loggerLevel } from "../util/interfaceDefine";
 
 let app: Application;
 let msgHandler: { [filename: string]: any } = {};
+let sysMsgHandler: { [filename: string]: any } = {};
 let timeoutUtil: RpcTimeoutUtil = null as any;
 
 const enum e_awaitRpcErrType {
@@ -62,7 +63,8 @@ export async function handleMsgAwait(sid: string, bufAll: Buffer) {
         let data = null;
         let hasErr = false;
         try {
-            data = await msgHandler[cmd[0]][cmd[1]](...msg);
+            const handlerObj = rpcMsg.isSys ? sysMsgHandler : msgHandler;
+            data = await handlerObj[cmd[0]][cmd[1]](...msg);
         } catch (err) {
             hasErr = true;
             process.nextTick(() => {
@@ -88,9 +90,11 @@ class rpc_create {
     private toId: string = "";
     private notify: boolean = false;
     private rpcObj: Rpc = {};
+    private sysRpcObj: MyDogSysRpc = {} as any;
 
     constructor() {
         this.loadRemoteMethod();
+        this.loadSysRemoteMethod();
     }
 
     loadRemoteMethod() {
@@ -122,7 +126,7 @@ class rpc_create {
                     let remote = require(path.join(remoteDirName, fileName));
                     if (remote.default && typeof remote.default === "function") {
                         if (needRpc) {
-                            tmp_rpc_obj[serverName][fileBasename] = self.initFunc(serverName, fileBasename, remote.default.prototype, Object.getOwnPropertyNames(remote.default.prototype));
+                            tmp_rpc_obj[serverName][fileBasename] = self.initFunc(0, serverName, fileBasename, remote.default.prototype, Object.getOwnPropertyNames(remote.default.prototype));
                         }
                         if (serverName === app.serverType) {
                             thisSvrHandler.push({ "filename": fileBasename, "con": remote.default });
@@ -136,23 +140,71 @@ class rpc_create {
         }
     }
 
+    loadSysRemoteMethod() {
+        let self = this;
+        app.sysRpc = this.sysRpcFunc.bind(this);
+        let tmp_rpc_obj = this.sysRpcObj as any;
+        let dirName = path.join("../sysRpc");
+        let exists = fs.existsSync(dirName);
+        if (!exists) {
+            return;
+        }
+        let thisSvrHandler: { "filename": string, "con": any }[] = [];
+
+        const meServerName = app.frontend ? "frontend" : "backend";
+        fs.readdirSync(dirName).forEach(function (serverName) {
+            let needRpc = true;
+            let remoteDirName = path.join(dirName, serverName);
+            let exists = fs.existsSync(remoteDirName);
+            if (exists) {
+                if (needRpc) {
+                    tmp_rpc_obj[serverName] = {};
+                }
+                fs.readdirSync(remoteDirName).forEach(function (fileName) {
+                    if (!fileName.endsWith(".js")) {
+                        return;
+                    }
+                    let fileBasename = path.basename(fileName, '.js');
+                    let remote = require(path.join(remoteDirName, fileName));
+                    if (remote.default && typeof remote.default === "function") {
+                        if (needRpc) {
+                            tmp_rpc_obj[serverName][fileBasename] = self.initFunc(1, serverName, fileBasename, remote.default.prototype, Object.getOwnPropertyNames(remote.default.prototype));
+                        }
+                        if (serverName === meServerName) {
+                            thisSvrHandler.push({ "filename": fileBasename, "con": remote.default });
+                        }
+                    }
+                });
+            }
+        });
+        for (let one of thisSvrHandler) {
+            sysMsgHandler[one.filename] = new one.con(app);
+        }
+    }
+
     rpcFunc(serverId: string, notify = false) {
         this.toId = serverId;
         this.notify = notify;
         return this.rpcObj;
     }
 
-    initFunc(serverType: string, filename: string, func: any, funcFields: string[]) {
+    sysRpcFunc(serverId: string, notify = false) {
+        this.toId = serverId;
+        this.notify = notify;
+        return this.sysRpcObj;
+    }
+
+    initFunc(isSys: number, serverType: string, filename: string, func: any, funcFields: string[]) {
         let res: { [method: string]: Function } = {};
         for (let field of funcFields) {
             if (field !== "constructor" && typeof func[field] === "function") {
-                res[field] = this.proxyCb({ "serverType": serverType, "file_method": filename + "." + field });
+                res[field] = this.proxyCb({ isSys, "serverType": serverType, "file_method": filename + "." + field });
             }
         }
         return res;
     }
 
-    proxyCb(cmd: { "serverType": string, "file_method": string }) {
+    proxyCb(cmd: { "isSys": number, "serverType": string, "file_method": string }) {
         let self = this;
         let func = function (...args: any[]): Promise<any> | undefined {
             return self.send(self.toId, self.notify, cmd, args);
@@ -160,8 +212,12 @@ class rpc_create {
         return func;
     }
 
-    send(sid: string, notify: boolean, cmd: { "serverType": string, "file_method": string }, args: any[]): Promise<any> | undefined {
+    send(sid: string, notify: boolean, cmd: { "isSys": number, "serverType": string, "file_method": string }, args: any[]): Promise<any> | undefined {
         if (sid === "*") {
+            if (cmd.isSys) {
+                app.logger(loggerLevel.error, "mydogSysRpc cannot sendT");
+                return;
+            }
             this.sendT(cmd, args);
             return;
         }
@@ -169,7 +225,7 @@ class rpc_create {
     }
 
     /** 发送给某一类型的服务器 */
-    sendT(cmd: { "serverType": string, "file_method": string }, args: any[]) {
+    sendT(cmd: { "isSys": number, "serverType": string, "file_method": string }, args: any[]) {
         let servers = app.getServersByType(cmd.serverType);
         if (servers.length === 0) {
             return;
@@ -186,14 +242,17 @@ class rpc_create {
     }
 
     /** await 形式，发送给某一服务器 */
-    sendAwait(sid: string, notify: boolean, cmd: { "serverType": string, "file_method": string }, args: any[]): Promise<any> | undefined {
+    sendAwait(sid: string, notify: boolean, cmd: { "isSys": number, "serverType": string, "file_method": string }, args: any[]): Promise<any> | undefined {
         if (sid === app.serverId) {
             return timeoutUtil.sendRpcMsgToSelfAwait(cmd, args, notify);
         }
 
         let rpcMsg: I_rpcMsg = {
-            "cmd": cmd.file_method
+            "cmd": cmd.file_method,
         };
+        if (cmd.isSys) {
+            rpcMsg.isSys = 1;
+        }
         let promise: Promise<any> = undefined as any;
         let rpcTimeout: I_rpcTimeout = null as any;
         if (!notify) {
@@ -264,7 +323,7 @@ class RpcTimeoutUtil {
         let findCnt = 0;
         while (findCnt < 100000) {
             this.rpcId++;
-            if (this.rpcId > 99999999) {
+            if (this.rpcId > 999999999) {
                 this.rpcId = 1;
             }
             if (!this.rpcRequest.has(this.rpcId)) {
@@ -402,12 +461,14 @@ class RpcTimeoutUtil {
     /**
      * Send rpc message to this server await
      */
-    sendRpcMsgToSelfAwait(cmd: { "serverType": string, "file_method": string }, argsOrginal: any[], notify: boolean): Promise<any> | undefined {
+    sendRpcMsgToSelfAwait(cmd: { "isSys": number, "serverType": string, "file_method": string }, argsOrginal: any[], notify: boolean): Promise<any> | undefined {
+
+        const handlerObj = cmd.isSys ? sysMsgHandler : msgHandler;
         let args = JSON.parse(JSON.stringify(argsOrginal));
         if (notify) {
             setImmediate(() => {
                 let route = cmd.file_method.split('.');
-                let file = msgHandler[route[0]];
+                let file = handlerObj[route[0]];
                 file[route[1]](...args);
             });
             return;
@@ -425,7 +486,7 @@ class RpcTimeoutUtil {
 
         setImmediate(async () => {
             let route = cmd.file_method.split('.');
-            let file = msgHandler[route[0]];
+            let file = handlerObj[route[0]];
             let data: any = null;
             let hasErr = false;
             try {

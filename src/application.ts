@@ -17,6 +17,9 @@ import { addRpcClient, removeRpcClient } from "./components/rpcClient";
 declare global {
     interface Rpc {
     }
+
+    interface MyDogSysRpc {
+    }
 }
 
 export default class Application extends EventEmitter {
@@ -49,6 +52,9 @@ export default class Application extends EventEmitter {
     router: { [serverType: string]: (session: Session, cmd: number) => string } = {};                     // Pre-selection when routing messages to the backend
     rpc: (serverId: string) => Rpc = null as any;                                            // Rpc packaging
     rpcPool: RpcSocketPool = new RpcSocketPool();                                            // Rpc socket pool
+
+    sysRpc: (serverId: string) => MyDogSysRpc = null as any;                                            // Rpc packaging
+
 
     logger: (level: loggerLevel, err: Error | string) => void = function () { };                      // Internal msg log output
 

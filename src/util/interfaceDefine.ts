@@ -70,6 +70,7 @@ export const enum loggerLevel {
  * 3. If there is an id without cmd, it means it is a callback message
  */
 export interface I_rpcMsg {
+    isSys?: number;
     cmd?: string;
     id?: number;
     err?: number;
