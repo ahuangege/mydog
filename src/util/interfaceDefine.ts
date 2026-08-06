@@ -93,10 +93,11 @@ export interface I_someConfig {
     "connector": I_connectorConfig, // Front-end connector connection server configuration
     "encodeDecode": I_encodeDecodeConfig,   // Codec configuration
     "ssh": string[],                // ssh configuration
-    "recognizeToken": { "serverToken": string, "cliToken": string },    // Authentication key
+    "recognizeToken": { "serverToken"?: string, "cliToken"?: string },    // Authentication key
     "logger": (level: loggerLevel, msg: string) => void,           // Internal log output
     "mydogList": () => { "title": string, "value": string }[],      // Custom monitoring
     "onBeforeExit": () => Promise<void>,       // beforeExit notice
+    "session": { "noNeedSyncServerTypes"?: string[], "expireSeconds"?: number, "maxCacheCount"?: number } // backend session  configuration
 }
 
 /**

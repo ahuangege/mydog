@@ -11,9 +11,7 @@ import { FrontendServer } from "../components/frontendServer";
 import { BackendServer } from "../components/backendServer";
 import { ServerInfo } from "./interfaceDefine";
 import { msgCoderSetApp } from "../components/msgCoder";
-import packageJson from "../../package.json";
 import { Master } from "../components/master";
-
 
 /**
  * Load configuration
@@ -219,6 +217,7 @@ function startPng(app: Application) {
         "  ※                      ※",
         "  ※----------------------※",
     ];
+    const packageJson = require("../../package.json");
     let version = packageJson.version;
     version = "Ver: " + version;
     console.log("      ");

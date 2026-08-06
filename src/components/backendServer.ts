@@ -16,6 +16,11 @@ export class BackendServer {
     private msgHandler: { [filename: string]: any } = {};
     private sessionMap = new Map<number, Session>();
     private sessionFetchingMap = new Map<number, Promise<void>>();
+    private sessionExpireMap = new Map<number, Set<number>>(); // 每5秒一个桶
+    private expireTime = 0; // session 过期时间
+    private needSession = true; // 是否需要同步前端session
+    private expireSeconds = 0; // 过期时长
+    private maxCacheCount = 0; // 最大缓存session个数
 
     constructor(app: Application) {
         this.app = app;
@@ -28,7 +33,19 @@ export class BackendServer {
         this.app.protoDecode = encodeDecodeConfig.protoDecode || defaultEncodeDecode.protoDecode;
         this.app.msgDecode = encodeDecodeConfig.msgDecode || defaultEncodeDecode.msgDecode;
 
+        const sessionCfg = this.app.someconfig.session || {};
+        if (sessionCfg.noNeedSyncServerTypes && sessionCfg.noNeedSyncServerTypes.includes(this.app.serverType)) {
+            this.needSession = false;
+        }
+
+        this.expireSeconds = Math.max(sessionCfg.expireSeconds || 0, 15);
+        this.maxCacheCount = Math.max(sessionCfg.maxCacheCount || 0, 3000);
+
         this.loadHandler();
+
+        setInterval(() => {
+            this.checkExpire();
+        }, 1000)
     }
 
     /**
@@ -62,14 +79,22 @@ export class BackendServer {
         const data = this.app.msgDecode(cmd, msg.slice(11));
         const cmdArr = this.app.routeConfig2[cmd];
 
-        let session = this.sessionMap.get(uid);
-        if (!session || session.version !== version || session.sid !== id) {
-            session = await this.fetchSession(uid, id);
+        let session = this.getSession(uid);
+        if (this.needSession) {
+            if (!session || session.version !== version || session.sid !== id) {
+                session = await this.fetchSession(uid, id);
+            }
+        } else {
+            if (!session || session.sid !== id) {
+                session = this.fetchNoNeedSession(uid, id);
+            }
         }
 
         if (!session) {
             return;
         }
+
+        this.updateSession(session);
 
         const ok = await this.app.filter.beforeFilter(cmd, data, session);
         if (!ok) {
@@ -143,23 +168,38 @@ export class BackendServer {
         }
     }
 
+    fetchNoNeedSession(uid: number, sid: string) {
+        let session = this.getSession(uid);
+        if (!session) {
+            session = new Session(sid);
+            session.uid = uid;
+            this.addSession(session);
+        } else {
+            session.sid = sid;
+        }
+        return session;
+    }
+
     async fetchSession(uid: number, sid: string): Promise<Session> {
         const fetching = this.sessionFetchingMap.get(uid);
         if (fetching) {
             await fetching;
-            return this.sessionMap.get(uid) as Session;
+            return this.getSession(uid);
         }
 
         const promise = new Promise(async (resolve) => {
             try {
                 const info = await this.app.sysRpc(sid).frontend.sessionRemote.getSession(uid);
-                if (!info) {
-                    this.sessionMap.delete(uid)
+                let session = this.getSession(uid);
+                if (session) {
+                    session.sid = sid;
+                    session.syncSettings(info);
+                    this.updateSession(session);
                 } else {
-                    const session = new Session(sid);
+                    session = new Session(sid);
                     session.uid = uid;
                     session.syncSettings(info);
-                    this.sessionMap.set(uid, session)
+                    this.addSession(session);
                 }
             } finally {
                 this.sessionFetchingMap.delete(uid);
@@ -170,7 +210,91 @@ export class BackendServer {
         this.sessionFetchingMap.set(uid, promise as any);
 
         await promise;
-        return this.sessionMap.get(uid) as Session;
+        return this.getSession(uid);
+    }
 
+    getSession(uid: number) {
+        return this.sessionMap.get(uid);
+    }
+
+    delSession(session: Session) {
+        this.sessionMap.delete(session.uid);
+        const set = this.sessionExpireMap.get(session.expireTime);
+        if (set) {
+            set.delete(session.uid);
+        }
+    }
+
+    addSession(session: Session) {
+        session.expireTime = this.expireTime;
+        this.sessionMap.set(session.uid, session);
+        let set = this.sessionExpireMap.get(session.expireTime);
+        if (!set) {
+            set = new Set();
+            this.sessionExpireMap.set(session.expireTime, set);
+        }
+        set.add(session.uid);
+
+        this.checkCacheTooMuch();
+    }
+
+    updateSession(session: Session) {
+        if (session.expireTime === this.expireTime) {
+            return;
+        }
+
+        const oldSet = this.sessionExpireMap.get(session.expireTime);
+        if (oldSet) {
+            oldSet.delete(session.uid);
+        }
+
+        session.expireTime = this.expireTime;
+        let set = this.sessionExpireMap.get(session.expireTime);
+        if (!set) {
+            set = new Set();
+            this.sessionExpireMap.set(session.expireTime, set);
+        }
+        set.add(session.uid);
+    }
+
+
+    /** 检测过期 */
+    checkExpire() {
+        const nowSeconds = Math.floor(Date.now() / 1000)
+        const expireTime = nowSeconds + this.expireSeconds;
+        this.expireTime = Math.floor(expireTime / 5) * 5;
+
+
+        for (const [time, set] of this.sessionExpireMap) {
+            if (nowSeconds <= time) {
+                break;
+            }
+            this.sessionExpireMap.delete(time);
+            for (const uid of set) {
+                this.sessionMap.delete(uid);
+            }
+        }
+    }
+
+    /** 检测缓存个数 */
+    checkCacheTooMuch() {
+        if (this.sessionMap.size < this.maxCacheCount + 200) {
+            return;
+        }
+
+        let delCnt = 300;
+        for (const [time, set] of this.sessionExpireMap) {
+            for (const uid of set) {
+                this.delSession(this.getSession(uid));
+                delCnt--;
+                if (delCnt <= 0) {
+                    break;
+                }
+            }
+
+            if (delCnt <= 0) {
+                break;
+            }
+        }
     }
 }

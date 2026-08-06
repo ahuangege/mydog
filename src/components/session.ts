@@ -22,6 +22,8 @@ export class Session {
 
     socket: I_clientSocket = null as any;                   // Player's socket connection
 
+    expireTime: number = 0; // 过期时间戳
+
     constructor(sid: string = "") {
         this.sid = sid;
     }
@@ -74,15 +76,6 @@ export class Session {
         delete this.settingsLocal[key];
     }
 
-    /**
-     * Set up all sessions 
-     */
-    setAll(_session: sessionCopyJson) {
-        this.uid = _session.uid;
-        this.sid = _session.sid;
-        this.settings = _session.settings;
-    }
-
 
     /**
      * Close the connection [Note: Front-end call]
@@ -118,6 +111,9 @@ export class Session {
     }
 
     addVersion() {
+        if (!app.frontend) {
+            return;
+        }
         this.version++;
         if (this.version > 4000000000) {
             this.version = 1;
@@ -129,6 +125,9 @@ export class Session {
     }
 
     syncSettings(info: { version: number, settings: { [key: string]: any } }) {
+        if (!info) {
+            return;
+        }
         this.version = info.version;
         this.settings = info.settings;
     }
