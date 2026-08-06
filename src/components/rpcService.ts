@@ -284,7 +284,8 @@ class RpcTimeoutUtil {
     private outTime = 0;    // Current time + timeout   超时时间（时间戳 秒）
 
     private msgCacheCount = 5000; // rpc目标服不存在时，最多缓存个数
-    private msgCacheMap = new Map<string, { "rpcTimeout": I_rpcTimeout | null, "buf": Buffer, "time": number }[]>();  // serverId -> any
+    private msgCacheSize = 256 * 1024; //  rpc目标服不存在时，最多缓存字节数
+    private msgCacheMap = new Map<string, { "size": number, list: { "rpcTimeout": I_rpcTimeout | null, "buf": Buffer, "time": number }[] }>();  // serverId -> any
 
     constructor() {
         this.init();
@@ -292,15 +293,22 @@ class RpcTimeoutUtil {
 
     private init() {
         let rpcConfig = app.someconfig.rpc || {};
-        let rpcMsgCacheCount = parseInt(rpcConfig.rpcMsgCacheCount as any);
+        let rpcMsgCacheCount = Math.floor(rpcConfig.rpcMsgCacheCount);
         if (rpcMsgCacheCount >= 0) {
             this.msgCacheCount = rpcMsgCacheCount;
         }
 
+        let rpcMsgCacheSize = Math.floor(rpcConfig.rpcMsgCacheSize);
+        if (rpcMsgCacheSize >= 0) {
+            this.msgCacheSize = rpcMsgCacheSize;
+        }
+
         let timeout = Math.floor(rpcConfig.timeout || 0) || 0;
         if (timeout >= 5) {
-            this.rpcTimeMax = timeout
+            this.rpcTimeMax = timeout;
         }
+
+
 
         this.tick();
     }
@@ -363,9 +371,9 @@ class RpcTimeoutUtil {
     private checkMsgCacheTimeout() {
         const nowSeconds = Math.floor(Date.now() / 1000);
 
-        for (const [sid, msgList] of this.msgCacheMap) {
+        for (const [sid, msgCache] of this.msgCacheMap) {
             let deleteCount = 0;
-            for (let one of msgList) {
+            for (let one of msgCache.list) {
                 if (nowSeconds >= one.time) {
                     deleteCount++;
                 } else {
@@ -373,13 +381,14 @@ class RpcTimeoutUtil {
                 }
             }
             if (deleteCount > 0) {
-                for (let one of msgList.splice(0, deleteCount)) {
+                for (let one of msgCache.list.splice(0, deleteCount)) {
+                    msgCache.size -= one.buf.length;
                     if (one.rpcTimeout) {
                         this.delRpcTimeout(one.rpcTimeout.id);
                         this.timeoutCall(one.rpcTimeout);
                     }
                 }
-                if (msgList.length === 0) {
+                if (msgCache.list.length === 0) {
                     this.msgCacheMap.delete(sid);
                 }
             }
@@ -424,21 +433,26 @@ class RpcTimeoutUtil {
             return;
         }
 
-        let msgList = this.msgCacheMap.get(sid);
-        if (!msgList) {
-            msgList = [];
-            this.msgCacheMap.set(sid, msgList);
+        let msgCache = this.msgCacheMap.get(sid);
+        if (!msgCache) {
+            msgCache = { size: 0, "list": [] };
+            this.msgCacheMap.set(sid, msgCache);
         }
 
         // 注意：这里超时时间需要更短，以防连接后发送出去来不及等待返回。同时在检测超时的时候，需要早于 rpcRequestBySeconds 检测
-        msgList.push({ "rpcTimeout": rpcTimeout, "buf": buf, "time": this.outTime - 3 });
+        msgCache.list.push({ "rpcTimeout": rpcTimeout, "buf": buf, "time": this.outTime - 3 });
+        msgCache.size += buf.length;
 
-        if (msgList.length > this.msgCacheCount) {
-            for (let one of msgList.splice(0, 20)) {
+        if (msgCache.list.length > this.msgCacheCount || msgCache.size > this.msgCacheSize) {
+            for (let one of msgCache.list.splice(0, 50)) {
+                msgCache.size -= one.buf.length;
                 if (one.rpcTimeout) {
                     this.delRpcTimeout(one.rpcTimeout.id);
                     this.timeoutCall(one.rpcTimeout);
                 }
+            }
+            if (msgCache.list.length === 0) {
+                this.msgCacheMap.delete(sid);
             }
         }
     }
@@ -446,13 +460,13 @@ class RpcTimeoutUtil {
 
 
     rpcOnNewSocket(sid: string) {
-        const msgList = this.msgCacheMap.get(sid);
-        if (!msgList) {
+        const msgCache = this.msgCacheMap.get(sid);
+        if (!msgCache) {
             return;
         }
         this.msgCacheMap.delete(sid);
 
-        for (let one of msgList) {
+        for (let one of msgCache.list) {
             this.sendTo(sid, one.rpcTimeout, one.buf);
         }
     }

@@ -213,7 +213,7 @@ export interface I_rpcConfig {
      */
     "interval"?: number | { "default": number, [serverType: string]: number }
     /**
-     * message cache max length when interval is on. The default is +Infinity.
+     * message cache max length when interval is on. The default is 32 KB.
      */
     "intervalCacheLen"?: number,
     /**
@@ -232,6 +232,10 @@ export interface I_rpcConfig {
      * Rpc message cache count. The default is 5000.
      */
     "rpcMsgCacheCount"?: number,
+    /**
+     * Rpc message cache buffer size. The default is 256 KB.
+     */
+    "rpcMsgCacheSize"?: number,
     /**
      * The frequency of  Rpc socket  establishment
      */
