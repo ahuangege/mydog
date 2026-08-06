@@ -93,6 +93,8 @@ export class RpcClientSocket {
             let tmpMaxLen = parseInt(rpcConfig.intervalCacheLen as any) || 0;
             if (tmpMaxLen > 0) {
                 this.maxLen = tmpMaxLen;
+            } else {
+                this.maxLen = define.some_config.intervalCacheLen;
             }
         }
         let tokenConfig = app.someconfig.recognizeToken || {};
@@ -157,6 +159,7 @@ export class RpcClientSocket {
         this.app.rpcPool.removeSocket(this.id);
         clearTimeout(this.heartbeatTimer);
         clearTimeout(this.heartbeatTimeoutTimer);
+        clearTimeout(this.connectTimer);
         clearInterval(this.sendTimer);
         this.sendArr = [];
         this.nowLen = 0;
@@ -187,7 +190,6 @@ export class RpcClientSocket {
             timeDelay = 5000;
         }
         this.heartbeatTimer = setTimeout(() => {
-            this.heartbeatSend(); // 重新随机抖动发送心跳
 
             let buf = Buffer.allocUnsafe(5);
             buf.writeUInt32BE(1, 0);
@@ -195,6 +197,7 @@ export class RpcClientSocket {
             this.socket.send(buf);
 
             this.heartbeatTimeoutStart();
+            this.heartbeatSend(); // 重新随机抖动发送心跳
         }, timeDelay);
     }
 

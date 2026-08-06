@@ -4,7 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 import Application from "../application";
 import * as define from "../util/define";
-import { I_encodeDecodeConfig } from "../util/interfaceDefine";
+import { I_encodeDecodeConfig, loggerLevel } from "../util/interfaceDefine";
 import { encodeRemoteData } from "./msgCoder";
 
 import * as protocol from "../connector/protocol";
@@ -88,10 +88,6 @@ export class BackendServer {
             if (!session || session.sid !== id) {
                 session = this.fetchNoNeedSession(uid, id);
             }
-        }
-
-        if (!session) {
-            return;
         }
 
         this.updateSession(session);
@@ -282,19 +278,20 @@ export class BackendServer {
             return;
         }
 
-        let delCnt = 300;
+        let delCnt = 0;
         for (const [time, set] of this.sessionExpireMap) {
             for (const uid of set) {
                 this.delSession(this.getSession(uid));
-                delCnt--;
-                if (delCnt <= 0) {
+                delCnt++;
+                if (delCnt >= 300) {
                     break;
                 }
             }
 
-            if (delCnt <= 0) {
+            if (delCnt >= 300) {
                 break;
             }
         }
+        this.app.logger(loggerLevel.info, "backend sessionCacheDel:" + delCnt);
     }
 }

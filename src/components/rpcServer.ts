@@ -168,6 +168,8 @@ class RpcServerSocket {
             let tmpMaxLen = parseInt(rpcConfig.intervalCacheLen as any) || 0;
             if (tmpMaxLen > 0) {
                 this.maxLen = tmpMaxLen;
+            } else {
+                this.maxLen = define.some_config.intervalCacheLen;
             }
         }
 

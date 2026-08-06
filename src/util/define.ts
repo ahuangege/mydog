@@ -18,7 +18,8 @@ export let some_config = {
     Server_Token: "hi,i am inner server",
     Cli_Token: "hi,i am cli",
     SocketBufferMaxLenUnregister: 1024, // Unregistered socket, maximum message length
-    SocketBufferMaxLen: 10 * 1024 * 1024
+    SocketBufferMaxLen: 10 * 1024 * 1024,
+    intervalCacheLen: 32768, // 32 KB
 }
 
 /**

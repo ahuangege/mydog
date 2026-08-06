@@ -233,9 +233,7 @@ class UnregSocket_proxy {
         if (data.serverToken) {
             if (data.serverToken !== this.master.serverToken) {
                 this.app.logger(loggerLevel.error, `${meFilename} unregistered socket, illegal serverToken, close it, ${socket.remoteAddress}`);
-                invalidCloseInfo.errMsg = "serverToken wrong";
-                socket.send(msgCoder.encodeInnerData(invalidCloseInfo));
-                socket.close();
+                socket.close(); // 防止master参数错误，导致其他进程全部关闭，这里不发送 invalidCloseInfo
                 return;
             }
             if (!data.serverInfo || !data.serverInfo.id || !data.serverInfo.host || !data.serverInfo.port || !data.serverInfo.serverType) {

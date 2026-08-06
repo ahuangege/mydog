@@ -41,6 +41,8 @@ export class ConnectorTcp {
             let tmpMaxLen = Number(connectorConfig.intervalCacheLen) || 0;
             if (tmpMaxLen > 0) {
                 this.intervalCacheLen = tmpMaxLen;
+            } else {
+                this.intervalCacheLen = define.some_config.intervalCacheLen;
             }
         }
 

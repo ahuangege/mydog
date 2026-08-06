@@ -28,6 +28,7 @@ export class monitor_client_proxy {
     private heartbeatTimeoutTimer: NodeJS.Timeout = null as any;
     private reconnectCnt = 0;
     private isDie = false;
+    private connectTimeoutTimer: NodeJS.Timeout = null;
 
     private isFirstSyncAll = true;
     private serversIdMap = new Map<string, ServerInfo>(); // 从 master 那里获得的所有服务器
@@ -53,7 +54,7 @@ export class monitor_client_proxy {
         if (this.isDie) {
             return;
         }
-        setTimeout(() => {
+        this.connectTimeoutTimer = setTimeout(() => {
             if (this.isDie) {
                 return;
             }
@@ -127,6 +128,8 @@ export class monitor_client_proxy {
         clearTimeout(this.delaySyncTimer);
         this.delaySyncTimer = null as any;
         this.tmpServersIdMap.clear();
+        clearTimeout(this.connectTimeoutTimer);
+
 
         let delayMs = define.some_config.Time.Monitor_Reconnect_Time * 1000 * Math.pow(2, this.reconnectCnt); // 指数退避
         const rand = 0.7 + Math.random() * 0.4;
@@ -143,11 +146,10 @@ export class monitor_client_proxy {
     private heartbeat() {
         let timeDelay = define.some_config.Time.Monitor_Heart_Beat_Time * 1000 - 5000 + Math.floor(5000 * Math.random());
         this.heartbeatTimer = setTimeout(() => {
-            this.heartbeat(); // 重新随机抖动发送心跳
-
             let heartbeatMsg = { "T": define.Monitor_To_Master.heartbeat };
             this.send(heartbeatMsg);
             this.heartbeatTimeout();
+            this.heartbeat(); // 重新随机抖动发送心跳
         }, timeDelay)
     }
 
@@ -180,6 +182,7 @@ export class monitor_client_proxy {
             clearTimeout(this.heartbeatTimer);
             clearTimeout(this.heartbeatTimeoutTimer);
             clearTimeout(this.delaySyncTimer);
+            clearTimeout(this.connectTimeoutTimer);
 
             this.app.logger(loggerLevel.error, "mydog_monitor_close_self : " + data.errMsg);
             setImmediate(() => {
