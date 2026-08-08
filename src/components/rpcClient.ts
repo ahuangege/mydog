@@ -59,7 +59,6 @@ export class RpcClientSocket {
     private connectTimer: NodeJS.Timer = null as any;
     private heartbeatTimer: NodeJS.Timer = null as any;
     private heartbeatTimeoutTimer: NodeJS.Timer = null as any;
-    private sendCache: boolean = false;
     private interval: number = 0;
     private sendArr: Buffer[] = [];
     private sendTimer: NodeJS.Timer = null as any;
@@ -86,17 +85,18 @@ export class RpcClientSocket {
                 interval = rpcConfig.interval[server.serverType] || rpcConfig.interval.default || 0;
             }
         }
-
-        if (interval >= 10) {
-            this.sendCache = true;
-            this.interval = interval;
-            let tmpMaxLen = parseInt(rpcConfig.intervalCacheLen as any) || 0;
-            if (tmpMaxLen > 0) {
-                this.maxLen = tmpMaxLen;
-            } else {
-                this.maxLen = define.some_config.intervalCacheLen;
-            }
+        interval = interval || define.some_config.rpcInterval;
+        if (interval < 16) {
+            interval = 16;
         }
+        this.interval = interval;
+        let tmpMaxLen = Math.floor(rpcConfig.intervalCacheLen) || 0;
+        if (tmpMaxLen > 0) {
+            this.maxLen = tmpMaxLen;
+        } else {
+            this.maxLen = define.some_config.intervalCacheLen;
+        }
+
         let tokenConfig = app.someconfig.recognizeToken || {};
         this.serverToken = tokenConfig.serverToken || define.some_config.Server_Token;
 
@@ -142,9 +142,8 @@ export class RpcClientSocket {
             buf.writeUInt8(define.Rpc_Msg.register, 4);
             registerBuf.copy(buf, 5);
             self.socket.send(buf);
-            if (self.sendCache) {
-                self.sendTimer = setInterval(self.sendInterval.bind(self), self.interval);
-            }
+            self.sendTimer = setInterval(self.sendInterval.bind(self), self.interval);
+
         };
         let rpcConfig = self.app.someconfig.rpc || {};
         let noDelay = rpcConfig.noDelay === false ? false : true;
@@ -274,21 +273,17 @@ export class RpcClientSocket {
     }
 
     send(data: Buffer) {
-        if (this.sendCache) {
-            this.sendArr.push(data);
-            this.nowLen += data.length;
-            if (this.nowLen > this.maxLen) {
-                this.sendInterval();
-            }
-        } else {
-            this.socket.send(data);
+        this.sendArr.push(data);
+        this.nowLen += data.length;
+        if (this.nowLen > this.maxLen) {
+            this.sendInterval();
         }
     }
 
     private sendInterval() {
         if (this.sendArr.length > 0) {
             this.socket.send(Buffer.concat(this.sendArr));
-            this.sendArr.length = 0;
+            this.sendArr = [];
             this.nowLen = 0;
         }
     }

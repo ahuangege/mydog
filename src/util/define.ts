@@ -20,6 +20,7 @@ export let some_config = {
     SocketBufferMaxLenUnregister: 1024, // Unregistered socket, maximum message length
     SocketBufferMaxLen: 10 * 1024 * 1024,
     intervalCacheLen: 32 * 1024, // 32 KB
+    rpcInterval: 33,
 }
 
 /**
@@ -30,7 +31,6 @@ export const enum Master_To_Monitor {
     updateServers = 2, // 更新和删除了的
     cliMsg = 3,
     heartbeatResponse = 4,
-    invalidCloseSelf = 5, // 非法连接，退出进程
 }
 
 /**

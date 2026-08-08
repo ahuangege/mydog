@@ -204,18 +204,12 @@ class UnregSocket_proxy {
     private onData(_data: Buffer) {
         let socket = this.socket;
 
-        let invalidCloseInfo = {
-            "T": define.Master_To_Monitor.invalidCloseSelf,
-            "errMsg": ""
-        };
 
         let data: monitor_reg_master;
         try {
             data = JSON.parse(_data.toString());
         } catch (err) {
             this.app.logger(loggerLevel.error, `${meFilename} unregistered socket, JSON parse error, close it, ${socket.remoteAddress}`);
-            invalidCloseInfo.errMsg = "JSON parse error";
-            socket.send(msgCoder.encodeInnerData(invalidCloseInfo));
             socket.close();
             return;
         }
@@ -223,8 +217,6 @@ class UnregSocket_proxy {
         // The first packet must be registered
         if (!data || data.T !== define.Monitor_To_Master.register) {
             this.app.logger(loggerLevel.error, `${meFilename} unregistered socket, illegal data, close it, ${socket.remoteAddress}`);
-            invalidCloseInfo.errMsg = "invalid data type";
-            socket.send(msgCoder.encodeInnerData(invalidCloseInfo));
             socket.close();
             return;
         }
@@ -238,13 +230,10 @@ class UnregSocket_proxy {
             }
             if (!data.serverInfo || !data.serverInfo.id || !data.serverInfo.host || !data.serverInfo.port || !data.serverInfo.serverType) {
                 this.app.logger(loggerLevel.error, `${meFilename} unregistered socket, illegal serverInfo, close it, ${socket.remoteAddress}`);
-                invalidCloseInfo.errMsg = "invalid serverInfo";
-                socket.send(msgCoder.encodeInnerData(invalidCloseInfo));
                 socket.close();
                 return;
             }
             if (this.master.getServer(data.serverInfo.id)) {
-                // 为防止socket半连接状态，这里不能发送 invalidCloseInfo
                 this.app.logger(loggerLevel.error, `${meFilename} already has a monitor named: ${data.serverInfo.id}, close it, ${socket.remoteAddress}`);
                 socket.close();
                 return;

@@ -108,8 +108,6 @@ export class monitor_client_proxy {
             } else if (data.T === define.Master_To_Monitor.heartbeatResponse) {
                 clearTimeout(this.heartbeatTimeoutTimer);
                 this.heartbeatTimeoutTimer = null as any;
-            } else if (data.T === define.Master_To_Monitor.invalidCloseSelf) {
-                this.invalidCloseSelf(data);
             }
         }
         catch (e: any) {
@@ -175,27 +173,6 @@ export class monitor_client_proxy {
     }
 
 
-    /** 被master认定非法，关闭进程 */
-    async invalidCloseSelf(data: { errMsg: string }) {
-        try {
-            this.isDie = true;
-            clearTimeout(this.heartbeatTimer);
-            clearTimeout(this.heartbeatTimeoutTimer);
-            clearTimeout(this.delaySyncTimer);
-            clearTimeout(this.connectTimeoutTimer);
-
-            this.app.logger(loggerLevel.error, "mydog_monitor_close_self : " + data.errMsg);
-
-            let exitFunc = this.app.someconfig.onBeforeExit;
-            if (exitFunc) {
-                await Promise.race([delayMs(30 * 1000), exitFunc()]);
-            }
-        } finally {
-            setTimeout(() => {
-                process.exit();
-            }, 1000)
-        }
-    }
 
     syncAllServers(data: monitor_syncAllServers) {
         if (this.isFirstSyncAll) {
@@ -269,7 +246,10 @@ export class monitor_client_proxy {
         }
 
         for (const [sid, one] of this.serversIdMap) {
-            this.app.addServer(one);
+            const old = oldMap.get(sid);
+            if (!old || old.host !== one.host || old.port !== one.port) {
+                this.app.addServer(one);
+            }
         }
     }
 }

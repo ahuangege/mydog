@@ -36,7 +36,6 @@ class RpcServerSocket {
     private registered: boolean = false;
     private registerTimer: NodeJS.Timeout = null as any;
     private heartbeatTimer: NodeJS.Timeout = null as any;
-    private sendCache: boolean = false;
     private sendArr: Buffer[] = [];
     private sendTimer: NodeJS.Timer = null as any;
     private nowLen = 0;
@@ -162,16 +161,19 @@ class RpcServerSocket {
                 interval = rpcConfig.interval[data.serverType] || rpcConfig.interval.default || 0;
             }
         }
-        if (interval >= 10) {
-            this.sendCache = true;
-            this.sendTimer = setInterval(this.sendInterval.bind(this), interval);
-            let tmpMaxLen = parseInt(rpcConfig.intervalCacheLen as any) || 0;
-            if (tmpMaxLen > 0) {
-                this.maxLen = tmpMaxLen;
-            } else {
-                this.maxLen = define.some_config.intervalCacheLen;
-            }
+        interval = interval || define.some_config.rpcInterval;
+        if (interval < 16) {
+            interval = 16;
         }
+
+        this.sendTimer = setInterval(this.sendInterval.bind(this), interval);
+        let tmpMaxLen = parseInt(rpcConfig.intervalCacheLen as any) || 0;
+        if (tmpMaxLen > 0) {
+            this.maxLen = tmpMaxLen;
+        } else {
+            this.maxLen = define.some_config.intervalCacheLen;
+        }
+
 
         // Registration is successful, respond
         let buffer = Buffer.allocUnsafe(5);
@@ -214,21 +216,18 @@ class RpcServerSocket {
     }
 
     send(data: Buffer) {
-        if (this.sendCache) {
-            this.sendArr.push(data);
-            this.nowLen += data.length;
-            if (this.nowLen > this.maxLen) {
-                this.sendInterval();
-            }
-        } else {
-            this.socket.send(data);
+        this.sendArr.push(data);
+        this.nowLen += data.length;
+        if (this.nowLen > this.maxLen) {
+            this.sendInterval();
         }
+
     }
 
     private sendInterval() {
         if (this.sendArr.length > 0) {
             this.socket.send(Buffer.concat(this.sendArr));
-            this.sendArr.length = 0;
+            this.sendArr = []
             this.nowLen = 0;
         }
     }

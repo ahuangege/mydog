@@ -209,7 +209,7 @@ export interface I_rpcConfig {
      */
     "maxLen"?: number,
     /**
-     * message sending frequency (ms, more than 10 is enabled, the default is to send immediately)
+     * message sending frequency (ms, the default is 33)
      */
     "interval"?: number | { "default": number, [serverType: string]: number }
     /**

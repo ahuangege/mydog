@@ -281,35 +281,45 @@ export default class Application extends EventEmitter {
 
     /** 新增或更新服务器 */
     addServer(info: ServerInfo) {
-        const oldInfo = this.getServerById(info.id);
-        if (oldInfo) {
-            Object.assign(oldInfo, info);
-        } else {
-            this.serversIdMap.set(info.id, info);
-            let list = this.servers.get(info.serverType);
-            if (!list) {
-                list = [];
-                this.servers.set(info.serverType, list);
-            }
-            list.push(info);
-        }
+        try {
 
-        addRpcClient(this, info);
+            const oldInfo = this.getServerById(info.id);
+            if (oldInfo) {
+                Object.assign(oldInfo, info);
+            } else {
+                this.serversIdMap.set(info.id, info);
+                let list = this.servers.get(info.serverType);
+                if (!list) {
+                    list = [];
+                    this.servers.set(info.serverType, list);
+                }
+                list.push(info);
+            }
+
+            addRpcClient(this, info);
+
+        } catch (err: any) {
+            this.logger(loggerLevel.error, err);
+        }
     }
 
     /** 移除服务器 */
     removeServer(sid: string) {
-        const oldInfo = this.getServerById(sid);
-        if (oldInfo) {
-            this.serversIdMap.delete(oldInfo.id);
-            const list = this.servers.get(oldInfo.serverType) as ServerInfo[];
-            const idx = list.findIndex(el => el === oldInfo);
-            if (idx !== -1) {
-                list[idx] = list[list.length - 1];
-                list.pop();
-            }
+        try {
+            const oldInfo = this.getServerById(sid);
+            if (oldInfo) {
+                this.serversIdMap.delete(oldInfo.id);
+                const list = this.servers.get(oldInfo.serverType) || [];
+                const idx = list.findIndex(el => el === oldInfo);
+                if (idx !== -1) {
+                    list[idx] = list[list.length - 1];
+                    list.pop();
+                }
 
-            removeRpcClient(sid);
+                removeRpcClient(sid);
+            }
+        } catch (err: any) {
+            this.logger(loggerLevel.error, err);
         }
     }
 }
