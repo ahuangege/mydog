@@ -18,8 +18,8 @@ let errStack = false;
 
 
 const enum e_awaitRpcErrType {
-    timeout = "rpcTimeout",
-    error = "rpcError",
+    timeout = "rpc_timeout",
+    error = "rpc_error",
 }
 
 /**
@@ -266,7 +266,7 @@ class rpc_create {
                 rejectFunc = reject;
             });
 
-            const rpcError = errStack ? new RpcError() : null;
+            const rpcError = errStack ? new MydogRpcError() : null;
             rpcTimeout = timeoutUtil.createRpcTimeout(resolveFunc, rejectFunc, rpcError, cmd, sid);
             rpcMsg.id = rpcTimeout.id;
         }
@@ -352,7 +352,7 @@ class RpcTimeoutUtil {
         throw new Error("rpcId exhausted, too many in-flight requests");
     }
 
-    createRpcTimeout(resolve: Function, reject: Function, rpcErr: RpcError, rpcCmd: IRpcCmd, sid: string) {
+    createRpcTimeout(resolve: Function, reject: Function, rpcErr: MydogRpcError, rpcCmd: IRpcCmd, sid: string) {
         const data = new RpcTimeoutInfo(this.getRpcId(), resolve, reject, this.outTime, rpcErr, rpcCmd, sid);
         this.rpcRequest.set(data.id, data);
 
@@ -534,7 +534,7 @@ class RpcTimeoutUtil {
             rejectFunc = reject;
         });
 
-        const rpcError = errStack ? new RpcError() : null;
+        const rpcError = errStack ? new MydogRpcError() : null;
         const timeoutInfo = this.createRpcTimeout(resolveFunc, rejectFunc, rpcError, cmd, app.serverId);
         const rpcId = timeoutInfo.id;
 
@@ -589,8 +589,8 @@ function getRpcMsg(head: I_rpcMsg, data: any, t: define.Rpc_Msg) {
 
 
 
-export class RpcError extends Error {
-    name = "RpcError";
+export class MydogRpcError extends Error {
+    name = "MydogRpcError";
     constructor(message?: string) {
         super(message);
     }
@@ -611,11 +611,11 @@ class RpcTimeoutInfo {
     resolve: Function;
     private reject: Function;    // when await call, reject function
     time: number;
-    rpcErr: RpcError | null;
+    rpcErr: MydogRpcError | null;
     private cmd: IRpcCmd;
     private sid: string;
 
-    constructor(id: number, resolve: Function, reject: Function, time: number, rpcErr: RpcError | null, cmd: IRpcCmd, sid: string) {
+    constructor(id: number, resolve: Function, reject: Function, time: number, rpcErr: MydogRpcError | null, cmd: IRpcCmd, sid: string) {
         this.id = id;
         this.resolve = resolve;
         this.reject = reject;
@@ -628,7 +628,7 @@ class RpcTimeoutInfo {
     rejectErr(errType: e_awaitRpcErrType) {
         let rpcErr = this.rpcErr;
         if (!rpcErr) {
-            rpcErr = new RpcError();
+            rpcErr = new MydogRpcError();
         }
         const msg = errType + "  " + this.cmd.serverType + "." + this.cmd.file_method + " -> " + this.sid;
         rpcErr.setMsg(msg);
