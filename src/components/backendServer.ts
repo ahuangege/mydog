@@ -46,6 +46,7 @@ export class BackendServer {
         setInterval(() => {
             this.checkExpire();
         }, 1000)
+        this.checkExpire();
     }
 
     /**

@@ -65,11 +65,9 @@ export async function handleMsgAwait(sid: string, bufAll: Buffer) {
         try {
             const handlerObj = rpcMsg.isSys ? sysMsgHandler : userMsgHandler;
             data = await handlerObj[cmd[0]][cmd[1]](...msg);
-        } catch (err) {
+        } catch (err: any) {
             hasErr = true;
-            process.nextTick(() => {
-                throw err;
-            });
+            app.logger(loggerLevel.error, err);
         }
         if (!rpcMsg.id) {
             // notify 为 true 的通知类rpc， 不需要回调
@@ -329,7 +327,7 @@ class RpcTimeoutUtil {
 
     private getRpcId() {
         let findCnt = 0;
-        while (findCnt < 100000) {
+        while (findCnt < 1000000) {
             this.rpcId++;
             if (this.rpcId > 999999999) {
                 this.rpcId = 1;
@@ -505,11 +503,9 @@ class RpcTimeoutUtil {
             let hasErr = false;
             try {
                 data = await file[route[1]](...args);
-            } catch (err) {
+            } catch (err: any) {
                 hasErr = true;
-                process.nextTick(() => {
-                    throw err;
-                });
+                app.logger(loggerLevel.error, err);
             }
 
             const timeout = this.delRpcTimeout(rpcId);

@@ -54,19 +54,19 @@ export class ConnectorTcp {
         this.md5 = cipher.update(JSON.stringify(this.app.routeConfig)).digest("hex");
 
         let routeBuf = Buffer.from(JSON.stringify({ "md5": this.md5, "heartbeat": this.heartbeatTime / 1000 }));
-        this.handshakeBuf = Buffer.alloc(routeBuf.length + 5);
+        this.handshakeBuf = Buffer.allocUnsafeSlow(routeBuf.length + 5);
         this.handshakeBuf.writeUInt32BE(routeBuf.length + 1, 0);
         this.handshakeBuf.writeUInt8(define.Server_To_Client.handshake, 4);
         routeBuf.copy(this.handshakeBuf, 5);
 
         let routeBufAll = Buffer.from(JSON.stringify({ "md5": this.md5, "route": this.app.routeConfig, "heartbeat": this.heartbeatTime / 1000 }));
-        this.handshakeBufAll = Buffer.alloc(routeBufAll.length + 5);
+        this.handshakeBufAll = Buffer.allocUnsafeSlow(routeBufAll.length + 5);
         this.handshakeBufAll.writeUInt32BE(routeBufAll.length + 1, 0);
         this.handshakeBufAll.writeUInt8(define.Server_To_Client.handshake, 4);
         routeBufAll.copy(this.handshakeBufAll, 5);
 
         // Heartbeat response buffer
-        this.heartbeatBuf = Buffer.alloc(5);
+        this.heartbeatBuf = Buffer.allocUnsafeSlow(5);
         this.heartbeatBuf.writeUInt32BE(1, 0);
         this.heartbeatBuf.writeUInt8(define.Server_To_Client.heartbeatResponse, 4);
     }

@@ -185,9 +185,6 @@ export class monitor_client_proxy {
             clearTimeout(this.connectTimeoutTimer);
 
             this.app.logger(loggerLevel.error, "mydog_monitor_close_self : " + data.errMsg);
-            setImmediate(() => {
-                throw new Error("mydog_monitor_close_self : " + data.errMsg);
-            });
 
             let exitFunc = this.app.someconfig.onBeforeExit;
             if (exitFunc) {

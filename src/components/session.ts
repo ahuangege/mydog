@@ -32,6 +32,9 @@ export class Session {
      * Binding session [Note: Front-end call]
      */
     bind(_uid: number): boolean {
+        if (!_uid || this.uid) {
+            return false;
+        }
         if (!app.frontend || !this.socket) {
             return false;
         }

@@ -31,7 +31,7 @@ class NetSocket extends EventEmitter implements SocketProxy {
     len: number = 0;
     buffer: Buffer = null as any;
     headLen = 0;
-    headBuf = Buffer.alloc(4);
+    headBuf = Buffer.allocUnsafeSlow(4);
     private onDataFunc: (data: Buffer) => void = null as any;
 
     constructor(socket: net.Socket) {
