@@ -54,10 +54,9 @@ export class FrontendServer {
         let uidsLen = data.readUInt16BE(1);
         let msgBuf = data.slice(3 + uidsLen * 4);
         let clients = this.app.clients;
-        let client: I_clientSocket;
-        let i: number;
-        for (i = 0; i < uidsLen; i++) {
-            client = clients[data.readUInt32BE(3 + i * 4)];
+        let offset = 3;
+        for (let idx = 0; idx < uidsLen; idx++, offset += 4) {
+            const client = clients[data.readUInt32BE(offset)];
             if (client) {
                 client.send(msgBuf);
             }
@@ -120,7 +119,12 @@ class ClientManager implements I_clientManager {
         let session = new Session(this.app.serverId);
         session.socket = client;
         client.session = session;
-        this.clientOnCb(session as any);
+
+        try {
+            this.clientOnCb(session as any);
+        } catch (err: any) {
+            this.app.logger(loggerLevel.error, err);
+        }
     }
 
     removeClient(client: I_clientSocket) {
@@ -134,7 +138,13 @@ class ClientManager implements I_clientManager {
 
         client.session = null as any;
         session.socket = null as any;
-        this.clientOffCb(session as any);
+
+        try {
+            this.clientOffCb(session as any);
+
+        } catch (err: any) {
+            this.app.logger(loggerLevel.error, err);
+        }
     }
 
     async handleMsg(client: I_clientSocket, msgBuf: Buffer) {
@@ -166,7 +176,7 @@ class ClientManager implements I_clientManager {
                 const rsp = await this.msgHandler[cmdArr[1]][cmdArr[2]](msg, client.session);
                 if (rsp) {
                     let buf = this.app.protoEncode(data.cmd, rsp);
-                    client.send(buf);
+                    client.send(buf.head, buf.msg);
                 }
                 this.app.filter.afterFilter(data.cmd, rsp, client.session);
 
@@ -196,13 +206,12 @@ class ClientManager implements I_clientManager {
             this.app.logger(loggerLevel.error, `${meFilename} illegal doRemote`);
             return;
         }
-        let buf = Buffer.allocUnsafe(15 + msg.msg.length);
+        let buf = Buffer.allocUnsafe(15);
         buf.writeUInt32BE(11 + msg.msg.length, 0);
         buf.writeUInt8(define.Rpc_Msg.clientMsgIn, 4);
         buf.writeUInt16BE(msg.cmd, 5);
         buf.writeUInt32BE(session.uid, 7);
         buf.writeUInt32BE(session.version, 11);
-        msg.msg.copy(buf, 15);
-        socket.send(buf);
+        socket.send(buf, msg.msg);
     }
 }

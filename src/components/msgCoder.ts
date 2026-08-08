@@ -77,15 +77,14 @@ export function encodeInnerData(data: any) {
  *  The clientMsgBuf is sent directly to the client by the front-end server
  */
 
-export function encodeRemoteData(uids: number[], dataBuf: Buffer) {
+export function encodeRemoteData(uids: number[], dataBufLen: number) {
     let uidsLen = uids.length * 4;
-    let buf = Buffer.allocUnsafe(7 + uidsLen + dataBuf.length);
-    buf.writeUInt32BE(3 + uidsLen + dataBuf.length, 0);
+    let buf = Buffer.allocUnsafe(7 + uidsLen);
+    buf.writeUInt32BE(3 + uidsLen + dataBufLen, 0);
     buf.writeUInt8(define.Rpc_Msg.clientMsgOut, 4);
     buf.writeUInt16BE(uids.length, 5);
     for (let i = 0; i < uids.length; i++) {
         buf.writeUInt32BE(uids[i], 7 + i * 4);
     }
-    dataBuf.copy(buf, 7 + uidsLen);
     return buf;
 }

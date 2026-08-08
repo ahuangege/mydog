@@ -77,7 +77,7 @@ export async function handleMsgAwait(sid: string, bufAll: Buffer) {
         if (data === undefined) {
             data = null;
         }
-        let bufEnd = getRpcMsg({ "id": rpcMsg.id, "err": hasErr ? 1 : undefined }, data, define.Rpc_Msg.rpcMsgAwait);
+        let bufEnd = timeoutUtil.getRpcMsg({ "id": rpcMsg.id, "err": hasErr ? 1 : undefined }, data);
         timeoutUtil.sendTo(sid, null, bufEnd);
     }
 }
@@ -234,11 +234,14 @@ class rpc_create {
             return;
         }
 
-        let bufEnd = getRpcMsg({ "cmd": cmd.file_method }, args, define.Rpc_Msg.rpcMsgAwait);
+        let bufEnd: { "head": Buffer, "msg": Buffer } = null;
         for (let one of servers) {
             if (one.id === app.serverId) {
                 timeoutUtil.sendRpcMsgToSelfAwait(cmd, args, true);
             } else {
+                if (!bufEnd) {
+                    bufEnd = timeoutUtil.getRpcMsg({ "cmd": cmd.file_method }, args);
+                }
                 timeoutUtil.sendTo(one.id, null, bufEnd);
             }
         }
@@ -270,8 +273,9 @@ class rpc_create {
             rpcTimeout = timeoutUtil.createRpcTimeout(resolveFunc, rejectFunc, rpcError, cmd, sid);
             rpcMsg.id = rpcTimeout.id;
         }
-        const bufEnd = getRpcMsg(rpcMsg, args, define.Rpc_Msg.rpcMsgAwait);
-        timeoutUtil.sendTo(sid, rpcTimeout, bufEnd);
+
+        const buffEnd = timeoutUtil.getRpcMsg(rpcMsg, args);
+        timeoutUtil.sendTo(sid, rpcTimeout, buffEnd);
         return promise;
     }
 
@@ -292,7 +296,7 @@ class RpcTimeoutUtil {
 
     private nowCacheSize = 0;
 
-    private msgCacheList: { "sid": string, "rpcTimeout": RpcTimeoutInfo | null, "buf": Buffer, "time": number }[] = []; // 缓存的消息列表
+    private msgCacheList: IRpcMsgCache[] = []; // 缓存的消息列表
 
     constructor() {
         this.init();
@@ -390,7 +394,7 @@ class RpcTimeoutUtil {
             let delCnt2 = 0;
             for (const one of this.msgCacheList) {
                 delCnt2++;
-                tmpSize -= one.buf.length;
+                tmpSize -= one.buf.head.length + one.buf.msg.length;
                 if (tmpSize <= 0) {
                     break;
                 }
@@ -400,7 +404,7 @@ class RpcTimeoutUtil {
 
         const delList = this.msgCacheList.splice(0, deleteCount);
         for (let one of delList) {
-            this.nowCacheSize -= one.buf.length;
+            this.nowCacheSize -= one.buf.head.length + one.buf.msg.length;
 
             if (one.rpcTimeout) {
                 this.delRpcTimeout(one.rpcTimeout.id);
@@ -418,7 +422,7 @@ class RpcTimeoutUtil {
         for (let one of this.msgCacheList) {
             if (nowSeconds >= one.time) {
                 deleteCount++;
-                delSize += one.buf.length;
+                delSize += one.buf.head.length + one.buf.msg.length;
             } else {
                 break;
             }
@@ -466,15 +470,15 @@ class RpcTimeoutUtil {
     }
 
 
-    sendTo(sid: string, rpcTimeout: RpcTimeoutInfo | null, buf: Buffer) {
+    sendTo(sid: string, rpcTimeout: RpcTimeoutInfo | null, buf: { head: Buffer, msg: Buffer }) {
         let socket = app.rpcPool.getSocket(sid);
         if (socket) {
-            socket.send(buf);
+            socket.send(buf.head, buf.msg);
             return;
         }
         // 注意：这里超时时间需要更短，以防连接后发送出去来不及等待返回。同时在检测超时的时候，需要早于 rpcRequestBySeconds 检测
         this.msgCacheList.push({ "sid": sid, "rpcTimeout": rpcTimeout, "buf": buf, "time": this.outTime - 3 });
-        this.nowCacheSize += buf.length;
+        this.nowCacheSize += buf.head.length + buf.msg.length;
         this.checkMsgCacheCountSize();
     }
 
@@ -485,14 +489,14 @@ class RpcTimeoutUtil {
             return;
         }
 
-        const sendList: typeof this.msgCacheList = [];
+        const sendList: IRpcMsgCache[] = [];
         let writeIdx = 0;
 
         for (let idx = 0; idx < this.msgCacheList.length; idx++) {
             const one = this.msgCacheList[idx];
             if (one.sid === sid) {
                 sendList.push(one);
-                this.nowCacheSize -= one.buf.length;
+                this.nowCacheSize -= one.buf.head.length + one.buf.msg.length;
             } else {
                 this.msgCacheList[writeIdx] = one;
                 writeIdx++;
@@ -566,24 +570,17 @@ class RpcTimeoutUtil {
 
         return promise;
     }
+
+    getRpcMsg(head: I_rpcMsg, data: any) {
+        let msgBuf = Buffer.from(JSON.stringify({ head, data }));
+        let headBuff = Buffer.allocUnsafe(5);
+        headBuff.writeUInt32BE(msgBuf.length + 1, 0);
+        headBuff.writeUInt8(define.Rpc_Msg.rpcMsgAwait, 4);
+        return { head: headBuff, msg: msgBuf };
+    }
+
 }
 
-
-
-/**
- *  Send rpc message
- * 
- *    [4]       [1]        [...] 
- *  allMsgLen  msgType     msgBuf
- */
-function getRpcMsg(head: I_rpcMsg, data: any, t: define.Rpc_Msg) {
-    let msgBuf = Buffer.from(JSON.stringify({ head, data }));
-    let buffEnd = Buffer.allocUnsafe(5 + msgBuf.length);
-    buffEnd.writeUInt32BE(buffEnd.length - 4, 0);
-    buffEnd.writeUInt8(t, 4);
-    msgBuf.copy(buffEnd, 5);
-    return buffEnd;
-}
 
 
 
@@ -634,4 +631,11 @@ class RpcTimeoutInfo {
         rpcErr.setMsg(msg);
         this.reject(rpcErr)
     }
+}
+
+interface IRpcMsgCache {
+    "sid": string,
+    "rpcTimeout": RpcTimeoutInfo | null,
+    "buf": { head: Buffer, msg: Buffer },
+    "time": number, // 超时时间戳
 }

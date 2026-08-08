@@ -18,7 +18,6 @@ export class ConnectorTcp {
     public heartbeatTime: number = 0;   // Heartbeat time
     private maxConnectionNum: number = Number.POSITIVE_INFINITY;
     public nowConnectionNum: number = 0;
-    public sendCache = false;
     public interval: number = 0;
     public intervalCacheLen = +Infinity;
     public md5 = "";    // route array md5
@@ -34,16 +33,17 @@ export class ConnectorTcp {
         if (connectorConfig.maxConnectionNum != null) {
             this.maxConnectionNum = connectorConfig.maxConnectionNum;
         }
-        let interval = Number(connectorConfig.interval) || 0;
-        if (interval >= 10) {
-            this.sendCache = true;
-            this.interval = interval;
-            let tmpMaxLen = Number(connectorConfig.intervalCacheLen) || 0;
-            if (tmpMaxLen > 0) {
-                this.intervalCacheLen = tmpMaxLen;
-            } else {
-                this.intervalCacheLen = define.some_config.intervalCacheLen;
-            }
+        let interval = Number(connectorConfig.interval) || define.some_config.msgFlushInterval;
+        if (interval < 16) {
+            interval = 16;
+        }
+        this.interval = interval;
+
+        let tmpMaxLen = Number(connectorConfig.intervalCacheLen) || 0;
+        if (tmpMaxLen > 0) {
+            this.intervalCacheLen = tmpMaxLen;
+        } else {
+            this.intervalCacheLen = define.some_config.intervalCacheLen;
         }
 
         tcpServer(info.app.serverInfo.clientPort, noDelay, info.startCb, this.newClientCb.bind(this));
@@ -89,7 +89,6 @@ class ClientSocket implements I_clientSocket {
     private socket: SocketProxy;                            // socket
     private registerTimer: NodeJS.Timer = null as any;      // Handshake timeout timer
     private heartbeatTimer: NodeJS.Timer = null as any;     // Heartbeat timeout timer
-    private sendCache = false;
     private interval: number = 0;
     private sendTimer: NodeJS.Timer = null as any;
     private sendArr: Buffer[] = [];
@@ -99,7 +98,6 @@ class ClientSocket implements I_clientSocket {
     constructor(connector: ConnectorTcp, clientManager: I_clientManager, socket: SocketProxy) {
         this.connector = connector;
         this.connector.nowConnectionNum++;
-        this.sendCache = connector.sendCache;
         this.interval = connector.interval;
         this.intervalCacheLen = connector.intervalCacheLen;
         this.clientManager = clientManager;
@@ -173,9 +171,7 @@ class ClientSocket implements I_clientSocket {
         clearTimeout(this.registerTimer);
         this.heartbeat();
         this.clientManager.addClient(this);
-        if (this.sendCache) {
-            this.sendTimer = setInterval(this.sendInterval.bind(this), this.interval);
-        }
+        this.sendTimer = setInterval(this.sendInterval.bind(this), this.interval);
         this.socket.maxLen = maxLen;
         this.socket.on('data', this.onData.bind(this));
     }
@@ -206,23 +202,26 @@ class ClientSocket implements I_clientSocket {
     /**
      * send data
      */
-    send(msg: Buffer) {
-        if (this.sendCache) {
-            this.sendArr.push(msg);
-            this.nowLen += msg.length;
-            if (this.nowLen > this.intervalCacheLen) {
-                this.sendInterval();
-            }
-        } else {
-            this.socket.send(msg);
+    send(msg: Buffer, msg2?: Buffer) {
+        this.sendArr.push(msg);
+        this.nowLen += msg.length;
+
+        if (msg2) {
+            this.sendArr.push(msg2);
+            this.nowLen += msg2.length;
+        }
+
+        if (this.nowLen > this.intervalCacheLen) {
+            this.sendInterval();
         }
     }
 
     private sendInterval() {
         if (this.sendArr.length > 0) {
-            this.socket.send(Buffer.concat(this.sendArr));
-            this.sendArr.length = 0;
+            const endBuff = this.sendArr.length === 0 ? this.sendArr[0] : Buffer.concat(this.sendArr, this.nowLen);
+            this.sendArr = [];
             this.nowLen = 0;
+            this.socket.send(endBuff);
         }
     }
 

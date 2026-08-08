@@ -85,7 +85,7 @@ export class RpcClientSocket {
                 interval = rpcConfig.interval[server.serverType] || rpcConfig.interval.default || 0;
             }
         }
-        interval = interval || define.some_config.rpcInterval;
+        interval = interval || define.some_config.msgFlushInterval;
         if (interval < 16) {
             interval = 16;
         }
@@ -272,9 +272,20 @@ export class RpcClientSocket {
         lineUpUtil.remove(this.lineUpCb);
     }
 
-    send(data: Buffer) {
+    send(data: Buffer, data2?: Buffer, data3?: Buffer) {
         this.sendArr.push(data);
         this.nowLen += data.length;
+
+        if (data2) {
+            this.sendArr.push(data2);
+            this.nowLen += data2.length;
+        }
+
+        if (data3) {
+            this.sendArr.push(data3);
+            this.nowLen += data3.length;
+        }
+
         if (this.nowLen > this.maxLen) {
             this.sendInterval();
         }
@@ -282,9 +293,10 @@ export class RpcClientSocket {
 
     private sendInterval() {
         if (this.sendArr.length > 0) {
-            this.socket.send(Buffer.concat(this.sendArr));
+            const endBuff = this.sendArr.length === 0 ? this.sendArr[0] : Buffer.concat(this.sendArr, this.nowLen);
             this.sendArr = [];
             this.nowLen = 0;
+            this.socket.send(endBuff);
         }
     }
 }

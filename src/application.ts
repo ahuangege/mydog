@@ -182,13 +182,13 @@ export default class Application extends EventEmitter {
         if (msg === undefined) {
             msg = null;
         }
-        let msgBuf = this.protoEncode(cmd, msg);
+        let buf = this.protoEncode(cmd, msg);
         let client: I_clientSocket;
         let i: number;
         for (i = 0; i < uids.length; i++) {
             client = this.clients[uids[i]];
             if (client) {
-                client.send(msgBuf);
+                client.send(buf.head, buf.msg);
             }
         }
     }
@@ -202,10 +202,10 @@ export default class Application extends EventEmitter {
         if (msg === undefined) {
             msg = null;
         }
-        let data = this.protoEncode(cmd, msg);
+        let buf = this.protoEncode(cmd, msg);
         let uid: string;
         for (uid in this.clients) {
-            this.clients[uid].send(data)
+            this.clients[uid].send(buf.head, buf.msg)
         }
     }
 

@@ -20,16 +20,6 @@ export class RpcSocketPool {
 
 
     /**
-     * send messages
-     */
-    sendMsg(id: string, msg: Buffer) {
-        let socket = this.rpcSockets[id];
-        if (socket) {
-            socket.send(msg);
-        }
-    }
-
-    /**
      * Get socket
      */
     getSocket(id: string) {
@@ -38,5 +28,5 @@ export class RpcSocketPool {
 }
 
 export interface I_RpcSocket {
-    send(data: Buffer): void;
+    send(data: Buffer, data2?: Buffer, data3?: Buffer): void;
 }

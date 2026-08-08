@@ -109,8 +109,8 @@ export class Session {
         if (msg === undefined) {
             msg = null;
         }
-        let msgBuf = app.protoEncode(cmd, msg);
-        this.socket.send(msgBuf);
+        let buf = app.protoEncode(cmd, msg);
+        this.socket.send(buf.head, buf.msg);
     }
 
     addVersion() {

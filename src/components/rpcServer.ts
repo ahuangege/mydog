@@ -161,7 +161,7 @@ class RpcServerSocket {
                 interval = rpcConfig.interval[data.serverType] || rpcConfig.interval.default || 0;
             }
         }
-        interval = interval || define.some_config.rpcInterval;
+        interval = interval || define.some_config.msgFlushInterval;
         if (interval < 16) {
             interval = 16;
         }
@@ -215,9 +215,20 @@ class RpcServerSocket {
         this.socket.send(buffer);
     }
 
-    send(data: Buffer) {
+    send(data: Buffer, data2?: Buffer, data3?: Buffer) {
         this.sendArr.push(data);
         this.nowLen += data.length;
+
+        if (data2) {
+            this.sendArr.push(data2);
+            this.nowLen += data2.length;
+        }
+
+        if (data3) {
+            this.sendArr.push(data3);
+            this.nowLen += data3.length;
+        }
+
         if (this.nowLen > this.maxLen) {
             this.sendInterval();
         }
@@ -225,10 +236,11 @@ class RpcServerSocket {
     }
 
     private sendInterval() {
-        if (this.sendArr.length > 0) {
-            this.socket.send(Buffer.concat(this.sendArr));
-            this.sendArr = []
+        if (this.nowLen > 0) {
+            const endBuff = this.sendArr.length === 0 ? this.sendArr[0] : Buffer.concat(this.sendArr, this.nowLen);
+            this.sendArr = [];
             this.nowLen = 0;
+            this.socket.send(endBuff);
         }
     }
 }

@@ -99,9 +99,12 @@ export class BackendServer {
         }
         const rsp = await this.msgHandler[cmdArr[1]][cmdArr[2]](data, session);
         if (rsp) {
-            let msgBuf = this.app.protoEncode(cmd, rsp);
-            let buf = encodeRemoteData([session.uid], msgBuf);
-            this.app.rpcPool.sendMsg(id, buf);
+            const socket = this.app.rpcPool.getSocket(id);
+            if (socket) {
+                let buf = this.app.protoEncode(cmd, rsp);
+                let bufHead = encodeRemoteData([session.uid], buf.head.length + buf.msg.length);
+                socket.send(bufHead, buf.head, buf.msg);
+            }
         }
         this.app.filter.afterFilter(cmd, rsp, session);
     }
@@ -115,14 +118,12 @@ export class BackendServer {
         if (uidsid.length === 0) {
             return;
         }
-        let groups: { [sid: string]: number[] } = {};
-        let group: number[];
-        let one: { "uid": number, "sid": string };
-        for (one of uidsid) {
+        const groups: { [sid: string]: number[] } = {};
+        for (const one of uidsid) {
             if (!one.sid) {
                 continue;
             }
-            group = groups[one.sid];
+            let group = groups[one.sid];
             if (!group) {
                 group = [];
                 groups[one.sid] = group;
@@ -130,15 +131,17 @@ export class BackendServer {
             group.push(one.uid);
         }
         let app = this.app;
-        let msgBuf: Buffer = null as any;
-        let sid: string;
-        let buf: Buffer;
-        for (sid in groups) {
+        let msgBuf: { "head": Buffer, "msg": Buffer } = null as any;
+        for (const sid in groups) {
+            const socket = app.rpcPool.getSocket(sid);
+            if (!socket) {
+                continue;
+            }
             if (!msgBuf) {
                 msgBuf = app.protoEncode(cmd, msg);
             }
-            buf = encodeRemoteData(groups[sid], msgBuf);
-            app.rpcPool.sendMsg(sid, buf);
+            const headBuf = encodeRemoteData(groups[sid], msgBuf.head.length + msgBuf.msg.length);
+            socket.send(headBuf, msgBuf.head, msgBuf.msg);
         }
     }
 
@@ -147,21 +150,23 @@ export class BackendServer {
      */
     sendMsgByGroup(cmd: number, msg: any, group: { [sid: string]: number[] }) {
         let app = this.app;
-        let msgBuf: Buffer = null as any;
-        let sid: string;
-        let buf: Buffer;
-        for (sid in group) {
+        let msgBuf: { "head": Buffer, "msg": Buffer } = null as any;
+        for (const sid in group) {
             if (!sid) {
                 continue;
             }
             if (group[sid].length === 0) {
                 continue;
             }
+            const socket = app.rpcPool.getSocket(sid);
+            if (!socket) {
+                continue;
+            }
             if (!msgBuf) {
                 msgBuf = app.protoEncode(cmd, msg);
             }
-            buf = encodeRemoteData(group[sid], msgBuf);
-            app.rpcPool.sendMsg(sid, buf);
+            let headBuf = encodeRemoteData(group[sid], msgBuf.head.length + msgBuf.msg.length);
+            socket.send(headBuf, msgBuf.head, msgBuf.msg);
         }
     }
 

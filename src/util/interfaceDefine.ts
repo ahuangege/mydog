@@ -110,7 +110,7 @@ export interface I_connectorConstructor {
 export interface I_clientSocket {
     session: Session;
     remoteAddress: string;
-    send(msg: Buffer): void;
+    send(msg: Buffer, msg2?: Buffer): void;
     close(): void;
 }
 
@@ -168,7 +168,7 @@ export interface I_encodeDecodeConfig {
     /**
      * protocol encoding
      */
-    "protoEncode"?: (cmd: number, msg: any) => Buffer,
+    "protoEncode"?: (cmd: number, msg: any) => { "head": Buffer, "msg": Buffer },
     /**
      * message encoding
      */

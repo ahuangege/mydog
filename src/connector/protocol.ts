@@ -20,12 +20,12 @@ export let default_encodeDecode: Required<I_encodeDecodeConfig> = {
     },
     "protoEncode": function (cmd: number, msg: any) {
         let msgBuf: Buffer = app.msgEncode(cmd, msg);
-        let buf = Buffer.allocUnsafe(msgBuf.length + 7);
-        buf.writeUInt32BE(msgBuf.length + 3, 0);
-        buf.writeUInt8(define.Server_To_Client.msg, 4);
-        buf.writeUInt16BE(cmd, 5);
-        msgBuf.copy(buf, 7);
-        return buf;
+        let headBuff = Buffer.allocUnsafe(7);
+        headBuff.writeUInt32BE(msgBuf.length + 3, 0);
+        headBuff.writeUInt8(define.Server_To_Client.msg, 4);
+        headBuff.writeUInt16BE(cmd, 5);
+
+        return { "head": headBuff, "msg": msgBuf };
     },
     "msgEncode": function (cmd: number, msg: any) {
         return Buffer.from(JSON.stringify(msg));
