@@ -94,8 +94,8 @@ class RpcServerSocket {
                     this.socket.close();
                     break;
             }
-        } catch (e: any) {
-            this.app.logger(loggerLevel.error, e.stack);
+        } catch (err: any) {
+            this.app.logger(loggerLevel.error, err);
         }
     }
 

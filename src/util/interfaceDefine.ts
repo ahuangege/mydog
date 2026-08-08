@@ -229,11 +229,11 @@ export interface I_rpcConfig {
      */
     "noRpcMatrix"?: { [serverType: string]: string[] },
     /**
-     * Rpc message cache count. The default is 5000.
+     * Rpc message cache count of the process. The default is 50000.
      */
     "rpcMsgCacheCount"?: number,
     /**
-     * Rpc message cache buffer size. The default is 256 KB.
+     * Rpc message cache buffer size of the process. The default is 64 MB.
      */
     "rpcMsgCacheSize"?: number,
     /**

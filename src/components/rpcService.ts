@@ -15,6 +15,7 @@ let userMsgHandler: { [filename: string]: any } = {};
 let sysMsgHandler: { [filename: string]: any } = {};
 let timeoutUtil: RpcTimeoutUtil = null as any;
 
+
 const enum e_awaitRpcErrType {
     timeout = "rpcTimeout",
     error = "rpcError",
@@ -281,9 +282,12 @@ class RpcTimeoutUtil {
     private rpcTimeMax: number = 10; //overtime time
     private outTime = 0;    // Current time + timeout   超时时间（时间戳 秒）
 
-    private msgCacheCount = 5000; // rpc目标服不存在时，最多缓存个数
-    private msgCacheSize = 256 * 1024; //  rpc目标服不存在时，最多缓存字节数
-    private msgCacheMap = new Map<string, { "size": number, list: { "rpcTimeout": I_rpcTimeout | null, "buf": Buffer, "time": number }[] }>();  // serverId -> any
+    private msgCacheCountMax = 50000; // 最大缓存消息个数
+    private msgCacheSizeMax = 64 * 1024 * 1024; // 最大缓存消息字节数
+
+    private nowCacheSize = 0;
+
+    private msgCacheList: { "sid": string, "rpcTimeout": I_rpcTimeout | null, "buf": Buffer, "time": number }[] = []; // 缓存的消息列表
 
     constructor() {
         this.init();
@@ -293,12 +297,12 @@ class RpcTimeoutUtil {
         let rpcConfig = app.someconfig.rpc || {};
         let rpcMsgCacheCount = Math.floor(rpcConfig.rpcMsgCacheCount);
         if (rpcMsgCacheCount >= 0) {
-            this.msgCacheCount = rpcMsgCacheCount;
+            this.msgCacheCountMax = rpcMsgCacheCount;
         }
 
         let rpcMsgCacheSize = Math.floor(rpcConfig.rpcMsgCacheSize);
         if (rpcMsgCacheSize >= 0) {
-            this.msgCacheSize = rpcMsgCacheSize;
+            this.msgCacheSizeMax = rpcMsgCacheSize;
         }
 
         let timeout = Math.floor(rpcConfig.timeout || 0) || 0;
@@ -365,29 +369,60 @@ class RpcTimeoutUtil {
         return data;
     }
 
+    /** 检测缓存的消息是否过多 */
+    private checkMsgCacheCountSize() {
+        if (this.msgCacheList.length <= this.msgCacheCountMax && this.nowCacheSize <= this.msgCacheSizeMax) {
+            return;
+        }
+
+        let deleteCount = this.msgCacheList.length - this.msgCacheCountMax + 500;
+
+        if (this.nowCacheSize > this.msgCacheSizeMax) {
+            let tmpSize = this.nowCacheSize - this.msgCacheSizeMax + 1 * 1024 * 1024;
+            let delCnt2 = 0;
+            for (const one of this.msgCacheList) {
+                delCnt2++;
+                tmpSize -= one.buf.length;
+                if (tmpSize <= 0) {
+                    break;
+                }
+            }
+            deleteCount = Math.max(deleteCount, delCnt2);
+        }
+
+        const delList = this.msgCacheList.splice(0, deleteCount);
+        for (let one of delList) {
+            this.nowCacheSize -= one.buf.length;
+
+            if (one.rpcTimeout) {
+                this.delRpcTimeout(one.rpcTimeout.id);
+                this.timeoutCall(one.rpcTimeout);
+            }
+        }
+    }
+
     /** 检测缓存的消息超时 */
     private checkMsgCacheTimeout() {
         const nowSeconds = Math.floor(Date.now() / 1000);
 
-        for (const [sid, msgCache] of this.msgCacheMap) {
-            let deleteCount = 0;
-            for (let one of msgCache.list) {
-                if (nowSeconds >= one.time) {
-                    deleteCount++;
-                } else {
-                    break;
-                }
+        let deleteCount = 0;
+        let delSize = 0;
+        for (let one of this.msgCacheList) {
+            if (nowSeconds >= one.time) {
+                deleteCount++;
+                delSize += one.buf.length;
+            } else {
+                break;
             }
-            if (deleteCount > 0) {
-                for (let one of msgCache.list.splice(0, deleteCount)) {
-                    msgCache.size -= one.buf.length;
-                    if (one.rpcTimeout) {
-                        this.delRpcTimeout(one.rpcTimeout.id);
-                        this.timeoutCall(one.rpcTimeout);
-                    }
-                }
-                if (msgCache.list.length === 0) {
-                    this.msgCacheMap.delete(sid);
+        }
+        if (deleteCount > 0) {
+            this.nowCacheSize -= delSize;
+
+            const delList = this.msgCacheList.splice(0, deleteCount);
+            for (let one of delList) {
+                if (one.rpcTimeout) {
+                    this.delRpcTimeout(one.rpcTimeout.id);
+                    this.timeoutCall(one.rpcTimeout);
                 }
             }
         }
@@ -430,41 +465,40 @@ class RpcTimeoutUtil {
             socket.send(buf);
             return;
         }
-
-        let msgCache = this.msgCacheMap.get(sid);
-        if (!msgCache) {
-            msgCache = { size: 0, "list": [] };
-            this.msgCacheMap.set(sid, msgCache);
-        }
-
         // 注意：这里超时时间需要更短，以防连接后发送出去来不及等待返回。同时在检测超时的时候，需要早于 rpcRequestBySeconds 检测
-        msgCache.list.push({ "rpcTimeout": rpcTimeout, "buf": buf, "time": this.outTime - 3 });
-        msgCache.size += buf.length;
-
-        if (msgCache.list.length > this.msgCacheCount || msgCache.size > this.msgCacheSize) {
-            for (let one of msgCache.list.splice(0, 50)) {
-                msgCache.size -= one.buf.length;
-                if (one.rpcTimeout) {
-                    this.delRpcTimeout(one.rpcTimeout.id);
-                    this.timeoutCall(one.rpcTimeout);
-                }
-            }
-            if (msgCache.list.length === 0) {
-                this.msgCacheMap.delete(sid);
-            }
-        }
+        this.msgCacheList.push({ "sid": sid, "rpcTimeout": rpcTimeout, "buf": buf, "time": this.outTime - 3 });
+        this.nowCacheSize += buf.length;
+        this.checkMsgCacheCountSize();
     }
 
 
 
     rpcOnNewSocket(sid: string) {
-        const msgCache = this.msgCacheMap.get(sid);
-        if (!msgCache) {
+        if (this.msgCacheList.length === 0) {
             return;
         }
-        this.msgCacheMap.delete(sid);
 
-        for (let one of msgCache.list) {
+        const sendList: typeof this.msgCacheList = [];
+        let writeIdx = 0;
+
+        for (let idx = 0; idx < this.msgCacheList.length; idx++) {
+            const one = this.msgCacheList[idx];
+            if (one.sid === sid) {
+                sendList.push(one);
+                this.nowCacheSize -= one.buf.length;
+            } else {
+                this.msgCacheList[writeIdx] = one;
+                writeIdx++;
+            }
+        }
+
+        if (sendList.length === 0) {
+            return;
+        }
+
+        this.msgCacheList.length = writeIdx;  // 截断
+
+        for (let one of sendList) {
             this.sendTo(sid, one.rpcTimeout, one.buf);
         }
     }
