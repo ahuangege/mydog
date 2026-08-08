@@ -448,6 +448,10 @@ interface I_rpcConfig {
      * rpc 消息缓存长度（默认 5000）
      */
     "rpcMsgCacheCount"?: number,
+    /**
+     * rpc 错误时是否打印原始堆栈 （QPS 过高时会影响性能，可以开发环境开启，生产环境关闭）
+     */
+    "errStack"?: boolean
 }
 
 /**

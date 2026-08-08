@@ -8,12 +8,13 @@ import * as path from "path";
 import Application from "../application";
 import * as appUtil from "../util/appUtil";
 import * as define from "../util/define";
-import { I_rpcMsg, I_rpcTimeout, loggerLevel } from "../util/interfaceDefine";
+import { I_rpcMsg, loggerLevel } from "../util/interfaceDefine";
 
 let app: Application;
 let userMsgHandler: { [filename: string]: any } = {};
 let sysMsgHandler: { [filename: string]: any } = {};
 let timeoutUtil: RpcTimeoutUtil = null as any;
+let errStack = false;
 
 
 const enum e_awaitRpcErrType {
@@ -52,8 +53,7 @@ export async function handleMsgAwait(sid: string, bufAll: Buffer) {
         const timeout = timeoutUtil.delRpcTimeout(rpcMsg.id as number);
         if (timeout) {
             if (rpcMsg.err) {
-                timeout.rpcErr.setMsg(e_awaitRpcErrType.error);
-                timeout.reject(timeout.rpcErr);
+                timeout.rejectErr(e_awaitRpcErrType.error);
             } else {
                 timeout.resolve(msg);
             }
@@ -197,13 +197,17 @@ class rpc_create {
         let res: { [method: string]: Function } = {};
         for (let field of funcFields) {
             if (field !== "constructor" && typeof func[field] === "function") {
-                res[field] = this.proxyCb({ isSys, "serverType": serverType, "file_method": filename + "." + field });
+                res[field] = this.proxyCb({
+                    isSys,
+                    "serverType": serverType,
+                    "file_method": filename + "." + field,
+                });
             }
         }
         return res;
     }
 
-    proxyCb(cmd: { "isSys": number, "serverType": string, "file_method": string }) {
+    proxyCb(cmd: IRpcCmd) {
         let self = this;
         let func = function (...args: any[]): Promise<any> | undefined {
             return self.send(self.toId, self.notify, cmd, args);
@@ -211,7 +215,7 @@ class rpc_create {
         return func;
     }
 
-    send(sid: string, notify: boolean, cmd: { "isSys": number, "serverType": string, "file_method": string }, args: any[]): Promise<any> | undefined {
+    send(sid: string, notify: boolean, cmd: IRpcCmd, args: any[]): Promise<any> | undefined {
         if (sid === "*") {
             if (cmd.isSys) {
                 app.logger(loggerLevel.error, "mydogSysRpc cannot sendT");
@@ -224,7 +228,7 @@ class rpc_create {
     }
 
     /** 发送给某一类型的服务器 */
-    sendT(cmd: { "isSys": number, "serverType": string, "file_method": string }, args: any[]) {
+    sendT(cmd: IRpcCmd, args: any[]) {
         let servers = app.getServersByType(cmd.serverType);
         if (servers.length === 0) {
             return;
@@ -241,7 +245,7 @@ class rpc_create {
     }
 
     /** await 形式，发送给某一服务器 */
-    sendAwait(sid: string, notify: boolean, cmd: { "isSys": number, "serverType": string, "file_method": string }, args: any[]): Promise<any> | undefined {
+    sendAwait(sid: string, notify: boolean, cmd: IRpcCmd, args: any[]): Promise<any> | undefined {
         if (sid === app.serverId) {
             return timeoutUtil.sendRpcMsgToSelfAwait(cmd, args, notify);
         }
@@ -253,7 +257,7 @@ class rpc_create {
             rpcMsg.isSys = 1;
         }
         let promise: Promise<any> = undefined as any;
-        let rpcTimeout: I_rpcTimeout = null as any;
+        let rpcTimeout: RpcTimeoutInfo = null as any;
         if (!notify) {
             let resolveFunc: Function = null as any;
             let rejectFunc: Function = null as any;
@@ -262,7 +266,8 @@ class rpc_create {
                 rejectFunc = reject;
             });
 
-            rpcTimeout = timeoutUtil.createRpcTimeout(resolveFunc, rejectFunc, new RpcError());
+            const rpcError = errStack ? new RpcError() : null;
+            rpcTimeout = timeoutUtil.createRpcTimeout(resolveFunc, rejectFunc, rpcError, cmd, sid);
             rpcMsg.id = rpcTimeout.id;
         }
         const bufEnd = getRpcMsg(rpcMsg, args, define.Rpc_Msg.rpcMsgAwait);
@@ -276,7 +281,7 @@ class rpc_create {
 
 class RpcTimeoutUtil {
     private rpcId = 1;  // Must start from 1, not 0
-    private rpcRequest = new Map<number, I_rpcTimeout>(); // id -> any
+    private rpcRequest = new Map<number, RpcTimeoutInfo>(); // id -> any
     private rpcRequestBySeconds = new Map<number, Set<number>>(); // seconds -> id 列表
 
     private rpcTimeMax: number = 10; //overtime time
@@ -287,7 +292,7 @@ class RpcTimeoutUtil {
 
     private nowCacheSize = 0;
 
-    private msgCacheList: { "sid": string, "rpcTimeout": I_rpcTimeout | null, "buf": Buffer, "time": number }[] = []; // 缓存的消息列表
+    private msgCacheList: { "sid": string, "rpcTimeout": RpcTimeoutInfo | null, "buf": Buffer, "time": number }[] = []; // 缓存的消息列表
 
     constructor() {
         this.init();
@@ -310,6 +315,9 @@ class RpcTimeoutUtil {
             this.rpcTimeMax = timeout;
         }
 
+        if (rpcConfig.errStack) {
+            errStack = true;
+        }
 
 
         this.tick();
@@ -344,8 +352,8 @@ class RpcTimeoutUtil {
         throw new Error("rpcId exhausted, too many in-flight requests");
     }
 
-    createRpcTimeout(resolve: Function, reject: Function, rpcErr: RpcError) {
-        const data: I_rpcTimeout = { "id": this.getRpcId(), resolve, reject, rpcErr, "time": this.outTime, };
+    createRpcTimeout(resolve: Function, reject: Function, rpcErr: RpcError, rpcCmd: IRpcCmd, sid: string) {
+        const data = new RpcTimeoutInfo(this.getRpcId(), resolve, reject, this.outTime, rpcErr, rpcCmd, sid);
         this.rpcRequest.set(data.id, data);
 
         let set = this.rpcRequestBySeconds.get(data.time);
@@ -358,7 +366,7 @@ class RpcTimeoutUtil {
         return data;
     }
 
-    delRpcTimeout(id: number): I_rpcTimeout {
+    delRpcTimeout(id: number): RpcTimeoutInfo {
         const data = this.rpcRequest.get(id);
         if (!data) {
             return null as any;
@@ -450,16 +458,15 @@ class RpcTimeoutUtil {
     }
 
 
-    timeoutCall(one: I_rpcTimeout) {
+    timeoutCall(one: RpcTimeoutInfo) {
         if (one) {
-            one.rpcErr.setMsg(e_awaitRpcErrType.timeout);
-            one.reject(one.rpcErr);
+            one.rejectErr(e_awaitRpcErrType.timeout);
         }
 
     }
 
 
-    sendTo(sid: string, rpcTimeout: I_rpcTimeout | null, buf: Buffer) {
+    sendTo(sid: string, rpcTimeout: RpcTimeoutInfo | null, buf: Buffer) {
         let socket = app.rpcPool.getSocket(sid);
         if (socket) {
             socket.send(buf);
@@ -507,7 +514,7 @@ class RpcTimeoutUtil {
     /**
      * Send rpc message to this server await
      */
-    sendRpcMsgToSelfAwait(cmd: { "isSys": number, "serverType": string, "file_method": string }, argsOrginal: any[], notify: boolean): Promise<any> | undefined {
+    sendRpcMsgToSelfAwait(cmd: IRpcCmd, argsOrginal: any[], notify: boolean): Promise<any> | undefined {
 
         const handlerObj = cmd.isSys ? sysMsgHandler : userMsgHandler;
         let args = JSON.parse(JSON.stringify(argsOrginal));
@@ -527,7 +534,8 @@ class RpcTimeoutUtil {
             rejectFunc = reject;
         });
 
-        const timeoutInfo = this.createRpcTimeout(resolveFunc, rejectFunc, new RpcError());
+        const rpcError = errStack ? new RpcError() : null;
+        const timeoutInfo = this.createRpcTimeout(resolveFunc, rejectFunc, rpcError, cmd, app.serverId);
         const rpcId = timeoutInfo.id;
 
         setImmediate(async () => {
@@ -547,8 +555,7 @@ class RpcTimeoutUtil {
                 return;
             }
             if (hasErr) {
-                timeout.rpcErr.setMsg(e_awaitRpcErrType.error);
-                timeout.reject(timeout.rpcErr);
+                timeout.rejectErr(e_awaitRpcErrType.error);
             } else {
                 if (data === undefined) {
                     data = null;
@@ -590,5 +597,41 @@ export class RpcError extends Error {
 
     setMsg(message: string) {
         this.message = message;
+    }
+}
+
+export interface IRpcCmd {
+    "isSys": number,
+    "serverType": string,
+    "file_method": string,
+}
+
+class RpcTimeoutInfo {
+    id: number;
+    resolve: Function;
+    private reject: Function;    // when await call, reject function
+    time: number;
+    rpcErr: RpcError | null;
+    private cmd: IRpcCmd;
+    private sid: string;
+
+    constructor(id: number, resolve: Function, reject: Function, time: number, rpcErr: RpcError | null, cmd: IRpcCmd, sid: string) {
+        this.id = id;
+        this.resolve = resolve;
+        this.reject = reject;
+        this.time = time;
+        this.rpcErr = rpcErr;
+        this.cmd = cmd;
+        this.sid = sid;
+    }
+
+    rejectErr(errType: e_awaitRpcErrType) {
+        let rpcErr = this.rpcErr;
+        if (!rpcErr) {
+            rpcErr = new RpcError();
+        }
+        const msg = errType + "  " + this.cmd.serverType + "." + this.cmd.file_method + " -> " + this.sid;
+        rpcErr.setMsg(msg);
+        this.reject(rpcErr)
     }
 }

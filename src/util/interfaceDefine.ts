@@ -1,7 +1,6 @@
 import { EventEmitter } from "events";
 import Application from "../application";
 import { Session } from "../components/session";
-import { RpcError } from "mydog/src/components/rpcService";
 
 /**
  * socket connection proxy
@@ -74,17 +73,6 @@ export interface I_rpcMsg {
     cmd?: string;
     id?: number;
     err?: number;
-}
-
-/**
- * rpc request timeout
- */
-export interface I_rpcTimeout {
-    id: number;
-    resolve: Function;
-    reject: Function;    // when await call, reject function
-    time: number;
-    rpcErr: RpcError;
 }
 
 
@@ -240,6 +228,10 @@ export interface I_rpcConfig {
      * The frequency of  Rpc socket  establishment
      */
     "socketPerSecond"?: number,
+    /**
+    * keep rpc call stack when error happens. (may affect performance. default false )
+    */
+    "errStack"?: boolean
 }
 
 
