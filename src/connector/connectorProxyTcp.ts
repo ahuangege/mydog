@@ -18,13 +18,22 @@ export class ConnectorTcp {
     public heartbeatTime: number = 0;   // Heartbeat time
     private maxConnectionNum: number = Number.POSITIVE_INFINITY;
     public nowConnectionNum: number = 0;
-    public interval: number = 0;
     public intervalCacheLen = +Infinity;
     public md5 = "";    // route array md5
+
+    private buckets: Set<ClientSocket>[] = [];
+    private bucketIdx = 0;
+    private flushIdx = 0;
+    private flushTimer: NodeJS.Timeout = null;
 
     constructor(info: { app: Application, clientManager: I_clientManager, config: I_connectorConfig, startCb: () => void }) {
         this.app = info.app;
         this.clientManager = info.clientManager;
+
+        const bucketCnt = 4;
+        for (let idx = 0; idx < bucketCnt; idx++) {
+            this.buckets.push(new Set());
+        }
 
         let connectorConfig = info.config || {};
         maxLen = connectorConfig.maxLen || define.some_config.SocketBufferMaxLen;
@@ -37,7 +46,16 @@ export class ConnectorTcp {
         if (interval < 16) {
             interval = 16;
         }
-        this.interval = interval;
+
+        const flushInterval = Math.floor(interval / this.buckets.length);
+        this.flushTimer = setInterval(() => {
+            this.flush();
+        }, flushInterval)
+
+        setInterval(() => {
+            this.checkBucketsBalance();
+        }, 2 * 60 * 1000)
+
 
         let tmpMaxLen = Number(connectorConfig.intervalCacheLen) || 0;
         if (tmpMaxLen > 0) {
@@ -79,6 +97,87 @@ export class ConnectorTcp {
             socket.close();
         }
     }
+
+    getBucketId() {
+        this.bucketIdx++;
+        this.bucketIdx %= this.buckets.length;
+        return this.bucketIdx;
+    }
+
+    addBucket(socket: ClientSocket) {
+        socket.notInBucket = false;
+        this.buckets[socket.bucketIdx].add(socket);
+    }
+
+    removeBucket(socket: ClientSocket) {
+        if (socket.notInBucket) {
+            return;
+        }
+        socket.notInBucket = true;
+        this.buckets[socket.bucketIdx].delete(socket);
+
+    }
+
+    flush() {
+        this.flushIdx++;
+        this.flushIdx %= this.buckets.length;
+        const set = this.buckets[this.flushIdx];
+        for (const client of set) {
+            client.notInBucket = true;
+            client.sendInterval();
+        }
+        set.clear();
+    }
+
+    /** 
+     * 检测桶平衡， 尽量让每个桶里的客户端数量一致（没有按活跃客户端做平衡，只是简单的假定客户端活跃度一致）
+     */
+    checkBucketsBalance() {
+        const clients = this.app.getAllClients() as Record<string, ClientSocket>;
+        const bucketMap = new Map<number, ClientSocket[]>();
+        for (const uid in clients) {
+            const socket = clients[uid];
+            let list = bucketMap.get(socket.bucketIdx);
+            if (!list) {
+                list = [];
+                bucketMap.set(socket.bucketIdx, list);
+            }
+            list.push(socket);
+        }
+
+        const endMap = new Map<number, ClientSocket[]>();
+        let allNum = 0;
+        for (let idx = 0; idx < this.buckets.length; idx++) {
+            const list = bucketMap.get(idx) || [];
+            endMap.set(idx, list);
+            allNum += list.length;
+        }
+        const avgNum = Math.ceil(allNum / this.buckets.length);
+
+        const waitList: ClientSocket[] = [];
+        for (let idx = 0; idx < this.buckets.length; idx++) {
+            const list = endMap.get(idx);
+            if (list.length <= avgNum) {
+                continue;
+            }
+            const tmpList = list.splice(avgNum);
+            waitList.push(...tmpList);
+        }
+
+        for (let idx = 0; idx < this.buckets.length; idx++) {
+            if (waitList.length === 0) {
+                break;
+            }
+            const list = endMap.get(idx);
+            if (list.length >= avgNum) {
+                continue;
+            }
+            const tmpList = waitList.splice(0, avgNum - list.length);
+            for (const one of tmpList) {
+                one.willBucketIdx = idx;
+            }
+        }
+    }
 }
 
 class ClientSocket implements I_clientSocket {
@@ -89,19 +188,21 @@ class ClientSocket implements I_clientSocket {
     private socket: SocketProxy;                            // socket
     private registerTimer: NodeJS.Timer = null as any;      // Handshake timeout timer
     private heartbeatTimer: NodeJS.Timer = null as any;     // Heartbeat timeout timer
-    private interval: number = 0;
-    private sendTimer: NodeJS.Timer = null as any;
     private sendArr: Buffer[] = [];
     private intervalCacheLen = 0;
     private nowLen = 0;
 
+    bucketIdx = -1; // 当前分配的桶
+    notInBucket = true; // 当前是否不在桶里
+    willBucketIdx = -1; // 将要变化的桶
+
     constructor(connector: ConnectorTcp, clientManager: I_clientManager, socket: SocketProxy) {
         this.connector = connector;
         this.connector.nowConnectionNum++;
-        this.interval = connector.interval;
         this.intervalCacheLen = connector.intervalCacheLen;
         this.clientManager = clientManager;
         this.socket = socket;
+        this.bucketIdx = connector.getBucketId();
         this.remoteAddress = socket.remoteAddress;
         this.socket.maxLen = 50;   // Up to 50 byte of data when not registered
         socket.once('data', this.onRegister.bind(this));
@@ -143,7 +244,7 @@ class ClientSocket implements I_clientSocket {
         clearTimeout(this.registerTimer);
         clearTimeout(this.heartbeatTimer);
         this.heartbeatTimer = null as any;
-        clearInterval(this.sendTimer);
+        this.connector.removeBucket(this);
         this.sendArr = [];
         this.nowLen = 0;
         this.clientManager.removeClient(this);
@@ -171,7 +272,6 @@ class ClientSocket implements I_clientSocket {
         clearTimeout(this.registerTimer);
         this.heartbeat();
         this.clientManager.addClient(this);
-        this.sendTimer = setInterval(this.sendInterval.bind(this), this.interval);
         this.socket.maxLen = maxLen;
         this.socket.on('data', this.onData.bind(this));
     }
@@ -212,15 +312,21 @@ class ClientSocket implements I_clientSocket {
         }
 
         if (this.nowLen > this.intervalCacheLen) {
+            this.connector.removeBucket(this);
             this.sendInterval();
+        } else if (this.notInBucket) {
+            if (this.willBucketIdx !== -1) {
+                this.bucketIdx = this.willBucketIdx;
+                this.willBucketIdx = -1;
+            }
+            this.connector.addBucket(this);
         }
     }
 
-    private sendInterval() {
+    sendInterval() {
         const arrLen = this.sendArr.length;
         if (arrLen > 0) {
             const endBuff = arrLen === 1 ? this.sendArr[0] : Buffer.concat(this.sendArr, this.nowLen);
-            this.sendArr = [];
 
             if (arrLen > 4096) {
                 this.sendArr = [];        // 放弃异常膨胀的数组
@@ -237,6 +343,7 @@ class ClientSocket implements I_clientSocket {
      * close
      */
     close() {
+        this.connector.removeBucket(this);
         this.sendInterval()
         this.socket.close();
     }
