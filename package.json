@@ -23,8 +23,8 @@
 	"bundleDependencies": [],
 	"dependencies": {
 		"@types/node": "^26.2.0",
-		"@types/ws": "^6.0.1",
-		"ws": "^7.0.1"
+		"@types/ws": "^8.18.1",
+		"ws": "^8.21.3"
 	},
 	"scripts": {
 		"test": "echo \"Error: no test   specified\" && exit 1"
