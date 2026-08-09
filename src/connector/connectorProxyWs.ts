@@ -336,7 +336,6 @@ class ClientSocket implements I_clientSocket {
     }
 
     sendInterval() {
-        console.log("======send")
         const arrLen = this.sendArr.length;
         if (arrLen > 0) {
             const endBuff = arrLen === 1 ? this.sendArr[0] : Buffer.concat(this.sendArr, this.nowLen);

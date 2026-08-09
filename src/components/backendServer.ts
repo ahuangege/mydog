@@ -91,6 +91,10 @@ export class BackendServer {
             }
         }
 
+        if (!session) {
+            return;
+        }
+
         this.updateSession(session);
 
         const ok = await this.app.filter.beforeFilter(cmd, data, session);
@@ -190,20 +194,31 @@ export class BackendServer {
         }
 
         const promise = new Promise(async (resolve) => {
+            let getOk = false;
             try {
-                const info = await this.app.sysRpc(sid).frontend.sessionRemote.getSession(uid);
-                let session = this.getSession(uid);
-                if (session) {
-                    session.sid = sid;
-                    session.syncSettings(info);
-                    this.updateSession(session);
-                } else {
-                    session = new Session(sid);
-                    session.uid = uid;
-                    session.syncSettings(info);
-                    this.addSession(session);
+                if (this.app.rpcPool.getSocket(sid)) {
+                    const info = await this.app.sysRpc(sid).frontend.sessionRemote.getSession(uid);
+                    if (info) {
+                        getOk = true;
+                        let session = this.getSession(uid);
+                        if (session) {
+                            session.sid = sid;
+                            session.syncSettings(info);
+                            this.updateSession(session);
+                        } else {
+                            session = new Session(sid);
+                            session.uid = uid;
+                            session.syncSettings(info);
+                            this.addSession(session);
+                        }
+                    }
                 }
+            } catch (err: any) {
+                this.app.logger(loggerLevel.error, err);
             } finally {
+                if (!getOk) {
+                    this.delSession(this.getSession(uid));
+                }
                 this.sessionFetchingMap.delete(uid);
                 resolve(null);
             }
@@ -220,6 +235,9 @@ export class BackendServer {
     }
 
     delSession(session: Session) {
+        if (!session) {
+            return;
+        }
         this.sessionMap.delete(session.uid);
         const set = this.sessionExpireMap.get(session.expireTime);
         if (set) {
@@ -264,7 +282,7 @@ export class BackendServer {
     checkExpire() {
         const nowSeconds = Math.floor(Date.now() / 1000)
         const expireTime = nowSeconds + this.expireSeconds;
-        this.expireTime = Math.floor(expireTime / 5) * 5;
+        this.expireTime = Math.floor(expireTime / 5) * 5 + 5;
 
 
         for (const [time, set] of this.sessionExpireMap) {
