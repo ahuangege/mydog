@@ -21,7 +21,7 @@ export function addRpcClient(app: Application, server: ServerInfo) {
     }
     if (!lineUpUtil) {
         let rpcConfig = app.someconfig.rpc || {};
-        const socketPerSecond = parseInt(rpcConfig.socketPerSecond as any) || 20;
+        const socketPerSecond = Math.floor(rpcConfig.socketPerSecond) || 20;
         lineUpUtil = new ExecLineUpUtil(socketPerSecond);
     }
 

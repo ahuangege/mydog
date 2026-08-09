@@ -3,7 +3,7 @@ import Application from "../application";
 import * as define from "../util/define";
 import * as path from "path";
 import * as fs from "fs";
-import { sessionCopyJson, I_clientSocket, I_clientManager, I_connectorConstructor, I_encodeDecodeConfig, loggerLevel } from "../util/interfaceDefine";
+import { I_clientSocket, I_clientManager, I_connectorConstructor, I_encodeDecodeConfig, loggerLevel } from "../util/interfaceDefine";
 import { Session, initSessionApp } from "./session";
 import * as protocol from "../connector/protocol";
 let meFilename = `[${path.basename(__filename, ".js")}.ts]`;

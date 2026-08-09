@@ -1,6 +1,6 @@
 import Application from "../application";
 import tcpServer from "../components/tcpServer";
-import { I_clientManager, I_clientSocket, SocketProxy, I_connectorConfig } from "../util/interfaceDefine";
+import { I_clientManager, I_clientSocket, SocketProxy, I_connectorConfig, loggerLevel } from "../util/interfaceDefine";
 import * as define from "../util/define";
 import { Session } from "../components/session";
 import * as crypto from "crypto";
@@ -16,7 +16,7 @@ export class ConnectorTcp {
     public handshakeBufAll: Buffer = null as any;        // Handshake buffer all
     public heartbeatBuf: Buffer;        // Heartbeat response buffer
     public heartbeatTime: number = 0;   // Heartbeat time
-    private maxConnectionNum: number = Number.POSITIVE_INFINITY;
+    private maxConnectionNum: number = 2000;
     public nowConnectionNum: number = 0;
     public intervalCacheLen = +Infinity;
     public md5 = "";    // route array md5
@@ -39,7 +39,7 @@ export class ConnectorTcp {
         maxLen = connectorConfig.maxLen || define.some_config.SocketBufferMaxLen;
         let noDelay = connectorConfig.noDelay === false ? false : true;
         this.heartbeatTime = (connectorConfig.heartbeat || 0) * 1000;
-        if (connectorConfig.maxConnectionNum != null) {
+        if (connectorConfig.maxConnectionNum) {
             this.maxConnectionNum = connectorConfig.maxConnectionNum;
         }
         let interval = Number(connectorConfig.interval) || define.some_config.msgFlushInterval;
@@ -93,7 +93,7 @@ export class ConnectorTcp {
         if (this.nowConnectionNum < this.maxConnectionNum) {
             new ClientSocket(this, this.clientManager, socket);
         } else {
-            console.warn("socket num has reached the maxConnectionNum, close it");
+            this.app.logger(loggerLevel.error, "socket num has reached the maxConnectionNum, close it");
             socket.close();
         }
     }

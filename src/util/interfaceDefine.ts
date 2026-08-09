@@ -41,14 +41,7 @@ export interface monitor_reg_master {
     serverInfo: ServerInfo
 }
 
-/**
- * The session copied from the front end to the back end
- */
-export interface sessionCopyJson {
-    uid: number;
-    sid: string;
-    settings: { [key: string]: any };
-}
+
 
 /**
  * Internal frame log level
@@ -129,7 +122,7 @@ export interface I_connectorConfig {
      */
     "heartbeat"?: number,
     /**
-     * maximum number of connections (no upper limit by default)
+     * maximum number of connections (default is 2000)
      */
     "maxConnectionNum"?: number,
     /**
@@ -141,11 +134,11 @@ export interface I_connectorConfig {
      */
     "noDelay"?: boolean,
     /**
-     * message sending frequency (ms, more than 10 is enabled, the default is to send immediately)
+     * message sending frequency (ms,  the default is 33 ms)
      */
     "interval"?: number,
     /**
-     * message cache max length when interval is on. The default is +Infinity.
+     * message cache max length . The default is 32KB.
      */
     "intervalCacheLen"?: number,
     /**
@@ -201,7 +194,7 @@ export interface I_rpcConfig {
      */
     "interval"?: number | { "default": number, [serverType: string]: number }
     /**
-     * message cache max length when interval is on. The default is 32 KB.
+     * message cache max length. The default is 32 KB.
      */
     "intervalCacheLen"?: number,
     /**

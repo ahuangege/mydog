@@ -3,7 +3,7 @@
 /**
  * 
  * 官网: https://www.mydog.wiki
- * 版本: 2.4.0
+ * 版本: 3.0.0
  * 
  */
 
@@ -140,11 +140,11 @@ export interface Application {
     /**
      * 服务器关闭回调
      */
-    setConfig(key: "onBeforeExit", value: (cb: () => void) => void): void;
+    setConfig(key: "onBeforeExit", value: () => Promise<void>): void;
     /**
-     * 接收 mydog send 发来的消息
+     * session 配置
      */
-    setConfig(key: "onMydogSend", value: (args: string[], cb: (data: any) => void) => void): void;
+    setConfig(key: "session", value: I_sessionConfig): void;
     /**
      * 设置键值对
      */
@@ -215,22 +215,17 @@ export interface Application {
     /**
      * 消息处理前的一些前置工作
      */
-    before(filter: { "before": (cmd: number, msg: any, session: Session, cb: (hasError?: boolean) => void) => void }): void;
+    before(filter: { "before": (cmd: number, msg: any, session: Session) => Promise<boolean> }): void;
 
     /**
      * 消息处理后的一些后置工作
      */
-    after(filter: { "after": (cmd: number, msg: any, session: Session, cb: () => void) => void }): void;
+    after(filter: { "after": (cmd: number, msg: any, session: Session) => Promise<boolean> }): void;
 
     /**
      * 消息刚达到网关服时的一些处理
      */
-    globalBefore(filter: { "before": (info: { cmd: number, msg: Buffer }, session: Session, cb: (hasError?: boolean) => void) => void }): void
-
-    /** 服务器全部启动成功 */
-    on(event: "onStartAll", cb: () => void): void;
-    /** 服务器添加或移除 */
-    on(event: "onAddServer" | "onRemoveServer", cb: (serverInfo: ServerInfo) => void): void;
+    globalBefore(filter: { "globalBefore": (info: { cmd: number, msg: Buffer }, session: Session) => Promise<boolean> }): void
 
 }
 
@@ -290,11 +285,6 @@ export interface Session {
     close(): void;
 
     /**
-     * 将后端 session 同步到前端 （后端服调用）
-     */
-    apply(): void;
-
-    /**
      * 获取ip （前端服调用）
      */
     getIp(): string;
@@ -352,7 +342,7 @@ interface I_encodeDecodeConfig {
     /**
      * 协议编码
      */
-    "protoEncode"?: (cmd: number, msg: any) => Buffer,
+    "protoEncode"?: (cmd: number, msg: any) => { "head": Buffer, "msg": Buffer },
     /**
      * 消息编码
      */
@@ -381,7 +371,7 @@ interface I_connectorConfig {
      */
     "heartbeat"?: number,
     /**
-     * 最大连接数（默认无限制）
+     * 最大连接数（默认2000）
      */
     "maxConnectionNum"?: number,
     /**
@@ -393,11 +383,11 @@ interface I_connectorConfig {
      */
     "noDelay"?: boolean,
     /**
-     * 消息发送频率（毫秒，大于 10 则启用，默认立即发送）
+     * 消息发送频率（毫秒，默认 33 毫秒）
      */
     "interval"?: number,
     /**
-     * 当开启 interval 时，为防止单次Buffer申请过大，可配置此值作为立即发送的阈值（默认 +Infinity）
+     * 因为定时发送，为防止单次Buffer申请过大，可配置此值作为立即发送的阈值（默认 32 KB）
      */
     "intervalCacheLen"?: number,
     /**
@@ -425,11 +415,11 @@ interface I_rpcConfig {
      */
     "maxLen"?: number,
     /**
-     * 消息发送频率（毫秒，大于 10 则启用，默认立即发送）
+     * 消息发送频率（毫秒， 默认 33 毫秒）
      */
     "interval"?: number | { "default": number, [serverType: string]: number }
     /**
-     * 当开启 interval 时，为防止单次Buffer申请过大，可配置此值作为立即发送的阈值（默认 +Infinity）
+     * 因为固定间隔发送，为防止单次Buffer申请过大，可配置此值作为立即发送的阈值（默认 32 KB）
      */
     "intervalCacheLen"?: number,
     /**
@@ -445,9 +435,17 @@ interface I_rpcConfig {
      */
     "noRpcMatrix"?: { [serverType: string]: string[] },
     /**
-     * rpc 消息缓存长度（默认 5000）
+     * rpc 全局消息缓存最大个数（默认 50000）
      */
     "rpcMsgCacheCount"?: number,
+    /**
+     * Rpc 全局消息缓存最大字节数（默认 64 MB）
+     */
+    "rpcMsgCacheSize"?: number,
+    /**
+     * rpc socket 建立每秒并发个数（默认 20）
+     */
+    "socketPerSecond"?: number,
     /**
      * rpc 错误时是否打印原始堆栈 （QPS 过高时会影响性能，可以开发环境开启，生产环境关闭）
      */
@@ -467,6 +465,25 @@ interface I_recognizeTokenConfig {
      */
     "cliToken"?: string,
 }
+
+/**
+ * session 配置
+ */
+interface I_sessionConfig {
+    /**
+     * 不需要同步 session 的后端服务器类型（默认同步。 不同步时只有 uid sid 可用）
+     */
+    "noNeedSyncServerTypes"?: string[],
+    /**
+     * 后端 session 缓存时长（秒。 默认 15秒）
+     */
+    "expireSeconds"?: number,
+    /**
+     * 后端 session 缓存最大个数（默认3000）
+     */
+    "maxCacheCount"?: number
+}
+
 
 /**
  * 自定义 connector
@@ -506,9 +523,9 @@ export interface I_clientSocket {
      */
     remoteAddress: string;
     /**
-     * 发送消息
+     * 发送消息（注意，msg 和 msg2 加起来才是一个完整包）
      */
-    send(msg: Buffer): void;
+    send(msg: Buffer, msg2?: Buffer): void;
     /**
      * 关闭
      */

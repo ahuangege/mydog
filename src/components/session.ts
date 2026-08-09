@@ -4,7 +4,7 @@
 
 
 import Application from "../application";
-import { I_clientSocket, sessionCopyJson } from "../util/interfaceDefine";
+import { I_clientSocket } from "../util/interfaceDefine";
 
 let app: Application;
 

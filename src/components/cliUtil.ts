@@ -251,12 +251,15 @@ export class MonitorCli {
             return;
         }
         this.exiting = true;
-        let exitFunc = this.app.someconfig.onBeforeExit;
-        if (exitFunc) {
-            await exitFunc();
+        try {
+            let exitFunc = this.app.someconfig.onBeforeExit;
+            if (exitFunc) {
+                await exitFunc();
+            }
+        } finally {
+            this.send_to_master(socket, msg);
+            exitCall();
         }
-        this.send_to_master(socket, msg);
-        exitCall();
     }
 
     private async func_remove(reqId: number, socket: monitor_client_proxy, args: any) {
@@ -268,12 +271,15 @@ export class MonitorCli {
             return;
         }
         this.exiting = true;
-        let exitFunc = this.app.someconfig.onBeforeExit;
-        if (exitFunc) {
-            await exitFunc();
+        try {
+            let exitFunc = this.app.someconfig.onBeforeExit;
+            if (exitFunc) {
+                await exitFunc();
+            }
+        } finally {
+            this.send_to_master(socket, msg);
+            exitCall();
         }
-        this.send_to_master(socket, msg);
-        exitCall();
 
     }
 
@@ -286,12 +292,16 @@ export class MonitorCli {
             return;
         }
         this.exiting = true;
-        let exitFunc = this.app.someconfig.onBeforeExit;
-        if (exitFunc) {
-            await exitFunc();
+
+        try {
+            let exitFunc = this.app.someconfig.onBeforeExit;
+            if (exitFunc) {
+                await exitFunc();
+            }
+        } finally {
+            this.send_to_master(socket, msg);
+            exitCall();
         }
-        this.send_to_master(socket, msg);
-        exitCall();
     }
 }
 

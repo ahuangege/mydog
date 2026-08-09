@@ -92,7 +92,7 @@ export class Master {
         } finally {
             setTimeout(() => {
                 this.tick();
-            }, 1000)
+            }, 500)
         }
     }
 
