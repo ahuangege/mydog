@@ -217,10 +217,18 @@ class ClientSocket implements I_clientSocket {
     }
 
     private sendInterval() {
-        if (this.sendArr.length > 0) {
-            const endBuff = this.sendArr.length === 0 ? this.sendArr[0] : Buffer.concat(this.sendArr, this.nowLen);
+        const arrLen = this.sendArr.length;
+        if (arrLen > 0) {
+            const endBuff = arrLen === 1 ? this.sendArr[0] : Buffer.concat(this.sendArr, this.nowLen);
             this.sendArr = [];
+
+            if (arrLen > 4096) {
+                this.sendArr = [];        // 放弃异常膨胀的数组
+            } else {
+                this.sendArr.length = 0;  // 正常情况复用
+            }
             this.nowLen = 0;
+
             this.socket.send(endBuff);
         }
     }
