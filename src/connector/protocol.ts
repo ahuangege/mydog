@@ -12,7 +12,7 @@ export let default_encodeDecode: Required<I_encodeDecodeConfig> = {
     "protoDecode": function (data: Buffer) {
         return {
             "cmd": data.readUInt16BE(1),
-            "msg": data.slice(3)
+            "msg": data.subarray(3)
         }
     },
     "msgDecode": function (cmd: number, msg: Buffer) {

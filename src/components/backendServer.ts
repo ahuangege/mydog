@@ -77,7 +77,7 @@ export class BackendServer {
         const cmd = msg.readUInt16BE(1);
         const uid = msg.readUint32BE(3);
         const version = msg.readUint32BE(7);
-        const data = this.app.msgDecode(cmd, msg.slice(11));
+        const data = this.app.msgDecode(cmd, msg.subarray(11));
         const cmdArr = this.app.routeConfig2[cmd];
 
         let session = this.getSession(uid);

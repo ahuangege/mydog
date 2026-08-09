@@ -122,7 +122,7 @@ class RpcServerSocket {
         clearTimeout(this.registerTimer);
         let data: { "id": string, "serverType": string, "serverToken": string };
         try {
-            data = JSON.parse(msg.slice(1).toString());
+            data = JSON.parse(msg.subarray(1).toString());
         } catch (err) {
             this.app.logger(loggerLevel.error, `${meFilename} JSON parse error，close the rpc socket: ${this.socket.remoteAddress}`);
             this.socket.close();

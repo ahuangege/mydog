@@ -44,7 +44,7 @@ export function rpcOnNewSocket(sid: string) {
  *   msgType   msgBuf
  */
 export async function handleMsgAwait(sid: string, bufAll: Buffer) {
-    const msgAll: { head: I_rpcMsg, data: any } = JSON.parse(bufAll.slice(1).toString());
+    const msgAll: { head: I_rpcMsg, data: any } = JSON.parse(bufAll.subarray(1).toString());
     const rpcMsg: I_rpcMsg = msgAll.head;
     const msg = msgAll.data;
 

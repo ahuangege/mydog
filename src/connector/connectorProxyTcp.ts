@@ -256,7 +256,7 @@ class ClientSocket implements I_clientSocket {
     private handshake(data: Buffer) {
         let msg: { "md5": string } = null as any;
         try {
-            msg = JSON.parse(data.slice(1).toString());
+            msg = JSON.parse(data.subarray(1).toString());
         } catch (e) {
         }
         if (!msg) {

@@ -52,7 +52,7 @@ export class FrontendServer {
      */
     sendMsgByUids(data: Buffer) {
         let uidsLen = data.readUInt16BE(1);
-        let msgBuf = data.slice(3 + uidsLen * 4);
+        let msgBuf = data.subarray(3 + uidsLen * 4);
         let clients = this.app.clients;
         let offset = 3;
         for (let idx = 0; idx < uidsLen; idx++, offset += 4) {
