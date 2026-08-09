@@ -193,7 +193,18 @@ export class BackendServer {
             return this.getSession(uid);
         }
 
-        const promise = new Promise(async (resolve) => {
+        const promise = this.loadSession(uid, sid);
+        this.sessionFetchingMap.set(uid, promise);
+
+        await promise;
+        if (this.sessionFetchingMap.get(uid) === promise) {
+            this.sessionFetchingMap.delete(uid);
+        }
+        return this.getSession(uid);
+    }
+
+    async loadSession(uid: number, sid: string) {
+        const promise = new Promise<void>(async (resolve) => {
             let getOk = false;
             try {
                 if (this.app.rpcPool.getSocket(sid)) {
@@ -219,15 +230,11 @@ export class BackendServer {
                 if (!getOk) {
                     this.delSession(this.getSession(uid));
                 }
-                this.sessionFetchingMap.delete(uid);
                 resolve(null);
             }
         });
 
-        this.sessionFetchingMap.set(uid, promise as any);
-
-        await promise;
-        return this.getSession(uid);
+        return promise;
     }
 
     getSession(uid: number) {

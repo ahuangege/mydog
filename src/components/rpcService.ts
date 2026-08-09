@@ -275,6 +275,9 @@ class rpc_create {
         }
 
         const buffEnd = timeoutUtil.getRpcMsg(rpcMsg, args);
+        if (rpcTimeout) {
+            timeoutUtil.addRpcTimeTimeout(rpcTimeout);
+        }
         timeoutUtil.sendTo(sid, rpcTimeout, buffEnd);
         return promise;
     }
@@ -358,6 +361,11 @@ class RpcTimeoutUtil {
 
     createRpcTimeout(resolve: Function, reject: Function, rpcErr: MydogRpcError, rpcCmd: IRpcCmd, sid: string) {
         const data = new RpcTimeoutInfo(this.getRpcId(), resolve, reject, this.outTime, rpcErr, rpcCmd, sid);
+
+        return data;
+    }
+
+    addRpcTimeTimeout(data: RpcTimeoutInfo) {
         this.rpcRequest.set(data.id, data);
 
         let set = this.rpcRequestBySeconds.get(data.time);
@@ -366,8 +374,6 @@ class RpcTimeoutUtil {
             this.rpcRequestBySeconds.set(data.time, set);
         }
         set.add(data.id)
-
-        return data;
     }
 
     delRpcTimeout(id: number): RpcTimeoutInfo {
@@ -540,6 +546,7 @@ class RpcTimeoutUtil {
 
         const rpcError = errStack ? new MydogRpcError() : null;
         const timeoutInfo = this.createRpcTimeout(resolveFunc, rejectFunc, rpcError, cmd, app.serverId);
+        this.addRpcTimeTimeout(timeoutInfo);
         const rpcId = timeoutInfo.id;
 
         setImmediate(async () => {
@@ -549,6 +556,10 @@ class RpcTimeoutUtil {
             let hasErr = false;
             try {
                 data = await file[route[1]](...args);
+                if (data === undefined) {
+                    data = null;
+                }
+                data = JSON.parse(JSON.stringify(data));
             } catch (err: any) {
                 hasErr = true;
                 app.logger(loggerLevel.error, err);
@@ -561,10 +572,7 @@ class RpcTimeoutUtil {
             if (hasErr) {
                 timeout.rejectErr(e_awaitRpcErrType.error);
             } else {
-                if (data === undefined) {
-                    data = null;
-                }
-                timeout.resolve(JSON.parse(JSON.stringify(data)));
+                timeout.resolve(data);
             }
         });
 

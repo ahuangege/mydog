@@ -62,8 +62,6 @@ export class monitor_client_proxy {
             const connectCb = () => {
                 this.app.logger(loggerLevel.debug, `${meFilename} connected to master success`);
 
-                this.reconnectCnt = 0;
-
                 // Register with the master
                 this.register();
 
@@ -175,6 +173,8 @@ export class monitor_client_proxy {
 
 
     syncAllServers(data: monitor_syncAllServers) {
+        this.reconnectCnt = 0;
+
         if (this.isFirstSyncAll) {
             // 首次，直接抛出所有服务器
             this.isFirstSyncAll = false;

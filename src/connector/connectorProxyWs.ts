@@ -423,6 +423,10 @@ class WsSocket extends EventEmitter implements SocketProxy {
     }
 
     private onData(data: Buffer) {
+        if (!Buffer.isBuffer(data)) {
+            this.close();
+            return;
+        }
         let startIdx = 0;
         let endIdx = 0;
         while (endIdx < data.length) {
@@ -432,7 +436,7 @@ class WsSocket extends EventEmitter implements SocketProxy {
                 return;
             }
             endIdx = startIdx + data.readUInt32BE(endIdx);
-            if (data.length < endIdx) {
+            if (data.length < endIdx || startIdx === endIdx) {
                 this.close();
                 return;
             }

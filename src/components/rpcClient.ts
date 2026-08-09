@@ -129,7 +129,6 @@ export class RpcClientSocket {
         const self = this;
         let connectCb = function () {
             self.app.logger(loggerLevel.debug, `${meFilename} connect to rpc server success: ${self.id}`);
-            self.reconnectCnt = 0;
 
             // register
             let registerBuf = Buffer.from(JSON.stringify({
@@ -254,6 +253,7 @@ export class RpcClientSocket {
      * registration success
      */
     private registerHandle() {
+        this.reconnectCnt = 0;
         this.heartbeatSend();
         this.app.rpcPool.addSocket(this.id, this);
     }
