@@ -37,7 +37,7 @@ class RpcServerSocket {
     private registerTimer: NodeJS.Timeout = null as any;
     private heartbeatTimer: NodeJS.Timeout = null as any;
     private sendArr: Buffer[] = [];
-    private sendTimer: NodeJS.Timer = null as any;
+    private sendTimer: NodeJS.Timeout = null as any;
     private nowLen = 0;
     private maxLen = +Infinity;
 

@@ -56,12 +56,12 @@ export class RpcClientSocket {
     host: string;
     port: number;
     private socket: SocketProxy = null as any;
-    private connectTimer: NodeJS.Timer = null as any;
-    private heartbeatTimer: NodeJS.Timer = null as any;
-    private heartbeatTimeoutTimer: NodeJS.Timer = null as any;
+    private connectTimer: NodeJS.Timeout = null as any;
+    private heartbeatTimer: NodeJS.Timeout = null as any;
+    private heartbeatTimeoutTimer: NodeJS.Timeout = null as any;
     private interval: number = 0;
     private sendArr: Buffer[] = [];
-    private sendTimer: NodeJS.Timer = null as any;
+    private sendTimer: NodeJS.Timeout = null as any;
     private nowLen = 0;
     private maxLen = +Infinity;
     private die: boolean = false;

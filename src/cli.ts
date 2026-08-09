@@ -12,12 +12,12 @@ let version = require('../package.json').version;
 let DEFAULT_MASTER_HOST = '127.0.0.1';
 let DEFAULT_MASTER_PORT = 3005;
 let FILEREAD_ERROR = 'Fail to read the file, please check if the application is started legally.';
-let waitInterval: NodeJS.Timer = null as any;
+let waitInterval: NodeJS.Timeout = null as any;
 
 //#region  some class
 class clientProxy {
     reqId: number = 1;
-    reqs: { [reqId: number]: { "cb": Function, "timeOut": NodeJS.Timer } } = {};
+    reqs: { [reqId: number]: { "cb": Function, "timeOut": NodeJS.Timeout } } = {};
     socket: TcpClient;
     token: string;
     connect_cb: Function;
@@ -502,7 +502,7 @@ function cli_init() {
                     let oCurrent = path.resolve(origin, datalist[i]);
                     let tCurrent = path.resolve(target, datalist[i]);
                     if (fs.statSync(oCurrent).isFile()) {
-                        fs.writeFileSync(tCurrent, fs.readFileSync(oCurrent, ''), '');
+                        fs.writeFileSync(tCurrent, fs.readFileSync(oCurrent));
                         console.log('   create :  ' + tCurrent);
                     } else if (fs.statSync(oCurrent).isDirectory()) {
                         copy(oCurrent, tCurrent);

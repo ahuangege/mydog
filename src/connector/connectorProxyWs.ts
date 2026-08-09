@@ -192,8 +192,8 @@ class ClientSocket implements I_clientSocket {
     private connector: ConnectorWs;
     private clientManager: I_clientManager;
     private socket: SocketProxy;                            // socket
-    private registerTimer: NodeJS.Timer = null as any;      // Handshake timeout timer
-    private heartbeatTimer: NodeJS.Timer = null as any;     // Heartbeat timeout timer
+    private registerTimer: NodeJS.Timeout = null as any;      // Handshake timeout timer
+    private heartbeatTimer: NodeJS.Timeout = null as any;     // Heartbeat timeout timer
     private sendArr: Buffer[] = [];
     private intervalCacheLen = 0;
     private nowLen = 0;
