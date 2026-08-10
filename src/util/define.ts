@@ -21,6 +21,7 @@ export let some_config = {
     SocketBufferMaxLen: 10 * 1024 * 1024,
     intervalCacheLen: 32 * 1024, // 32 KB
     msgFlushInterval: 33,
+    master: "master",
 }
 
 /**

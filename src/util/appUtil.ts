@@ -31,7 +31,7 @@ export function defaultConfiguration(app: Application) {
 export function startServer(app: Application) {
     startPng(app);
     msgCoderSetApp(app);
-    if (app.serverType === "master") {
+    if (app.isMaster) {
         new Master(app).start();
     } else if (app.frontend) {
         rpcService.init(app);
@@ -105,7 +105,7 @@ function loadMasterConfig(app: Application) {
     let env = app.env;
     const cfg: Record<string, ServerInfo> = loadCfgFile(app, "master");
     if (!cfg[env]) {
-        console.error("ERROR-- no such environment: master.ts " + env);
+        console.error(new Error("ERROR-- no such environment: master.ts " + env));
         process.exit();
     }
     app.masterConfig = cfg[env];
@@ -115,7 +115,7 @@ function loadServersConfig(app: Application) {
     let env = app.env;
     const cfg: Record<string, { [serverType: string]: ServerInfo[] }> = loadCfgFile(app, "servers");
     if (!cfg[env]) {
-        console.error("ERROR-- no such environment: servers.ts " + env);
+        console.error(new Error("ERROR-- no such environment: servers.ts " + env));
         process.exit();
     }
     parseServersConfig(cfg[env]);
@@ -176,17 +176,23 @@ let processArgs = function (app: Application, args: any) {
     app.isDaemon = !!args.isDaemon;
     if (app.serverId === app.masterConfig.id) {
         app.serverInfo = JSON.parse(JSON.stringify(app.masterConfig));
-        (app.serverInfo as any).serverType = "master";
-        app.serverType = "master";
+        app.serverInfo.serverType = some_config.master;
+        app.serverType = some_config.master;
         app.startMode = startAlone ? "alone" : "all";
+        app.isMaster = true;
     } else {
         app.startMode = args.startMode === "all" ? "all" : "alone";
         let serverConfig: ServerInfo = null as any;
         for (let serverType in app.serversConfig) {
+            if (serverType === some_config.master) {
+                console.error(new Error("ERROR-- normal server cannot use serverType 'master' "));
+                process.exit();
+                return;
+            }
             for (let one of app.serversConfig[serverType]) {
                 if (one.id === app.serverId) {
                     serverConfig = JSON.parse(JSON.stringify(one));
-                    (serverConfig as any).serverType = serverType;
+                    serverConfig.serverType = serverType;
                     app.serverType = serverType;
                     break;
                 }
@@ -196,7 +202,7 @@ let processArgs = function (app: Application, args: any) {
             }
         }
         if (!serverConfig) {
-            console.error("ERROR-- no such server: " + app.serverId);
+            console.error(new Error("ERROR-- no such server: " + app.serverId));
             process.exit();
         }
         app.serverInfo = serverConfig;
@@ -205,7 +211,7 @@ let processArgs = function (app: Application, args: any) {
 };
 
 function startPng(app: Application) {
-    if (app.serverType !== "master" && app.startMode === "all") {
+    if (!app.isMaster && app.startMode === "all") {
         return;
     }
     let lines = [

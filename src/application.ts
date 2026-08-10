@@ -13,6 +13,7 @@ import { Session } from "./components/session";
 import * as appUtil from "./util/appUtil";
 import { I_clientSocket, I_connectorConstructor, I_encodeDecodeConfig, I_someConfig, ServerInfo, loggerLevel } from "./util/interfaceDefine";
 import { addRpcClient, removeRpcClient } from "./components/rpcClient";
+import { some_config } from "./util/define";
 
 declare global {
     interface Rpc {
@@ -48,6 +49,8 @@ export default class Application extends EventEmitter {
     frontend: boolean = false;                                                               // Is it a front-end server
     startMode: "all" | "alone" = "all";                                                      // Start Mode:  all / alone
     startTime: number = 0;                                                                   // Start time
+
+    isMaster = false;
 
     router: { [serverType: string]: (session: Session, cmd: number) => string } = {};                     // Pre-selection when routing messages to the backend
     rpc: (serverId: string) => Rpc = null as any;                                            // Rpc packaging
@@ -281,10 +284,24 @@ export default class Application extends EventEmitter {
 
     /** 新增或更新服务器 */
     addServer(info: ServerInfo) {
+        if (this.isMaster) {
+            return;
+        }
         try {
-
+            if (!info.serverType) {
+                this.logger(loggerLevel.error, "addServer() need serverType -> " + info.id);
+                return;
+            }
+            if (info.serverType === some_config.master) {
+                this.logger(loggerLevel.error, "addServer() cannot use serverType 'master' -> " + info.id);
+                return;
+            }
             const oldInfo = this.getServerById(info.id);
             if (oldInfo) {
+                if (oldInfo.serverType !== info.serverType) {
+                    this.logger(loggerLevel.error, "addServer() serverType not same -> " + info.id);
+                    return;
+                }
                 Object.assign(oldInfo, info);
             } else {
                 this.serversIdMap.set(info.id, info);
@@ -305,6 +322,9 @@ export default class Application extends EventEmitter {
 
     /** 移除服务器 */
     removeServer(sid: string) {
+        if (this.isMaster) {
+            return;
+        }
         try {
             const oldInfo = this.getServerById(sid);
             if (oldInfo) {

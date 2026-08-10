@@ -225,7 +225,17 @@ export interface Application {
     /**
      * 消息刚达到网关服时的一些处理
      */
-    globalBefore(filter: { "globalBefore": (info: { cmd: number, msg: Buffer }, session: Session) => Promise<boolean> }): void
+    globalBefore(filter: { "globalBefore": (info: { cmd: number, msg: Buffer }, session: Session) => Promise<boolean> }): void;
+
+    /**
+     * 添加或更新服务器信息
+     */
+    addServer(info: ServerInfo): void;
+
+    /**
+     * 移除服务器
+     */
+    removeServer(sid: string): void;
 
 }
 
@@ -320,9 +330,9 @@ export interface ServerInfo {
      */
     readonly clientPort: number;
     /**
-     * 服务器类型 （注：由框架内部赋值）
+     * 服务器类型 （注意：app.addServer() 时必须已经赋值）
      */
-    readonly serverType: string;
+    serverType: string;
 
     [key: string]: any;
 }
@@ -456,6 +466,10 @@ interface I_rpcConfig {
  * 认证密钥配置
  */
 interface I_recognizeTokenConfig {
+    /**
+     * 是否使用内部 monitor -> master 服务发现 （默认使用）
+     */
+    "useMonitor"?: boolean,
     /**
      * 服务器内部认证密钥
      */

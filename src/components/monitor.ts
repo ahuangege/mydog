@@ -16,7 +16,11 @@ import { delayMs, randBetweenInt } from "../util/starter";
 let meFilename = `[${path.basename(__filename, ".js")}.ts]`;
 
 export function start(_app: Application) {
-    new monitor_client_proxy(_app);
+    const recognizeToken = _app.someconfig.recognizeToken || {};
+    const useMonitor = recognizeToken.useMonitor ?? true;
+    if (useMonitor) {
+        new monitor_client_proxy(_app);
+    }
 }
 
 
