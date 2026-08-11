@@ -17,9 +17,6 @@ import { some_config } from "./util/define";
 import { ServerInfo, I_clientSocket, I_connectorConstructor, I_encodeDecodeConfig } from "./mydog"
 
 declare global {
-    interface Rpc {
-    }
-
     interface MyDogSysRpc {
     }
 }

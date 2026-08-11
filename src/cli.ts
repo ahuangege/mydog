@@ -7,6 +7,7 @@ import { spawn } from "child_process";
 import * as define from "./util/define";
 import * as msgCoder from "./components/msgCoder";
 import { TcpClient } from "./components/tcpClient";
+import { I_startArg } from "./util/appUtil";
 
 let version = require('../package.json').version;
 let DEFAULT_MASTER_HOST = '127.0.0.1';
@@ -386,7 +387,7 @@ commond.addCommond({
         { "opt": "-d", "name": "daemon", "des": "enable the daemon start", "mustNeed": false, "type": "bool" },
     ],
     "usage": "mydog start -e env [serverId-1 ...]",
-    "cb": (opts: { "env": string, "daemon": boolean, "serverIds": string[] }, argv) => {
+    "cb": (opts: I_startArg, argv) => {
         opts.serverIds = argv;
         cli_start(opts);
     }
@@ -523,7 +524,7 @@ function cli_init() {
 
 }
 
-function cli_start(opts: { "env": string, "daemon": boolean, "serverIds": string[] }) {
+function cli_start(opts: I_startArg) {
 
     let absScript = path.resolve(process.cwd(), 'app.js');
     if (!fs.existsSync(absScript)) {
@@ -549,7 +550,9 @@ function cli_start(opts: { "env": string, "daemon": boolean, "serverIds": string
 
     if (opts.daemon) {
         console.log('The application is running in the background now.\n');
-        process.exit(0);
+        setTimeout(() => {
+            process.exit(0);
+        }, 1000)
     }
 
     function startSvr(params: string[]) {
@@ -590,10 +593,28 @@ function cli_list(opts: { "host": string, "port": number, "token": string, "inte
                 for (let one of msg.serverTypeSort) {
                     serverTypes[one] = [];
                 }
+                const notFindSvrTypes: string[] = [];
+                let notFindServerTypesObj: { [svrType: string]: string[][] } = {};
+
                 for (let one of msg.infoArr) {
-                    serverTypes[one[1]].push(one);
+                    const svrType = one[1];
+                    if (serverTypes[svrType]) {
+                        serverTypes[svrType].push(one);
+                    } else {
+                        if (!notFindServerTypesObj[svrType]) {
+                            notFindServerTypesObj[svrType] = [];
+                            notFindSvrTypes.push(svrType);
+                        }
+                        notFindServerTypesObj[svrType].push(one)
+                    }
                     one.splice(1, 1);
                 }
+                notFindSvrTypes.sort();
+                for (const svrType of notFindSvrTypes) {
+                    serverTypes[svrType] = notFindServerTypesObj[svrType];
+                }
+
+
                 for (let x in serverTypes) {
                     serverTypes[x].sort(comparer);
                 }

@@ -415,7 +415,7 @@ export interface I_connectorConfig {
 /**
  * rpc 配置
  */
-interface I_rpcConfig {
+export interface I_rpcConfig {
     /**
      * 超时时间（秒，大于 5 则使用，默认 10）
      */
@@ -465,7 +465,7 @@ interface I_rpcConfig {
 /**
  * 认证密钥配置
  */
-interface I_recognizeTokenConfig {
+export interface I_recognizeTokenConfig {
     /**
      * 是否使用内部 monitor -> master 服务发现 （默认使用）
      */
@@ -483,7 +483,7 @@ interface I_recognizeTokenConfig {
 /**
  * session 配置
  */
-interface I_sessionConfig {
+export interface I_sessionConfig {
     /**
      * 不需要同步 session 的后端服务器类型（默认同步。 不同步时只有 uid sid 可用）
      */

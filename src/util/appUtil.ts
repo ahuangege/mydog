@@ -62,8 +62,8 @@ export function getNoRpcKey(t1: string, t2: string) {
     }
 }
 
-let parseArgs = function (args: any[]) {
-    let argsMap = {} as any;
+let parseArgs = function (args: string[]) {
+    let argsMap: I_startArg = {} as any;
     let mainPos = 1;
 
     while (args[mainPos].indexOf('--') > 0) {
@@ -76,14 +76,15 @@ let parseArgs = function (args: any[]) {
         let sep = arg.indexOf('=');
         let key = arg.slice(0, sep);
         let value = arg.slice(sep + 1);
+        let endValue: any = value;
         if (!isNaN(Number(value)) && (value.indexOf('.') < 0)) {
-            value = Number(value);
+            endValue = Number(value);
         } else if (value === "true") {
-            value = true;
+            endValue = true;
         } else if (value === "false") {
-            value = false;
+            endValue = false;
         }
-        argsMap[key] = value;
+        argsMap[key] = endValue;
     }
 
     return argsMap;
@@ -114,12 +115,9 @@ function loadMasterConfig(app: Application) {
 function loadServersConfig(app: Application) {
     let env = app.env;
     const cfg: Record<string, { [serverType: string]: ServerInfo[] }> = loadCfgFile(app, "servers");
-    if (!cfg[env]) {
-        console.error(new Error("ERROR-- no such environment: servers.ts " + env));
-        process.exit();
-    }
-    parseServersConfig(cfg[env]);
-    app.serversConfig = cfg[env];
+    const serversConfig = cfg[env] || {};
+    parseServersConfig(serversConfig);
+    app.serversConfig = serversConfig;
 }
 
 
@@ -169,12 +167,13 @@ function parseServersConfig(info: { [serverType: string]: ServerInfo[] }) {
 }
 
 
-let processArgs = function (app: Application, args: any) {
+let processArgs = function (app: Application, args: I_startArg) {
     app.main = args.main;
     let startAlone = !!args.id;
     app.serverId = args.id || app.masterConfig.id;
-    app.isDaemon = !!args.isDaemon;
+
     if (app.serverId === app.masterConfig.id) {
+        app.isDaemon = !!args.daemon;
         app.serverInfo = JSON.parse(JSON.stringify(app.masterConfig));
         app.serverInfo.serverType = some_config.master;
         app.serverType = some_config.master;
@@ -202,9 +201,24 @@ let processArgs = function (app: Application, args: any) {
             }
         }
         if (!serverConfig) {
-            console.error(new Error("ERROR-- no such server: " + app.serverId));
-            process.exit();
+            // servers.ts 配置里找不到，就从命令行参数里读
+            delete args.main;
+            delete args.env;
+            delete args.daemon;
+            delete args.startMode;
+            serverConfig = args;
+
+            if (!serverConfig.id || !serverConfig.host || !serverConfig.port || !serverConfig.serverType) {
+                console.error(new Error("ERROR-- lack args " + JSON.stringify(args)));
+                process.exit();
+            }
+            if (serverConfig.serverType === some_config.master) {
+                console.error(new Error("ERROR-- cannot use serverType 'master' "));
+                process.exit();
+                return;
+            }
         }
+
         app.serverInfo = serverConfig;
         app.frontend = !!serverConfig.frontend;
     }
@@ -242,4 +256,12 @@ function startPng(app: Application) {
         console.log(lines[i]);
     }
     console.log("  ");
+}
+
+export interface I_startArg extends ServerInfo {
+    main?: string, // 启动程序 node 路径
+    env?: string, // 应用环境
+    daemon?: boolean, // 是否后台程序
+    serverIds?: string[], // mydog start 启动时传入
+    startMode?: "all" | "alone", // 启动方式
 }
