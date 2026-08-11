@@ -2,6 +2,7 @@
 import Application, { I_mydog } from "./application";
 import { ConnectorTcp } from "./connector/connectorProxyTcp";
 import { ConnectorWs } from "./connector/connectorProxyWs";
+import { I_connectorConstructor } from "./mydog"
 
 
 let hasCreated = false;
@@ -20,8 +21,8 @@ mydog.createApp = function () {
 };
 
 mydog.connector = {
-    "Tcp": ConnectorTcp,
-    "Ws": ConnectorWs,
+    "Tcp": ConnectorTcp as any as I_connectorConstructor,
+    "Ws": ConnectorWs as any as I_connectorConstructor,
 };
 
 

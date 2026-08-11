@@ -1,5 +1,5 @@
 import Application from "../application";
-import { I_clientManager, I_clientSocket, SocketProxy, I_connectorConfig, loggerLevel } from "../util/interfaceDefine";
+import { SocketProxy, loggerLevel } from "../util/interfaceDefine";
 import * as define from "../util/define";
 import { Session } from "../components/session";
 import { EventEmitter } from "events";
@@ -8,6 +8,8 @@ import * as https from "https";
 import * as http from "http";
 import { some_config } from "../util/define";
 import * as crypto from "crypto";
+import { I_clientManager, I_clientSocket, I_connectorConfig } from "../mydog"
+
 
 let maxLen = 0;
 /**

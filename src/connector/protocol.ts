@@ -1,7 +1,7 @@
 
 import Application from "../application";
 import * as define from "../util/define";
-import { I_encodeDecodeConfig } from "../util/interfaceDefine";
+import { I_encodeDecodeConfig } from "../mydog";
 
 let app: Application;
 export function init(_app: Application) {

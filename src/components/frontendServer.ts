@@ -3,11 +3,12 @@ import Application from "../application";
 import * as define from "../util/define";
 import * as path from "path";
 import * as fs from "fs";
-import { I_clientSocket, I_clientManager, I_connectorConstructor, I_encodeDecodeConfig, loggerLevel } from "../util/interfaceDefine";
+import { loggerLevel } from "../util/interfaceDefine";
 import { Session, initSessionApp } from "./session";
 import * as protocol from "../connector/protocol";
 let meFilename = `[${path.basename(__filename, ".js")}.ts]`;
-import * as mydog from "../mydog";
+import * as mydog from "../mydogIndex";
+import { I_encodeDecodeConfig, I_clientManager, I_clientSocket, I_connectorConstructor } from "../mydog";
 
 export class FrontendServer {
     private app: Application;
@@ -128,7 +129,7 @@ class ClientManager implements I_clientManager {
     }
 
     removeClient(client: I_clientSocket) {
-        let session = client.session;
+        let session = client.session as Session;
         if (!session) {
             return;
         }
@@ -149,14 +150,15 @@ class ClientManager implements I_clientManager {
 
     async handleMsg(client: I_clientSocket, msgBuf: Buffer) {
         try {
-            if (!client.session) {
+            const session = client.session as Session;
+            if (!session) {
                 this.app.logger(loggerLevel.error, `${meFilename} cannot handle msg before added, close it`);
                 client.close();
                 return;
             }
             let data = this.app.protoDecode(msgBuf);
 
-            const ok = await this.app.filter.globalBeforeFilter(data, client.session);
+            const ok = await this.app.filter.globalBeforeFilter(data, session);
             if (!ok) {
                 return;
             }
@@ -168,23 +170,23 @@ class ClientManager implements I_clientManager {
 
             if (this.serverType === cmdArr[0]) {
                 let msg = this.app.msgDecode(data.cmd, data.msg);
-                const ok = await this.app.filter.beforeFilter(data.cmd, msg, client.session);
+                const ok = await this.app.filter.beforeFilter(data.cmd, msg, session);
                 if (!ok) {
                     return;
                 }
 
-                const rsp = await this.msgHandler[cmdArr[1]][cmdArr[2]](msg, client.session);
+                const rsp = await this.msgHandler[cmdArr[1]][cmdArr[2]](msg, session);
                 if (rsp) {
                     let buf = this.app.protoEncode(data.cmd, rsp);
                     client.send(buf.head, buf.msg);
                 }
-                this.app.filter.afterFilter(data.cmd, rsp, client.session);
+                this.app.filter.afterFilter(data.cmd, rsp, session);
 
             } else {
                 if (!client.session.uid) {
                     return;
                 }
-                this.doRemote(data, client.session, cmdArr);
+                this.doRemote(data, session, cmdArr);
             }
 
         } catch (e: any) {

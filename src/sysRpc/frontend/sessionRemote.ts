@@ -1,3 +1,4 @@
+import { Session } from "../../components/session";
 import Application from "../../application";
 
 declare global {
@@ -15,7 +16,7 @@ export default class SessionRemote {
     }
 
     async getSession(uid: number) {
-        const session = this.app.getSession(uid);
+        const session = this.app.getSession(uid) as Session;
         if (!session) {
             return null;
         }

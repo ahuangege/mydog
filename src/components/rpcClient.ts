@@ -1,5 +1,5 @@
 import Application from "../application";
-import { SocketProxy, loggerLevel, ServerInfo } from "../util/interfaceDefine";
+import { SocketProxy, loggerLevel } from "../util/interfaceDefine";
 import { TcpClient } from "../components/tcpClient";
 import * as define from "../util/define";
 import * as rpcService from "./rpcService";
@@ -7,6 +7,7 @@ import * as appUtil from "../util/appUtil";
 import * as path from "path";
 import { ExecLineUpUtil } from "../util/execLineUpUtil";
 import { randBetweenInt } from "../util/starter";
+import { ServerInfo } from "../mydog"
 let meFilename = `[${path.basename(__filename, ".js")}.ts]`;
 
 

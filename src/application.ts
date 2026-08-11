@@ -11,9 +11,10 @@ import { FrontendServer } from "./components/frontendServer";
 import { RpcSocketPool } from "./components/rpcSocketPool";
 import { Session } from "./components/session";
 import * as appUtil from "./util/appUtil";
-import { I_clientSocket, I_connectorConstructor, I_encodeDecodeConfig, I_someConfig, ServerInfo, loggerLevel } from "./util/interfaceDefine";
+import { I_someConfig, loggerLevel, } from "./util/interfaceDefine";
 import { addRpcClient, removeRpcClient } from "./components/rpcClient";
 import { some_config } from "./util/define";
+import { ServerInfo, I_clientSocket, I_connectorConstructor, I_encodeDecodeConfig } from "./mydog"
 
 declare global {
     interface Rpc {

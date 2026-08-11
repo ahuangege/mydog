@@ -6,11 +6,12 @@
 import * as path from "path";
 import Application from "../application";
 import * as define from "../util/define";
-import { ServerInfo, SocketProxy, loggerLevel, monitor_reg_master, monitor_syncAllServers, monitor_updateServers } from "../util/interfaceDefine";
+import { SocketProxy, loggerLevel, monitor_reg_master, monitor_syncAllServers, monitor_updateServers } from "../util/interfaceDefine";
 import { runServers } from "../util/starter";
 import { MasterCli } from "./cliUtil";
 import * as msgCoder from "./msgCoder";
 import tcpServer from "./tcpServer";
+import { ServerInfo } from "../mydog"
 let meFilename = `[${path.basename(__filename, ".js")}.ts]`;
 
 

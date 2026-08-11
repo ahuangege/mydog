@@ -3,8 +3,8 @@
 	"version": "2.4.0",
 	"description": "a framework of typescript game server",
 	"deprecated": false,
-	"main": "lib/mydog.js",
-	"types": "mydog.d.ts",
+	"main": "lib/mydogIndex.js",
+	"types": "./src/mydog.d.ts",
 	"bin": {
 		"mydog": "lib/cli.js"
 	},

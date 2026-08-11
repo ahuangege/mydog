@@ -7,11 +7,12 @@ import Application from "../application";
 import { MonitorCli } from "./cliUtil";
 import { TcpClient } from "./tcpClient";
 import * as define from "../util/define";
-import { SocketProxy, loggerLevel, monitor_reg_master, ServerInfo, monitor_syncAllServers, monitor_updateServers } from "../util/interfaceDefine";
+import { SocketProxy, loggerLevel, monitor_reg_master, monitor_syncAllServers, monitor_updateServers } from "../util/interfaceDefine";
 import { encodeInnerData } from "./msgCoder";
 import * as rpcClient from "./rpcClient";
 import * as path from "path";
 import { delayMs, randBetweenInt } from "../util/starter";
+import { ServerInfo } from "../mydog";
 
 let meFilename = `[${path.basename(__filename, ".js")}.ts]`;
 

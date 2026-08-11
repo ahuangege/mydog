@@ -4,11 +4,12 @@ import * as fs from "fs";
 import * as path from "path";
 import Application from "../application";
 import * as define from "../util/define";
-import { I_encodeDecodeConfig, loggerLevel } from "../util/interfaceDefine";
+import { loggerLevel } from "../util/interfaceDefine";
 import { encodeRemoteData } from "./msgCoder";
 
 import * as protocol from "../connector/protocol";
 import { Session, initSessionApp } from "./session";
+import { I_encodeDecodeConfig } from "../mydog"
 
 
 export class BackendServer {

@@ -330,7 +330,7 @@ export interface ServerInfo {
      */
     readonly clientPort: number;
     /**
-     * 服务器类型 （注意：app.addServer() 时必须已经赋值）
+     * 服务器类型 （注:框架内部赋值）
      */
     serverType: string;
 
@@ -348,7 +348,7 @@ declare global {
 /**
  * 编码解码配置
  */
-interface I_encodeDecodeConfig {
+export interface I_encodeDecodeConfig {
     /**
      * 协议编码
      */
@@ -371,7 +371,7 @@ interface I_encodeDecodeConfig {
 /**
  * connector 配置
  */
-interface I_connectorConfig {
+export interface I_connectorConfig {
     /**
      * 自定义connector （默认tcp）
      */
@@ -531,7 +531,7 @@ export interface I_clientSocket {
     /**
      * session （注意：框架内部赋值）
      */
-    readonly session: Session;
+    session: Session;
     /**
      * ip（session是从这里拿到的ip）
      */

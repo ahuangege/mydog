@@ -3,8 +3,8 @@
  */
 
 
+import { I_clientSocket } from "../mydog";
 import Application from "../application";
-import { I_clientSocket } from "../util/interfaceDefine";
 
 let app: Application;
 

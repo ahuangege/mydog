@@ -9,9 +9,9 @@ import * as rpcServer from "../components/rpcServer";
 import * as rpcService from "../components/rpcService";
 import { FrontendServer } from "../components/frontendServer";
 import { BackendServer } from "../components/backendServer";
-import { ServerInfo } from "./interfaceDefine";
 import { msgCoderSetApp } from "../components/msgCoder";
 import { Master } from "../components/master";
+import { ServerInfo } from "../mydog"
 
 /**
  * Load configuration
