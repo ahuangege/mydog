@@ -10,6 +10,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "mydog": "^2.4.0"
+    "mydog": "^3.0.0"
   }
 }

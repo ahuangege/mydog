@@ -1,20 +1,24 @@
 
 import { connector, createApp, Session } from "mydog";
-import { getCpuUsage } from "./app/cpuUsage";
 
 let app = createApp();
 
-app.setConfig("connector", { "connector": connector.Ws, "clientOnCb": clientOnCb, "heartbeat": 60, "clientOffCb": clientOffCb, "interval": 50 });
+app.setConfig("connector", {
+    "connector": connector.Ws,
+    "clientOnCb": clientOnCb,
+    "clientOffCb": clientOffCb,
+    "heartbeat": 60,
+    "interval": 50
+});
 app.setConfig("encodeDecode", { "msgDecode": msgDecode, "msgEncode": msgEncode });
+
 app.setConfig("logger", (level, msg) => {
     if (level == "info" || level == "error") {
         console.log(msg);
     }
 });
+
 app.setConfig("rpc", { "interval": 33 });
-app.setConfig("mydogList", () => {
-    return [{ "title": "cpu", "value": getCpuUsage() }]
-});
 
 app.start();
 

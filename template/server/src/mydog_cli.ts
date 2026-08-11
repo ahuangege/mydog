@@ -54,8 +54,3 @@ export function mydog_cmd(lans: string[], cmdObjArr: { "cmd": string, "note": st
         fs.writeFileSync(path.join(__dirname, "config/cmdClient.lua"), endStr);
     }
 }
-
-/** 接收 mydog send 命令的消息回调 */
-export function mydog_send(reqArgv: any, timeoutIds: string[], data: { "id": string, "serverType": string, "data": any }[]) {
-    console.log(data);
-}
